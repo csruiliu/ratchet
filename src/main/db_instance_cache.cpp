@@ -19,6 +19,7 @@ string GetDBAbsolutePath(const string &database) {
 shared_ptr<DuckDB> DBInstanceCache::GetInstanceInternal(const string &database, const DBConfig &config) {
 	shared_ptr<DuckDB> db_instance;
 	auto abs_database_path = GetDBAbsolutePath(database);
+	std::cout << "== abs_database_path: " << abs_database_path << std::endl;
 	if (db_instances.find(abs_database_path) != db_instances.end()) {
 		db_instance = db_instances[abs_database_path].lock();
 		if (db_instance) {

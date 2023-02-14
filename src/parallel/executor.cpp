@@ -295,7 +295,6 @@ void Executor::InitializeInternal(PhysicalOperator *plan) {
 	{
 		lock_guard<mutex> elock(executor_lock);
 		physical_plan = plan;
-
 		this->profiler = ClientData::Get(context).profiler;
 		profiler->Initialize(physical_plan);
 		this->producer = scheduler.CreateProducer();

@@ -22,6 +22,7 @@
 #include "duckdb_python/python_conversion.hpp"
 
 #include <random>
+#include <iostream>
 
 namespace duckdb {
 
@@ -38,8 +39,11 @@ void DuckDBPyConnection::Initialize(py::handle &m) {
 	         py::arg("parameters") = py::none(), py::arg("multiple_parameter_sets") = false)
 	    .def("executemany", &DuckDBPyConnection::ExecuteMany,
 	         "Execute the given prepared statement multiple times using the list of parameter sets in parameters",
-	         py::arg("query"), py::arg("parameters") = py::none())
-	    .def("close", &DuckDBPyConnection::Close, "Close the connection")
+	         py::arg("query"), py::arg("parameters") = py::none())		
+		.def("execute_suspend", &DuckDBPyConnection::ExecuteSuspend,
+			 "Execute the given SQL query and suspend it at the given time point", 
+			 py::arg("query"), py::arg("parameters") = py::none())
+		.def("close", &DuckDBPyConnection::Close, "Close the connection")
 	    .def("fetchone", &DuckDBPyConnection::FetchOne, "Fetch a single row from a result following execute")
 	    .def("fetchmany", &DuckDBPyConnection::FetchMany, "Fetch the next set of rows from a result following execute",
 	         py::arg("size") = 1)
@@ -137,6 +141,34 @@ static unique_ptr<QueryResult> CompletePendingQuery(PendingQueryResult &pending_
 	return pending_query.Execute();
 }
 
+static unique_ptr<QueryResult> CompletePendingQuerySuspend(PendingQueryResult &pending_query, idx_t suspend_point) {
+	PendingExecutionResult execution_result;
+	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+	do {
+		execution_result = pending_query.ExecuteTask();
+		{
+			py::gil_scoped_acquire gil;
+			if (PyErr_CheckSignals() != 0) {
+				throw std::runtime_error("Query interrupted");
+			}
+		}
+
+		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+		if (std::chrono::duration_cast<std::chrono::seconds>(end - begin).count() > suspend_point) {
+			std::cout << "It is time to suspend the given query" << std::endl;
+			PyErr_SetInterrupt();
+			if (PyErr_CheckSignals() != 0) {
+				throw std::runtime_error("Query has been suspended and all the intermediate data have been cehckpointed");
+			}
+		}
+
+	} while (execution_result == PendingExecutionResult::RESULT_NOT_READY);
+	if (execution_result == PendingExecutionResult::EXECUTION_ERROR) {
+		pending_query.ThrowError();
+	}
+	return pending_query.Execute();
+}
+
 DuckDBPyConnection *DuckDBPyConnection::Execute(const string &query, py::object params, bool many) {
 	if (!connection) {
 		throw ConnectionException("Connection has already been closed");
@@ -155,6 +187,7 @@ DuckDBPyConnection *DuckDBPyConnection::Execute(const string &query, py::object 
 			// no statements to execute
 			return this;
 		}
+
 		// if there are multiple statements, we directly execute the statements besides the last one
 		// we only return the result of the last statement to the user, unless one of the previous statements fails
 		for (idx_t i = 0; i + 1 < statements.size(); i++) {
@@ -203,6 +236,50 @@ DuckDBPyConnection *DuckDBPyConnection::Execute(const string &query, py::object 
 			result = move(res);
 		}
 	}
+	return this;
+}
+
+DuckDBPyConnection *DuckDBPyConnection::ExecuteSuspend(const string &query, idx_t suspend_point) {	
+	if (!connection) {
+		throw ConnectionException("Connection has already been closed");
+	}
+	std::cout << "=== QUERY: " << query << std::endl;
+	result = nullptr;
+	unique_ptr<PreparedStatement> prep;
+	{
+		py::gil_scoped_release release;
+		unique_lock<std::mutex> lock(py_connection_lock);
+
+		auto statements = connection->ExtractStatements(query);
+		if (statements.empty()) {
+			return this;
+		}
+		unsigned int vecSize = statements.size();
+		std::cout << "== Statement Vector Size:" << vecSize << std::endl;
+		for(unsigned int i = 0; i < vecSize; i++) {
+			std::cout << "== " << statements[i]->ToString() << std::endl;
+		}
+
+		prep = connection->Prepare(move(statements.back()));
+		if (prep->HasError()) {
+			prep->error.Throw();
+		}
+	}
+
+	auto args = DuckDBPyConnection::TransformPythonParamList(py::list());
+	auto res = make_unique<DuckDBPyResult>();
+	{
+		py::gil_scoped_release release;
+		unique_lock<std::mutex> lock(py_connection_lock);
+		auto pending_query = prep->PendingQuery(args);
+		res->result = CompletePendingQuerySuspend(*pending_query, suspend_point);
+		if (res->result->HasError()) {
+			res->result->ThrowError();
+		}
+	}
+	
+	result = move(res);
+
 	return this;
 }
 
@@ -686,8 +763,10 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::Connect(const string &databas
 	if (!res->database) {
 		//! No cached database, we must create a new instance
 		CreateNewInstance(*res, database, config);
+		std::cout << "Create New Database Instance" << std::endl;
 		return res;
 	}
+	std::cout << "Get Cached Database Instance" << std::endl;
 	res->connection = make_unique<Connection>(*res->database);
 	return res;
 }
