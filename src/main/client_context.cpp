@@ -139,7 +139,9 @@ void ClientContext::BeginTransactionInternal(ClientContextLock &lock, bool requi
 		throw Exception(ErrorManager::FormatException(*this, ErrorType::INVALIDATED_TRANSACTION));
 	}
 	active_query = make_unique<ActiveQueryContext>();
+	std::cout << "== active_query in BeginTransactionInternal" << std::endl;
 	if (transaction.IsAutoCommit()) {
+		std::cout << "== BeginTransaction in BeginTransactionInternal" << std::endl;
 		transaction.BeginTransaction();
 	}
 }
@@ -630,6 +632,7 @@ unique_ptr<PendingQueryResult> ClientContext::PendingStatementOrPreparedStatemen
 		// query verification is enabled
 		// create a copy of the statement, and use the copy
 		// this way we verify that the copy correctly copies all properties
+		std::cout << "== Verification Stage ==" << std::endl;
 		auto copied_statement = statement->Copy();
 		switch (statement->type) {
 		case StatementType::SELECT_STATEMENT: {
@@ -700,8 +703,10 @@ unique_ptr<PendingQueryResult> ClientContext::PendingStatementOrPreparedStatemen
 	bool invalidate_query = true;
 	try {
 		if (statement) {
+			std::cout << "Statement exist, touch PendingStatementInternal" << std::endl;
 			result = PendingStatementInternal(lock, query, move(statement), parameters);
 		} else {
+			std::cout << "New statement, touch CreatePreparedStatement" << std::endl;
 			if (prepared->RequireRebind(*this, *parameters.parameters)) {
 				// catalog was modified: rebind the statement before execution
 				auto new_prepared =

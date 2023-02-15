@@ -16,6 +16,7 @@
 #include "duckdb/parallel/thread_context.hpp"
 
 #include <algorithm>
+#include <iostream>
 
 namespace duckdb {
 
@@ -322,7 +323,8 @@ void Executor::InitializeInternal(PhysicalOperator *plan) {
 
 		// number of 'PipelineCompleteEvent's is equal to the number of meta pipelines, so we have to set it here
 		total_pipelines = to_schedule.size();
-
+		std::cout << "## Total Pipelines: " << total_pipelines << std::endl;
+		
 		// collect all pipelines from the root pipelines (recursively) for the progress bar and verify them
 		root_pipeline->GetPipelines(pipelines, true);
 

@@ -44,8 +44,11 @@ PreservedError ClientContext::VerifyQuery(ClientContextLock &lock, const string 
 
 	// Save settings
 	bool optimizer_enabled = config.enable_optimizer;
+	std::cout << "== Query Verification, optimizer_enabled" << optimizer_enabled << std::endl;
 	bool profiling_is_enabled = config.enable_profiler;
+	std::cout << "== Query Verification, profiling_is_enabled" << profiling_is_enabled << std::endl;
 	bool force_external = config.force_external;
+	std::cout << "== Query Verification, force_external" << force_external << std::endl;
 
 	// Disable profiling if it is enabled
 	if (profiling_is_enabled) {
@@ -54,6 +57,7 @@ PreservedError ClientContext::VerifyQuery(ClientContextLock &lock, const string 
 
 	// Execute the original statement
 	bool any_failed = original->Run(*this, query, [&](const string &q, unique_ptr<SQLStatement> s) {
+		std::cout << "Execute the original statement" << std::endl;
 		return RunStatementInternal(lock, q, move(s), false, false);
 	});
 	if (!any_failed) {

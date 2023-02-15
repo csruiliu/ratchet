@@ -144,8 +144,10 @@ static unique_ptr<QueryResult> CompletePendingQuery(PendingQueryResult &pending_
 static unique_ptr<QueryResult> CompletePendingQuerySuspend(PendingQueryResult &pending_query, idx_t suspend_point) {
 	PendingExecutionResult execution_result;
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+	atomic<int> counter (0);
 	do {
 		execution_result = pending_query.ExecuteTask();
+		counter++;
 		{
 			py::gil_scoped_acquire gil;
 			if (PyErr_CheckSignals() != 0) {
@@ -163,6 +165,7 @@ static unique_ptr<QueryResult> CompletePendingQuerySuspend(PendingQueryResult &p
 		}
 
 	} while (execution_result == PendingExecutionResult::RESULT_NOT_READY);
+	std::cout << "Total Task Polling: " << counter << std::endl;
 	if (execution_result == PendingExecutionResult::EXECUTION_ERROR) {
 		pending_query.ThrowError();
 	}

@@ -67,6 +67,7 @@ unique_ptr<PendingQueryResult> PreparedStatement::PendingQuery(vector<Value> &va
 	PendingQueryParameters parameters;
 	parameters.parameters = &values;
 	parameters.allow_stream_result = allow_stream_result && data->properties.allow_stream_result;
+	std::cout << "== parameters.allow_stream_result: " << parameters.allow_stream_result << std::endl;
 	auto result = context->PendingQuery(query, data, parameters);
 	return result;
 }
