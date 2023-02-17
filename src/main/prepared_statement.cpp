@@ -67,8 +67,20 @@ unique_ptr<PendingQueryResult> PreparedStatement::PendingQuery(vector<Value> &va
 	PendingQueryParameters parameters;
 	parameters.parameters = &values;
 	parameters.allow_stream_result = allow_stream_result && data->properties.allow_stream_result;
-	std::cout << "== parameters.allow_stream_result: " << parameters.allow_stream_result << std::endl;
 	auto result = context->PendingQuery(query, data, parameters);
+	return result;
+}
+
+unique_ptr<PendingQueryResult> PreparedStatement::PendingQueryRatchet(vector<Value> &values, bool allow_stream_result) {
+	std::cout << "[PreparedStatement::PendingQueryRatchet]" << std::endl;
+	if (!success) {
+		throw InvalidInputException("Attempting to execute an unsuccessfully prepared statement!");
+	}
+	D_ASSERT(data);
+	PendingQueryParameters parameters;
+	parameters.parameters = &values;
+	parameters.allow_stream_result = allow_stream_result && data->properties.allow_stream_result;
+	auto result = context->PendingQueryRatchet(query, data, parameters);
 	return result;
 }
 

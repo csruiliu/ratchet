@@ -44,11 +44,8 @@ PreservedError ClientContext::VerifyQuery(ClientContextLock &lock, const string 
 
 	// Save settings
 	bool optimizer_enabled = config.enable_optimizer;
-	std::cout << "== Query Verification, optimizer_enabled" << optimizer_enabled << std::endl;
 	bool profiling_is_enabled = config.enable_profiler;
-	std::cout << "== Query Verification, profiling_is_enabled" << profiling_is_enabled << std::endl;
 	bool force_external = config.force_external;
-	std::cout << "== Query Verification, force_external" << force_external << std::endl;
 
 	// Disable profiling if it is enabled
 	if (profiling_is_enabled) {

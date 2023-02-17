@@ -323,7 +323,6 @@ void Executor::InitializeInternal(PhysicalOperator *plan) {
 
 		// number of 'PipelineCompleteEvent's is equal to the number of meta pipelines, so we have to set it here
 		total_pipelines = to_schedule.size();
-		std::cout << "## Total Pipelines: " << total_pipelines << std::endl;
 		
 		// collect all pipelines from the root pipelines (recursively) for the progress bar and verify them
 		root_pipeline->GetPipelines(pipelines, true);
@@ -375,6 +374,52 @@ void Executor::WorkOnTasks() {
 		task->Execute(TaskExecutionMode::PROCESS_ALL);
 		task.reset();
 	}
+}
+
+PendingExecutionResult Executor::ExecuteTaskRatchet() {
+	if (execution_result != PendingExecutionResult::RESULT_NOT_READY) {
+		return execution_result;
+	}
+	// check if there are any incomplete pipelines
+	auto &scheduler = TaskScheduler::GetScheduler(context);
+	while (completed_pipelines < total_pipelines) {
+		// there are! if we don't already have a task, fetch one
+		if (!task) {
+			scheduler.GetTaskFromProducer(*producer, task);
+		}
+		if (task) {
+			// if we have a task, partially process it
+			auto result = task->Execute(TaskExecutionMode::PROCESS_PARTIAL);
+			if (result != TaskExecutionResult::TASK_NOT_FINISHED) {
+				// if the task is finished, clean it up
+				task.reset();
+			}
+			std::cout << "[ExecuteTaskRatchet: task->Execute]" << std::endl;
+		}
+		if (!HasError()) {
+			// we (partially) processed a task and no exceptions were thrown
+			// give back control to the caller
+			return PendingExecutionResult::RESULT_NOT_READY;
+		}
+		execution_result = PendingExecutionResult::EXECUTION_ERROR;
+
+		// an exception has occurred executing one of the pipelines
+		// we need to cancel all tasks associated with this executor
+		CancelTasks();
+		ThrowException();
+	}
+	D_ASSERT(!task);
+
+	lock_guard<mutex> elock(executor_lock);
+	pipelines.clear();
+	NextExecutor();
+	if (HasError()) { // LCOV_EXCL_START
+		// an exception has occurred executing one of the pipelines
+		execution_result = PendingExecutionResult::EXECUTION_ERROR;
+		ThrowException();
+	} // LCOV_EXCL_STOP
+	execution_result = PendingExecutionResult::RESULT_READY;
+	return execution_result;
 }
 
 PendingExecutionResult Executor::ExecuteTask() {

@@ -101,6 +101,8 @@ public:
 
 	//! Extract a set of SQL statements from a specific query
 	DUCKDB_API vector<unique_ptr<SQLStatement>> ExtractStatements(const string &query);
+	//! [Ratchet] Extract a set of SQL statements from a specific query
+	DUCKDB_API vector<unique_ptr<SQLStatement>> ExtractStatementsRatchet(const string &query);
 	//! Extract the logical plan that corresponds to a query
 	DUCKDB_API unique_ptr<LogicalOperator> ExtractPlan(const string &query);
 

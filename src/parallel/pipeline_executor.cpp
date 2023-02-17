@@ -36,6 +36,7 @@ PipelineExecutor::PipelineExecutor(ClientContext &context_p, Pipeline &pipeline_
 }
 
 bool PipelineExecutor::Execute(idx_t max_chunks) {
+	std::cout << "[PipelineExecutor::Execute]" << std::endl;
 	D_ASSERT(pipeline.sink);
 	bool exhausted_source = false;
 	auto &source_chunk = pipeline.operators.empty() ? final_chunk : *intermediate_chunks[0];

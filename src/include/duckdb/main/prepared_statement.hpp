@@ -75,6 +75,10 @@ public:
 	//! Create a pending query result of the prepared statement with the given set of arguments
 	DUCKDB_API unique_ptr<PendingQueryResult> PendingQuery(vector<Value> &values, bool allow_stream_result = true);
 
+	//! [Ratchet] Create a pending query result of the prepared statement with the given set of arguments
+	DUCKDB_API unique_ptr<PendingQueryResult> PendingQueryRatchet(vector<Value> &values,
+	                                                              bool allow_stream_result = true);
+
 	//! Execute the prepared statement with the given set of values
 	DUCKDB_API unique_ptr<QueryResult> Execute(vector<Value> &values, bool allow_stream_result = true);
 

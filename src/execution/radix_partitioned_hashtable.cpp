@@ -1,7 +1,10 @@
 #include "duckdb/execution/radix_partitioned_hashtable.hpp"
-#include "duckdb/parallel/task_scheduler.hpp"
+
 #include "duckdb/execution/operator/aggregate/physical_hash_aggregate.hpp"
 #include "duckdb/parallel/event.hpp"
+#include "duckdb/parallel/task_scheduler.hpp"
+
+#include <iostream>
 
 namespace duckdb {
 
@@ -283,6 +286,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+		std::cout << "[RadixAggregateFinalizeTask:ExecuteTask]" << std::endl;
 		FinalizeHT(state, radix);
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;

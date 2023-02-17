@@ -27,9 +27,11 @@ public:
 
 	//! Fully execute a pipeline with a source and a sink until the source is completely exhausted
 	void Execute();
+
 	//! Execute a pipeline with a source and a sink until finished, or until max_chunks have been processed
 	//! Returns true if execution is finished, false if Execute should be called again
 	bool Execute(idx_t max_chunks);
+	bool ExecuteRatchet(idx_t max_chunks);
 
 	//! Push a single input DataChunk into the pipeline.
 	//! Returns either OperatorResultType::NEED_MORE_INPUT or OperatorResultType::FINISHED
@@ -98,6 +100,7 @@ private:
 	bool IsFinished();
 
 	OperatorResultType ExecutePushInternal(DataChunk &input, idx_t initial_idx = 0);
+
 	//! Pushes a chunk through the pipeline and returns a single result chunk
 	//! Returns whether or not a new input chunk is needed, or whether or not we are finished
 	OperatorResultType Execute(DataChunk &input, DataChunk &result, idx_t initial_index = 0);

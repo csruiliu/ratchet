@@ -48,6 +48,7 @@ public:
 
 	void CancelTasks();
 	PendingExecutionResult ExecuteTask();
+	PendingExecutionResult ExecuteTaskRatchet();
 
 	void Reset();
 
