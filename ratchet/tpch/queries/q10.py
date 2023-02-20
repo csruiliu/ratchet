@@ -7,10 +7,10 @@ SELECT	C_CUSTKEY,
 		C_ADDRESS,
 		C_PHONE,
 		C_COMMENT
-FROM	'parquet/customer.parquet',
-		'parquet/orders.parquet',
-		'parquet/lineitem.parquet',
-		'parquet/nation.parquet'
+FROM	'parquet/SCALEFACTOR/customer.parquet',
+		'parquet/SCALEFACTOR/orders.parquet',
+		'parquet/SCALEFACTOR/lineitem.parquet',
+		'parquet/SCALEFACTOR/nation.parquet'
 WHERE	C_CUSTKEY = O_CUSTKEY
 		AND L_ORDERKEY = O_ORDERKEY
 		AND O_ORDERDATE >= '1993-10-01'

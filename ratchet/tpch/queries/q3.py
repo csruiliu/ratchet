@@ -3,9 +3,9 @@ SELECT  L_ORDERKEY,
         sum(L_EXTENDEDPRICE*(1-L_DISCOUNT)) as REVENUE,
         O_ORDERDATE,
         O_SHIPPRIORITY
-FROM    'parquet/customer.parquet',
-        'parquet/orders.parquet',
-        'parquet/lineitem.parquet'
+FROM    'parquet/SCALEFACTOR/customer.parquet',
+        'parquet/SCALEFACTOR/orders.parquet',
+        'parquet/SCALEFACTOR/lineitem.parquet'
 WHERE   C_MKTSEGMENT = 'BUILDING'
         AND C_CUSTKEY = O_CUSTKEY
         AND L_ORDERKEY = O_ORDERKEY

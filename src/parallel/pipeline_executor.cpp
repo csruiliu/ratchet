@@ -36,8 +36,10 @@ PipelineExecutor::PipelineExecutor(ClientContext &context_p, Pipeline &pipeline_
 }
 
 bool PipelineExecutor::Execute(idx_t max_chunks) {
-	std::cout << "[PipelineExecutor::Execute]" << std::endl;
-	D_ASSERT(pipeline.sink);
+	std::cout << "Max Chunks: " << max_chunks << std::endl;
+ 	D_ASSERT(pipeline.sink);
+	std::cout << "[PipelineExecutor::Execute] Pipeline Source: " << PhysicalOperatorToString(pipeline.source->type)
+	          << " Sink: " << PhysicalOperatorToString(pipeline.sink->type) << std::endl;
 	bool exhausted_source = false;
 	auto &source_chunk = pipeline.operators.empty() ? final_chunk : *intermediate_chunks[0];
 	for (idx_t i = 0; i < max_chunks; i++) {
@@ -46,6 +48,8 @@ bool PipelineExecutor::Execute(idx_t max_chunks) {
 		}
 		source_chunk.Reset();
 		FetchFromSource(source_chunk);
+		// printout each data chunk of source_chunk
+		source_chunk.Print();
 		if (source_chunk.size() == 0) {
 			exhausted_source = true;
 			break;
@@ -188,6 +192,7 @@ void PipelineExecutor::PushFinalize() {
 	if (finalized) {
 		throw InternalException("Calling PushFinalize on a pipeline that has been finalized already");
 	}
+	std::cout << "[PipelineExecutor::PushFinalize]" << std::endl;
 	finalized = true;
 	// flush all caching operators
 	// note that even if an operator has finished, we might still need to flush caches AFTER

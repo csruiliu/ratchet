@@ -1554,6 +1554,7 @@ private:
 };
 
 void WindowLocalMergeState::ExecuteTask() {
+	std::cout << "[WindowLocalMergeState::ExecuteTask]" << std::endl;
 	auto &global_sort = merge_state->sort_state;
 	switch (stage) {
 	case WindowSortStage::PREPARE:
@@ -1668,6 +1669,7 @@ private:
 };
 
 TaskExecutionResult WindowMergeTask::ExecuteTask(TaskExecutionMode mode) {
+	std::cout << "[WindowMergeTask::ExecuteTask]" << std::endl;
 	// Loop until all hash groups are done
 	size_t sorted = 0;
 	while (sorted < hash_groups.states.size()) {

@@ -5,14 +5,14 @@ FROM    (
                 SELECT  EXTRACT(YEAR FROM CAST(O_ORDERDATE AS DATE)) AS O_YEAR,
                         L_EXTENDEDPRICE * (1 - L_DISCOUNT) AS VOLUME,
                         n2.N_NAME AS NATION
-                FROM    'parquet/part.parquet',
-                        'parquet/supplier.parquet',
-                        'parquet/lineitem.parquet',
-                        'parquet/orders.parquet',
-                        'parquet/customer.parquet',
-                        'parquet/nation.parquet' n1,
-                        'parquet/nation.parquet' n2,
-                        'parquet/region.parquet'
+                FROM    'parquet/SCALEFACTOR/part.parquet',
+                        'parquet/SCALEFACTOR/supplier.parquet',
+                        'parquet/SCALEFACTOR/lineitem.parquet',
+                        'parquet/SCALEFACTOR/orders.parquet',
+                        'parquet/SCALEFACTOR/customer.parquet',
+                        'parquet/SCALEFACTOR/nation.parquet' n1,
+                        'parquet/SCALEFACTOR/nation.parquet' n2,
+                        'parquet/SCALEFACTOR/region.parquet'
                 WHERE   P_PARTKEY = L_PARTKEY
                         AND S_SUPPKEY = L_SUPPKEY
                         AND L_ORDERKEY = O_ORDERKEY

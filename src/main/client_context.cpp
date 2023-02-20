@@ -321,6 +321,7 @@ unique_ptr<QueryResult> ClientContext::FetchResultInternalRatchet(ClientContextL
 	auto &prepared = *active_query->prepared;
 	bool create_stream_result = prepared.properties.allow_stream_result && pending.allow_stream_result;
 	if (create_stream_result) {
+		std::cout << "[Create Stream Result]" << std::endl;
 		D_ASSERT(!executor.HasResultCollector());
 		active_query->progress_bar.reset();
 		query_progress = -1;
@@ -334,10 +335,12 @@ unique_ptr<QueryResult> ClientContext::FetchResultInternalRatchet(ClientContextL
 	}
 	unique_ptr<QueryResult> result;
 	if (executor.HasResultCollector()) {
+		std::cout << "Result Collector" << std::endl;
 		// we have a result collector - fetch the result directly from the result collector
 		result = executor.GetResult();
 		CleanupInternal(lock, result.get(), false);
 	} else {
+		std::cout << "No Result Collector" << std::endl;
 		// no result collector - create a materialized result by continuously fetching
 		auto result_collection = make_unique<ColumnDataCollection>(Allocator::DefaultAllocator(), pending.types);
 		D_ASSERT(!result_collection->Types().empty());
@@ -452,6 +455,8 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 	profiler.EndPhase();
 
 	auto plan = move(planner.plan);
+	// printout the logical plan
+	// plan->Print();
 	// extract the result column names from the plan
 	result->properties = planner.properties;
 	result->names = planner.names;
@@ -480,6 +485,8 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 	// now convert logical query plan into a physical query plan
 	PhysicalPlanGenerator physical_planner(*this);
 	auto physical_plan = physical_planner.CreatePlan(move(plan));
+	// printout physical plan
+	// physical_plan->Print();
 	profiler.EndPhase();
 
 #ifdef DEBUG
@@ -566,7 +573,7 @@ PendingExecutionResult ClientContext::ExecuteTaskInternal(ClientContextLock &loc
 }
 
 PendingExecutionResult ClientContext::ExecuteTaskInternalRatchet(ClientContextLock &lock, PendingQueryResult &result) {
-	std::cout << "[ClientContext::ExecuteTaskInternalRatchet]" << std::endl;
+	// std::cout << "[ClientContext::ExecuteTaskInternalRatchet]" << std::endl;
 	D_ASSERT(active_query);
 	D_ASSERT(active_query->open_result == &result);
 	try {

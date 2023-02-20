@@ -58,7 +58,7 @@ public:
 
 	DuckDBPyConnection *ExecuteMany(const string &query, py::object params = py::list());
 
-	DuckDBPyConnection *ExecuteSuspend(const string &query, idx_t suspend_point);
+	DuckDBPyConnection *ExecuteRatchet(const string &query, idx_t suspend_point);
 
 	DuckDBPyConnection *Execute(const string &query, py::object params = py::list(), bool many = false);
 

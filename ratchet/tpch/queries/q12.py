@@ -6,8 +6,8 @@ SELECT	L_SHIPMODE,
 		sum(CASE WHEN O_ORDERPRIORITY <> '1-URGENT' 
 			AND O_ORDERPRIORITY <> '2-HIGH' 
 			THEN 1 ELSE 0 END) AS LOW_LINE_COUNT
-FROM	'parquet/orders.parquet',
-		'parquet/lineitem.parquet'
+FROM	'parquet/SCALEFACTOR/orders.parquet',
+		'parquet/SCALEFACTOR/lineitem.parquet'
 WHERE	O_ORDERKEY = L_ORDERKEY
 		AND L_SHIPMODE IN ('MAIL', 'SHIP')
 		AND L_COMMITDATE < L_RECEIPTDATE

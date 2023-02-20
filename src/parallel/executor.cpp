@@ -394,7 +394,7 @@ PendingExecutionResult Executor::ExecuteTaskRatchet() {
 				// if the task is finished, clean it up
 				task.reset();
 			}
-			std::cout << "[ExecuteTaskRatchet: task->Execute]" << std::endl;
+			// std::cout << "[ExecuteTaskRatchet: task->Execute]" << std::endl;
 		}
 		if (!HasError()) {
 			// we (partially) processed a task and no exceptions were thrown

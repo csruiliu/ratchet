@@ -299,6 +299,7 @@ void PhysicalUngroupedAggregate::CombineDistinct(ExecutionContext &context, Glob
 
 void PhysicalUngroupedAggregate::Combine(ExecutionContext &context, GlobalSinkState &state,
                                          LocalSinkState &lstate) const {
+	std::cout << "[PhysicalUngroupedAggregate::Combine]" << std::endl;
 	auto &gstate = (UngroupedAggregateGlobalState &)state;
 	auto &source = (UngroupedAggregateLocalState &)lstate;
 	D_ASSERT(!gstate.finished);
@@ -321,6 +322,7 @@ void PhysicalUngroupedAggregate::Combine(ExecutionContext &context, GlobalSinkSt
 		Vector dest_state(Value::POINTER((uintptr_t)gstate.state.aggregates[aggr_idx].get()));
 
 		AggregateInputData aggr_input_data(aggregate.bind_info.get(), Allocator::DefaultAllocator());
+		std::cout << "[Aggregation Function]: " << aggregate.function.ToString() << std::endl;
 		aggregate.function.combine(source_state, dest_state, aggr_input_data, 1);
 #ifdef DEBUG
 		gstate.state.counts[aggr_idx] += source.state.counts[aggr_idx];

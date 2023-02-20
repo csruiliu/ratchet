@@ -11,11 +11,15 @@ def main():
                         choices=['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9', 'q10', 'q11', 
                                  'q12', 'q13', 'q14', 'q15', 'q16', 'q17', 'q18', 'q19', 'q20', 'q21', 'q22'], 
                         help="indicate the query id")
+    parser.add_argument("-sf", "--scale_factor", type=int, action="store", help="indicate scale factor of the dataset")
+
     args = parser.parse_args()
     
     qid = args.query
+    sf = "SF" + str(args.scale_factor)
     
-    exec_query = globals()[qid].query
+    query = globals()[qid].query
+    exec_query = query.replace("SCALEFACTOR", sf)
     
     con = duckdb.connect(database=':memory:')
     

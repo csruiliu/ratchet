@@ -7,11 +7,11 @@ SELECT  S_ACCTBAL
         S_ADDRESS,
         S_PHONE,
         S_COMMENT
-FROM    'parquet/part.parquet',
-        'parquet/supplier.parquet',
-        'parquet/partsupp.parquet',
-        'parquet/nation.parquet',
-        'parquet/region.parquet'
+FROM    'parquet/SCALEFACTOR/part.parquet',
+        'parquet/SCALEFACTOR/supplier.parquet',
+        'parquet/SCALEFACTOR/partsupp.parquet',
+        'parquet/SCALEFACTOR/nation.parquet',
+        'parquet/SCALEFACTOR/region.parquet'
 WHERE   P_PARTKEY = PS_PARTKEY
         AND S_SUPPKEY = PS_SUPPKEY
         AND P_SIZE = 15
@@ -21,10 +21,10 @@ WHERE   P_PARTKEY = PS_PARTKEY
         AND R_NAME = 'EUROPE'
         AND PS_SUPPLYCOST = (
                 SELECT  min(PS_SUPPLYCOST)
-                FROM    'parquet/partsupp.parquet',
-                        'parquet/supplier.parquet',
-                        'parquet/nation.parquet',
-                        'parquet/region.parquet'
+                FROM    'parquet/SCALEFACTOR/partsupp.parquet',
+                        'parquet/SCALEFACTOR/supplier.parquet',
+                        'parquet/SCALEFACTOR/nation.parquet',
+                        'parquet/SCALEFACTOR/region.parquet'
                 WHERE   P_PARTKEY = PS_PARTKEY
                         AND S_SUPPKEY = PS_SUPPKEY
                         AND S_NATIONKEY = N_NATIONKEY

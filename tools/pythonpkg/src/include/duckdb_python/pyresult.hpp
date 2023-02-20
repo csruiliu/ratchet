@@ -12,6 +12,10 @@
 #include "duckdb.hpp"
 #include "duckdb_python/pybind_wrapper.hpp"
 
+// RL: Not sure if I should include them
+#include "arrow_array_stream.hpp"
+#include "pandas_type.hpp"
+
 namespace duckdb {
 
 struct DuckDBPyResult {

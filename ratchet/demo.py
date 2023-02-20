@@ -2,7 +2,9 @@ import duckdb
 
 
 def main(): 
-    query = """
+    sf = "SF1"
+    
+    query = f"""
     SELECT  L_RETURNFLAG,
             L_LINESTATUS,
             sum(L_QUANTITY) as SUM_QTY,
@@ -13,17 +15,24 @@ def main():
             avg(L_EXTENDEDPRICE) as AVG_PRICE,
             avg(L_DISCOUNT) as AVG_DISC,
             count(*) as COUNT_ORDER
-    FROM    'tpch/ratchet-data-parquet/lineitem.parquet'
+    FROM    'tpch/parquet/{sf}/lineitem.parquet'
     WHERE   L_SHIPDATE <= '1998-09-16'
     GROUP BY L_RETURNFLAG, L_LINESTATUS
     ORDER BY L_RETURNFLAG, L_LINESTATUS
     """
-    
+
+    query_slim = f"""
+    SELECT  sum(L_QUANTITY) as SUM_QTY,
+            avg(L_DISCOUNT) as AVG_DISC
+    FROM    'tpch/parquet/{sf}/lineitem.parquet'
+    """
+
     cursor = duckdb.connect(database=':memory:')
-    # results = cursor.execute_suspend(query, 3).fetchdf()
-    results = cursor.execute(query).fetchdf()
+    results = cursor.execute_ratchet(query_slim, 100).fetchdf()
+    # results = cursor.execute(query_slim).fetchdf()
 
     print(results)
-    
+
+
 if __name__ == "__main__":
     main()

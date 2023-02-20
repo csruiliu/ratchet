@@ -40,7 +40,7 @@ void DuckDBPyConnection::Initialize(py::handle &m) {
 	    .def("executemany", &DuckDBPyConnection::ExecuteMany,
 	         "Execute the given prepared statement multiple times using the list of parameter sets in parameters",
 	         py::arg("query"), py::arg("parameters") = py::none())		
-		.def("execute_suspend", &DuckDBPyConnection::ExecuteSuspend,
+		.def("execute_ratchet", &DuckDBPyConnection::ExecuteRatchet,
 			 "Execute the given SQL query and suspend it at the given time point", 
 			 py::arg("query"), py::arg("parameters") = py::none())
 		.def("close", &DuckDBPyConnection::Close, "Close the connection")
@@ -141,12 +141,13 @@ static unique_ptr<QueryResult> CompletePendingQuery(PendingQueryResult &pending_
 	return pending_query.Execute();
 }
 
-static unique_ptr<QueryResult> CompletePendingQuerySuspend(PendingQueryResult &pending_query, idx_t suspend_point) {
+static unique_ptr<QueryResult> CompletePendingQueryRatchet(PendingQueryResult &pending_query, idx_t suspend_point) {
+	std::cout << "[CompletePendingQueryRatchet]" << std::endl;
 	PendingExecutionResult execution_result;
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 	atomic<int> counter (0);
 	do {
-		execution_result = pending_query.ExecuteTask();
+		execution_result = pending_query.ExecuteTaskRatchet();
 		counter++;
 		{
 			py::gil_scoped_acquire gil;
@@ -169,7 +170,7 @@ static unique_ptr<QueryResult> CompletePendingQuerySuspend(PendingQueryResult &p
 	if (execution_result == PendingExecutionResult::EXECUTION_ERROR) {
 		pending_query.ThrowError();
 	}
-	return pending_query.Execute();
+	return pending_query.ExecuteRatchet();
 }
 
 DuckDBPyConnection *DuckDBPyConnection::Execute(const string &query, py::object params, bool many) {
@@ -242,25 +243,27 @@ DuckDBPyConnection *DuckDBPyConnection::Execute(const string &query, py::object 
 	return this;
 }
 
-DuckDBPyConnection *DuckDBPyConnection::ExecuteSuspend(const string &query, idx_t suspend_point) {	
+DuckDBPyConnection *DuckDBPyConnection::ExecuteRatchet(const string &query, idx_t suspend_point) {
+	std::cout << "[ExecuteRatchet]" << std::endl;
 	if (!connection) {
 		throw ConnectionException("Connection has already been closed");
 	}
-	std::cout << "=== QUERY: " << query << std::endl;
+	std::cout << "[Ratchet] QUERY: " << query << std::endl;
 	result = nullptr;
 	unique_ptr<PreparedStatement> prep;
 	{
 		py::gil_scoped_release release;
 		unique_lock<std::mutex> lock(py_connection_lock);
 
-		auto statements = connection->ExtractStatements(query);
+		std::cout << "====================" << std::endl;
+		auto statements = connection->ExtractStatementsRatchet(query);
 		if (statements.empty()) {
 			return this;
 		}
-		unsigned int vecSize = statements.size();
-		std::cout << "== Statement Vector Size:" << vecSize << std::endl;
-		for(unsigned int i = 0; i < vecSize; i++) {
-			std::cout << "== " << statements[i]->ToString() << std::endl;
+		unsigned int statements_size = statements.size();
+		std::cout << "[Ratchet] Statement Vector Size:" << statements_size << std::endl;
+		for(unsigned int i = 0; i < statements_size; i++) {
+			std::cout << "[Ratchet]: " << statements[i]->ToString() << std::endl;
 		}
 
 		prep = connection->Prepare(move(statements.back()));
@@ -270,12 +273,16 @@ DuckDBPyConnection *DuckDBPyConnection::ExecuteSuspend(const string &query, idx_
 	}
 
 	auto args = DuckDBPyConnection::TransformPythonParamList(py::list());
+	unsigned int args_size = args.size();
+	std::cout << "[Ratchet] Statement Vector Size:" << args_size << std::endl;
 	auto res = make_unique<DuckDBPyResult>();
 	{
 		py::gil_scoped_release release;
 		unique_lock<std::mutex> lock(py_connection_lock);
-		auto pending_query = prep->PendingQuery(args);
-		res->result = CompletePendingQuerySuspend(*pending_query, suspend_point);
+		std::cout << "====================" << std::endl;
+		auto pending_query = prep->PendingQueryRatchet(args);
+		std::cout << "====================" << std::endl;
+		res->result = CompletePendingQueryRatchet(*pending_query, suspend_point);
 		if (res->result->HasError()) {
 			res->result->ThrowError();
 		}
@@ -766,7 +773,6 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::Connect(const string &databas
 	if (!res->database) {
 		//! No cached database, we must create a new instance
 		CreateNewInstance(*res, database, config);
-		std::cout << "Create New Database Instance" << std::endl;
 		return res;
 	}
 	std::cout << "Get Cached Database Instance" << std::endl;

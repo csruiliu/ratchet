@@ -1,5 +1,3 @@
-#include "duckdb_python/pyrelation.hpp"
-#include "duckdb_python/pyconnection.hpp"
 #include "duckdb_python/pyresult.hpp"
 
 #include "datetime.h" // from Python
@@ -7,13 +5,17 @@
 #include "duckdb/common/arrow/arrow_converter.hpp"
 #include "duckdb/common/arrow/arrow_wrapper.hpp"
 #include "duckdb/common/arrow/result_arrow_wrapper.hpp"
+#include "duckdb/common/exception.hpp"
 #include "duckdb/common/types/date.hpp"
 #include "duckdb/common/types/hugeint.hpp"
 #include "duckdb/common/types/time.hpp"
 #include "duckdb/common/types/timestamp.hpp"
 #include "duckdb/common/types/uuid.hpp"
 #include "duckdb_python/array_wrapper.hpp"
-#include "duckdb/common/exception.hpp"
+#include "duckdb_python/pyconnection.hpp"
+#include "duckdb_python/pyrelation.hpp"
+
+#include <iostream>
 
 namespace duckdb {
 
@@ -292,6 +294,7 @@ py::dict DuckDBPyResult::FetchNumpyInternal(bool stream, idx_t vectors_per_chunk
 
 	NumpyResultConversion conversion(result->types, initial_capacity);
 	if (result->type == QueryResultType::MATERIALIZED_RESULT) {
+		std::cout << "[DuckDBPyResult::FetchNumpyInternal]: Materialized Results" << std::endl;
 		auto &materialized = (MaterializedQueryResult &)*result;
 		for (auto &chunk : materialized.Collection().Chunks()) {
 			conversion.Append(chunk);
@@ -299,9 +302,12 @@ py::dict DuckDBPyResult::FetchNumpyInternal(bool stream, idx_t vectors_per_chunk
 		InsertCategory(materialized, categories);
 		materialized.Collection().Reset();
 	} else {
+		std::cout << "[DuckDBPyResult::FetchNumpyInternal]: Stream Results" << std::endl;
 		D_ASSERT(result->type == QueryResultType::STREAM_RESULT);
 		if (!stream) {
+			// here vectors_per_chunk is actually 2^64-1 if a 64-bit machine is used.
 			vectors_per_chunk = NumericLimits<idx_t>::Maximum();
+			std::cout << "[DuckDBPyResult::FetchNumpyInternal] Vectors per Chunk: " << vectors_per_chunk << std::endl;
 		}
 		auto stream_result = (StreamQueryResult *)result.get();
 		for (idx_t count_vec = 0; count_vec < vectors_per_chunk; count_vec++) {

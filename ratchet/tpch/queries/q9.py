@@ -6,12 +6,12 @@ FROM	(
 			SELECT	N_NAME AS NATION,
    					EXTRACT(YEAR FROM CAST(O_ORDERDATE AS DATE)) AS O_YEAR,
 					L_EXTENDEDPRICE * (1 - L_DISCOUNT) - PS_SUPPLYCOST * L_QUANTITY AS AMOUNT
-    		FROM	'parquet/part.parquet',
-      				'parquet/supplier.parquet',
-					'parquet/lineitem.parquet',
-					'parquet/partsupp.parquet',
-					'parquet/orders.parquet',
-					'parquet/nation.parquet'
+    		FROM	'parquet/SCALEFACTOR/part.parquet',
+      				'parquet/SCALEFACTOR/supplier.parquet',
+					'parquet/SCALEFACTOR/lineitem.parquet',
+					'parquet/SCALEFACTOR/partsupp.parquet',
+					'parquet/SCALEFACTOR/orders.parquet',
+					'parquet/SCALEFACTOR/nation.parquet'
 			WHERE	S_SUPPKEY = L_SUPPKEY
 					AND PS_SUPPKEY = L_SUPPKEY
 					AND PS_PARTKEY = L_PARTKEY

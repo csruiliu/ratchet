@@ -8,11 +8,14 @@ def main():
     
     parser = argparse.ArgumentParser()
     parser.add_argument("-t", "--table", type=str, action="store", help="indicate the name of table that needs to be converted to parquet")
+    parser.add_argument("-sf", "--scale_factor", type=int, action="store", help="indicate scale factor of the dataset")
     args = parser.parse_args()
     
     tbl_name = args.table
+    sf = "SF" + str(args.scale_factor)
+    tpch_tbl_path = "/home/ruiliu/Develop/ratchet-duckdb/ratchet/tpch/tbl"
     
-    dataset_folder = "/home/ruiliu/Develop/ratchet/duckdb/tpch/tbl"
+    dataset_folder = os.path.join(tpch_tbl_path, sf)
     
     # Column names of each table
     part_cols = ["P_PARTKEY", "P_NAME", "P_MFGR", "P_BRAND", "P_TYPE", "P_SIZE", "P_CONTAINER", "P_RETAILPRICE", "P_COMMENT"]

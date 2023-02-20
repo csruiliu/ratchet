@@ -760,6 +760,7 @@ HashJoinLocalSourceState::HashJoinLocalSourceState(const PhysicalHashJoin &op, A
 
 void HashJoinLocalSourceState::ExecuteTask(HashJoinGlobalSinkState &sink, HashJoinGlobalSourceState &gstate,
                                            DataChunk &chunk) {
+	std::cout << "[HashJoinLocalSourceState::ExecuteTask]" << std::endl;
 	switch (local_stage) {
 	case HashJoinSourceStage::BUILD:
 		ExternalBuild(sink, gstate);
