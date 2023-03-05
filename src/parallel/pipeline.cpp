@@ -30,16 +30,17 @@ public:
 
 public:
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-		std::cout << "[Pipeline:ExecuteTask]" << std::endl;
 		if (!pipeline_executor) {
 			pipeline_executor = make_unique<PipelineExecutor>(pipeline.GetClientContext(), pipeline);
 		}
 		if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
+			std::cout << "[Pipeline:ExecuteTask]: PROCESS_PARTIAL" << std::endl;
 			bool finished = pipeline_executor->Execute(PARTIAL_CHUNK_COUNT);
 			if (!finished) {
 				return TaskExecutionResult::TASK_NOT_FINISHED;
 			}
 		} else {
+			std::cout << "[Pipeline:ExecuteTask]: PROCESS_ALL" << std::endl;
 			pipeline_executor->Execute();
 		}
 		event->FinishTask();
@@ -75,6 +76,7 @@ void Pipeline::ScheduleSequentialTask(shared_ptr<Event> &event) {
 }
 
 bool Pipeline::ScheduleParallel(shared_ptr<Event> &event) {
+    std::cout << "== [Pipeline::ScheduleParallel] ==" << std::endl;
 	// check if the sink, source and all intermediate operators support parallelism
 	if (!sink->ParallelSink()) {
 		return false;
@@ -94,6 +96,7 @@ bool Pipeline::ScheduleParallel(shared_ptr<Event> &event) {
 		}
 	}
 	idx_t max_threads = source_state->MaxThreads();
+	std::cout << "== [Pipeline::ScheduleParallel]" << " MAX THREADS: " << max_threads << " ==" << std::endl;
 	return LaunchScanTasks(event, max_threads);
 }
 
@@ -119,6 +122,7 @@ bool Pipeline::IsOrderDependent() const {
 void Pipeline::Schedule(shared_ptr<Event> &event) {
 	D_ASSERT(ready);
 	D_ASSERT(sink);
+	std::cout << "### [pipeline.cpp] Pipeline::Schedule ###" << std::endl;
 	Reset();
 	if (!ScheduleParallel(event)) {
 		// could not parallelize this pipeline: push a sequential task instead
@@ -127,6 +131,7 @@ void Pipeline::Schedule(shared_ptr<Event> &event) {
 }
 
 bool Pipeline::LaunchScanTasks(shared_ptr<Event> &event, idx_t max_threads) {
+	std::cout << "[Pipeline::LaunchScanTasks]" << std::endl;
 	// split the scan up into parts and schedule the parts
 	auto &scheduler = TaskScheduler::GetScheduler(executor.context);
 	idx_t active_threads = scheduler.NumberOfThreads();

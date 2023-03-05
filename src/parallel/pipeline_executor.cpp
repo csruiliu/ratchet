@@ -5,7 +5,7 @@
 namespace duckdb {
 
 PipelineExecutor::PipelineExecutor(ClientContext &context_p, Pipeline &pipeline_p)
-    : pipeline(pipeline_p), thread(context_p), context(context_p, thread, &pipeline_p) {
+		: pipeline(pipeline_p), thread(context_p), context(context_p, thread, &pipeline_p) {
 	D_ASSERT(pipeline.source_state);
 	local_source_state = pipeline.source->GetLocalSourceState(context, *pipeline.source_state);
 	if (pipeline.sink) {
@@ -49,7 +49,7 @@ bool PipelineExecutor::Execute(idx_t max_chunks) {
 		source_chunk.Reset();
 		FetchFromSource(source_chunk);
 		// printout each data chunk of source_chunk
-		source_chunk.Print();
+		// source_chunk.Print();
 		if (source_chunk.size() == 0) {
 			exhausted_source = true;
 			break;

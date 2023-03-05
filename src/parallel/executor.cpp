@@ -167,6 +167,7 @@ void Executor::ScheduleEventsInternal(ScheduleEventData &event_data) {
 	// schedule the pipelines that do not have dependencies
 	for (auto &event : events) {
 		if (!event->HasDependencies()) {
+			std::cout << "[ScheduleEventsInternal]: event->Schedule" << std::endl;
 			event->Schedule();
 		}
 	}
@@ -377,6 +378,7 @@ void Executor::WorkOnTasks() {
 }
 
 PendingExecutionResult Executor::ExecuteTaskRatchet() {
+	std::cout << "[Executor::ExecuteTaskRatchet]" << std::endl;
 	if (execution_result != PendingExecutionResult::RESULT_NOT_READY) {
 		return execution_result;
 	}
@@ -384,7 +386,9 @@ PendingExecutionResult Executor::ExecuteTaskRatchet() {
 	auto &scheduler = TaskScheduler::GetScheduler(context);
 	while (completed_pipelines < total_pipelines) {
 		// there are! if we don't already have a task, fetch one
+		// this task variable is "the current task in process"
 		if (!task) {
+			std::cout << "Approx Number of Tasks: " << scheduler.GetNumberOfTasks() << std::endl;
 			scheduler.GetTaskFromProducer(*producer, task);
 		}
 		if (task) {

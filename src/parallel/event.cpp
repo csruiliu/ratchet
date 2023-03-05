@@ -12,6 +12,7 @@ Event::Event(Executor &executor_p)
 }
 
 void Event::CompleteDependency() {
+	std::cout << "[Event::CompleteDependency]" << std::endl;
 	idx_t current_finished = ++finished_dependencies;
 	D_ASSERT(current_finished <= total_dependencies);
 	if (current_finished == total_dependencies) {
@@ -26,6 +27,7 @@ void Event::CompleteDependency() {
 
 void Event::Finish() {
 	D_ASSERT(!finished);
+	std::cout << "[Event::Finish]" << std::endl;
 	FinishEvent();
 	finished = true;
 	// finished processing the pipeline, now we can schedule pipelines that depend on this pipeline
@@ -54,6 +56,7 @@ const vector<Event *> &Event::GetParentsVerification() const {
 }
 
 void Event::FinishTask() {
+	std::cout << "[Event::FinishTask]" << std::endl;
 	D_ASSERT(finished_tasks.load() < total_tasks.load());
 	idx_t current_tasks = total_tasks;
 	idx_t current_finished = ++finished_tasks;

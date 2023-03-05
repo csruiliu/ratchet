@@ -124,6 +124,10 @@ bool TaskScheduler::GetTaskFromProducer(ProducerToken &token, unique_ptr<Task> &
 	return queue->DequeueFromProducer(token, task);
 }
 
+idx_t TaskScheduler::GetNumberOfTasks() {
+	return queue->q.size_approx();
+}
+
 void TaskScheduler::ExecuteForever(atomic<bool> *marker) {
 #ifndef DUCKDB_NO_THREADS
 	unique_ptr<Task> task;
