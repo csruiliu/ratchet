@@ -452,6 +452,7 @@ public:
 
 public:
 	void Schedule() override {
+		std::cout << "[HashAggregateMergeEvent] Schedule()" << std::endl;
 		vector<unique_ptr<Task>> tasks;
 		for (idx_t i = 0; i < op.groupings.size(); i++) {
 			auto &grouping_gstate = gstate.grouping_states[i];
@@ -505,6 +506,7 @@ public:
 
 public:
 	void Schedule() override {
+		std::cout << "[HashAggregateFinalizeEvent] Schedule()" << std::endl;
 		vector<unique_ptr<Task>> tasks;
 		tasks.push_back(make_unique<HashAggregateFinalizeTask>(*pipeline, shared_from_this(), gstate, context, op));
 		D_ASSERT(!tasks.empty());
@@ -650,6 +652,7 @@ public:
 
 public:
 	void Schedule() override {
+		std::cout << "[HashDistinctAggregateFinalizeEvent] Schedule()" << std::endl;
 		global_sources = CreateGlobalSources();
 
 		vector<unique_ptr<Task>> tasks;
@@ -716,6 +719,7 @@ public:
 
 public:
 	void Schedule() override {
+		std::cout << "[HashDistinctCombineFinalizeEvent] Schedule()" << std::endl;
 		vector<unique_ptr<Task>> tasks;
 		for (idx_t i = 0; i < op.groupings.size(); i++) {
 			auto &grouping = op.groupings[i];

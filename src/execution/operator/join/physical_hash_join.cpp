@@ -270,6 +270,7 @@ public:
 
 public:
 	void Schedule() override {
+		std::cout << "[HashJoinFinalizeEvent] Schedule()" << std::endl;
 		auto &context = pipeline->GetClientContext();
 
 		vector<unique_ptr<Task>> finalize_tasks;
@@ -358,6 +359,7 @@ public:
 
 public:
 	void Schedule() override {
+		std::cout << "[HashJoinPartitionEvent] Schedule()" << std::endl;
 		auto &context = pipeline->GetClientContext();
 		vector<unique_ptr<Task>> partition_tasks;
 		partition_tasks.reserve(local_hts.size());

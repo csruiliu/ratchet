@@ -439,6 +439,7 @@ public:
 
 public:
 	void Schedule() override {
+		std::cout << "[UngroupedDistinctAggregateFinalizeEvent] Schedule()" << std::endl;
 		vector<unique_ptr<Task>> tasks;
 		tasks.push_back(make_unique<UngroupedDistinctAggregateFinalizeTask>(pipeline->executor, shared_from_this(),
 		                                                                    gstate, context, op));
@@ -461,6 +462,7 @@ public:
 
 public:
 	void Schedule() override {
+		std::cout << "[UngroupedDistinctCombineFinalizeEvent] Schedule()" << std::endl;
 		auto &distinct_state = *gstate.distinct_state;
 		auto &distinct_data = *op.distinct_data;
 		vector<unique_ptr<Task>> tasks;

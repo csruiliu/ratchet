@@ -1737,6 +1737,7 @@ public:
 
 public:
 	void Schedule() override {
+		std::cout << "[WindowMergeEvent] Schedule()" << std::endl;
 		auto &context = pipeline->GetClientContext();
 
 		// Schedule tasks equal to the number of threads, which will each merge multiple partitions
