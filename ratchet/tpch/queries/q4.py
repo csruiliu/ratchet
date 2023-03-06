@@ -1,12 +1,12 @@
 query = """
 SELECT  O_ORDERPRIORITY,
 		count(*) AS ORDER_COUNT
-FROM    'parquet/SCALEFACTOR/orders.parquet'
+FROM    'TPCH_DATAPATH/orders.parquet'
 WHERE   O_ORDERDATE >= '1993-07-01'
 		AND O_ORDERDATE < '1993-10-01'
 		AND EXISTS(
 	    	SELECT *
-	    	FROM 'parquet/SCALEFACTOR/lineitem.parquet'
+	    	FROM 'TPCH_DATAPATH/lineitem.parquet'
 	    	WHERE L_ORDERKEY = O_ORDERKEY
 	     	AND L_COMMITDATE < L_RECEIPTDATE
 		)

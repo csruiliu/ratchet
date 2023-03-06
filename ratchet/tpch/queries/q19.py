@@ -1,7 +1,7 @@
 query = """
 SELECT	sum(L_EXTENDEDPRICE* (1 - L_DISCOUNT)) AS REVENUE
-FROM	'parquet/SCALEFACTOR/lineitem.parquet',
-		'parquet/SCALEFACTOR/part.parquet'
+FROM	'TPCH_DATAPATH/lineitem.parquet',
+		'TPCH_DATAPATH/part.parquet'
 wHERE	(
 			P_PARTKEY = L_PARTKEY
 			AND P_BRAND = 'Brand#12'

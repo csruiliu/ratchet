@@ -5,12 +5,12 @@ SELECT	C_NAME,
 		O_ORDERDATE,
 		O_TOTALPRICE,
 		sum(L_QUANTITY)
-FROM	'parquet/SCALEFACTOR/customer.parquet',
-		'parquet/SCALEFACTOR/orders.parquet',
-		'parquet/SCALEFACTOR/lineitem.parquet'
+FROM	'TPCH_DATAPATH/customer.parquet',
+		'TPCH_DATAPATH/orders.parquet',
+		'TPCH_DATAPATH/lineitem.parquet'
 WHERE	O_ORDERKEY IN (
 		SELECT	L_ORDERKEY
-		FROM	'parquet/SCALEFACTOR/lineitem.parquet'
+		FROM	'TPCH_DATAPATH/lineitem.parquet'
 		GROUP BY	L_ORDERKEY 
 		HAVING sum(L_QUANTITY) > 300
 		)

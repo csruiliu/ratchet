@@ -8,12 +8,12 @@ FROM	(
 					N2.N_NAME AS CUST_NATION,
 					EXTRACT(YEAR FROM CAST(L_SHIPDATE AS DATE)) AS L_YEAR,
 					L_EXTENDEDPRICE * (1 - L_DISCOUNT) AS VOLUME
-			FROM	'parquet/SCALEFACTOR/supplier.parquet',
-					'parquet/SCALEFACTOR/lineitem.parquet',
-					'parquet/SCALEFACTOR/orders.parquet',
-					'parquet/SCALEFACTOR/customer.parquet',
-					'parquet/SCALEFACTOR/nation.parquet' n1,
-					'parquet/SCALEFACTOR/nation.parquet' n2
+			FROM	'TPCH_DATAPATH/supplier.parquet',
+					'TPCH_DATAPATH/lineitem.parquet',
+					'TPCH_DATAPATH/orders.parquet',
+					'TPCH_DATAPATH/customer.parquet',
+					'TPCH_DATAPATH/nation.parquet' n1,
+					'TPCH_DATAPATH/nation.parquet' n2
 			WHERE	S_SUPPKEY = L_SUPPKEY
 					AND O_ORDERKEY = L_ORDERKEY
 					AND C_CUSTKEY = O_CUSTKEY

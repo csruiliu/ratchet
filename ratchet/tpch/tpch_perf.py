@@ -17,9 +17,10 @@ def main():
     
     qid = args.query
     sf = "SF" + str(args.scale_factor)
-    
+    data_path = "parquet/" + sf
+
     query = globals()[qid].query
-    exec_query = query.replace("SCALEFACTOR", sf)
+    exec_query = query.replace("TPCH_DATAPATH", data_path)
     
     con = duckdb.connect(database=':memory:')
     

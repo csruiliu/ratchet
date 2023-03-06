@@ -1,13 +1,13 @@
 query = """
 SELECT	sum(L_EXTENDEDPRICE) / 7.0 AS AVG_YEARLY
-FROM	'parquet/SCALEFACTOR/lineitem.parquet',
-		'parquet/SCALEFACTOR/part.parquet'
+FROM	'TPCH_DATAPATH/lineitem.parquet',
+		'TPCH_DATAPATH/part.parquet'
 WHERE	P_PARTKEY = L_PARTKEY
 		AND P_BRAND = 'Brand#23'
 		AND P_CONTAINER = 'MED BOX'
 		AND L_QUANTITY < (
 			SELECT	0.2 * AVG(L_QUANTITY)
-			FROM	'parquet/SCALEFACTOR/lineitem.parquet'
+			FROM	'TPCH_DATAPATH/lineitem.parquet'
 			WHERE	L_PARTKEY = P_PARTKEY
 		)
 """
