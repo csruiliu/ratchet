@@ -668,6 +668,7 @@ public:
 	}
 
 	void FinishEvent() override {
+		std::cout << "[HashDistinctAggregateFinalizeEvent] FinishEvent()" << std::endl;
 		//! Now that everything is added to the main ht, we can actually finalize
 		auto new_event = make_shared<HashAggregateFinalizeEvent>(op, gstate, pipeline.get(), context);
 		this->InsertEvent(move(new_event));
@@ -739,6 +740,7 @@ public:
 	}
 
 	void FinishEvent() override {
+		std::cout << "[HashDistinctCombineFinalizeEvent] FinishEvent()" << std::endl;
 		//! Now that all tables are combined, it's time to do the distinct aggregations
 		auto new_event = make_shared<HashDistinctAggregateFinalizeEvent>(op, gstate, *pipeline, client);
 		this->InsertEvent(move(new_event));

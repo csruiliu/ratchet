@@ -135,6 +135,7 @@ public:
 	}
 
 	void FinishEvent() override {
+		std::cout << "[RangeJoinMergeEvent] FinishEvent()" << std::endl;
 		auto &global_sort_state = table.global_sort_state;
 
 		global_sort_state.CompleteMergeRound(true);

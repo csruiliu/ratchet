@@ -389,9 +389,12 @@ PendingExecutionResult Executor::ExecuteTaskRatchet() {
 		// this task variable is "the current task in process"
 		if (!task) {
 			std::cout << "Approx Number of Tasks: " << scheduler.GetNumberOfTasks() << std::endl;
+			std::cout << "Current task does not exist, get 1 task from the queue!" << std::endl;
 			scheduler.GetTaskFromProducer(*producer, task);
 		}
 		if (task) {
+			std::cout << "Approx Number of Tasks: " << scheduler.GetNumberOfTasks() << std::endl;
+			std::cout << "Current task exists, execute it!" << std::endl;
 			// if we have a task, partially process it
 			auto result = task->Execute(TaskExecutionMode::PROCESS_PARTIAL);
 			if (result != TaskExecutionResult::TASK_NOT_FINISHED) {

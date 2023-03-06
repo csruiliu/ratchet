@@ -157,6 +157,7 @@ public:
 	}
 
 	void FinishEvent() override {
+		std::cout << "[PhysicalOrderMergeTask] FinishEvent()" << std::endl;
 		auto &global_sort_state = gstate.global_sort_state;
 
 		global_sort_state.CompleteMergeRound();

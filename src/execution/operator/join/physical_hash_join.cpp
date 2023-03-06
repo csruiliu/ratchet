@@ -303,6 +303,7 @@ public:
 	}
 
 	void FinishEvent() override {
+		std::cout << "[HashJoinFinalizeEvent] FinishEvent()" << std::endl;
 		sink.hash_table->finalized = true;
 	}
 
@@ -371,6 +372,7 @@ public:
 	}
 
 	void FinishEvent() override {
+		std::cout << "[HashJoinPartitionEvent] FinishEvent()" << std::endl;
 		local_hts.clear();
 		sink.hash_table->PrepareExternalFinalize();
 		sink.ScheduleFinalize(*pipeline, *this);

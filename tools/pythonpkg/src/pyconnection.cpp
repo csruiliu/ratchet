@@ -146,9 +146,11 @@ static unique_ptr<QueryResult> CompletePendingQueryRatchet(PendingQueryResult &p
 	PendingExecutionResult execution_result;
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 	atomic<int> counter (0);
+	std::cout << "==================== START POLLING ====================" << std::endl;
 	do {
-		execution_result = pending_query.ExecuteTaskRatchet();
 		counter++;
+		std::cout << "==================== "<< counter << " POLLING ====================" << std::endl;
+		execution_result = pending_query.ExecuteTaskRatchet();
 		{
 			py::gil_scoped_acquire gil;
 			if (PyErr_CheckSignals() != 0) {
@@ -161,11 +163,12 @@ static unique_ptr<QueryResult> CompletePendingQueryRatchet(PendingQueryResult &p
 			std::cout << "It is time to suspend the given query" << std::endl;
 			PyErr_SetInterrupt();
 			if (PyErr_CheckSignals() != 0) {
-				throw std::runtime_error("Query has been suspended and all the intermediate data have been cehckpointed");
+				throw std::runtime_error("Query has been suspended and all the intermediate data have been checkpointed");
 			}
 		}
 
 	} while (execution_result == PendingExecutionResult::RESULT_NOT_READY);
+	std::cout << "==================== END POLLING ====================" << std::endl;
 	std::cout << "Total Task Polling: " << counter << std::endl;
 	if (execution_result == PendingExecutionResult::EXECUTION_ERROR) {
 		pending_query.ThrowError();
@@ -255,7 +258,7 @@ DuckDBPyConnection *DuckDBPyConnection::ExecuteRatchet(const string &query, idx_
 		py::gil_scoped_release release;
 		unique_lock<std::mutex> lock(py_connection_lock);
 
-		std::cout << "====================" << std::endl;
+		std::cout << "==================== ExtractStatementsRatchet ====================" << std::endl;
 		auto statements = connection->ExtractStatementsRatchet(query);
 		if (statements.empty()) {
 			return this;
@@ -279,15 +282,15 @@ DuckDBPyConnection *DuckDBPyConnection::ExecuteRatchet(const string &query, idx_
 	{
 		py::gil_scoped_release release;
 		unique_lock<std::mutex> lock(py_connection_lock);
-		std::cout << "====================" << std::endl;
+		std::cout << "==================== PendingQueryRatchet ====================" << std::endl;
 		auto pending_query = prep->PendingQueryRatchet(args);
-		std::cout << "====================" << std::endl;
+		std::cout << "==================== CompletePendingQueryRatchet ====================" << std::endl;
 		res->result = CompletePendingQueryRatchet(*pending_query, suspend_point);
 		if (res->result->HasError()) {
 			res->result->ThrowError();
 		}
 	}
-	
+
 	result = move(res);
 
 	return this;

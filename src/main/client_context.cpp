@@ -455,7 +455,7 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 	profiler.EndPhase();
 
 	auto plan = move(planner.plan);
-	// printout the logical plan
+	// std::cout << "==== Logical Plan ====" << std::endl;
 	// plan->Print();
 	// extract the result column names from the plan
 	result->properties = planner.properties;
@@ -485,8 +485,8 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 	// now convert logical query plan into a physical query plan
 	PhysicalPlanGenerator physical_planner(*this);
 	auto physical_plan = physical_planner.CreatePlan(move(plan));
-	// printout physical plan
-	// physical_plan->Print();
+	//std::cout << "==== Physical Plan ====" << std::endl;
+	//physical_plan->Print();
 	profiler.EndPhase();
 
 #ifdef DEBUG
@@ -573,7 +573,7 @@ PendingExecutionResult ClientContext::ExecuteTaskInternal(ClientContextLock &loc
 }
 
 PendingExecutionResult ClientContext::ExecuteTaskInternalRatchet(ClientContextLock &lock, PendingQueryResult &result) {
-	// std::cout << "[ClientContext::ExecuteTaskInternalRatchet]" << std::endl;
+	std::cout << "[ClientContext::ExecuteTaskInternalRatchet]" << std::endl;
 	D_ASSERT(active_query);
 	D_ASSERT(active_query->open_result == &result);
 	try {
