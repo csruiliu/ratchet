@@ -23,10 +23,12 @@ def main():
     exec_query = query.replace("TPCH_DATAPATH", data_path)
     
     con = duckdb.connect(database=':memory:')
-    
+
+    query_len = len(exec_query)
+    results = None
     if isinstance(exec_query, list):
         for idx, query in enumerate(exec_query):
-            if idx == 1:
+            if idx == query_len - 1:
                 results = con.execute(query).fetchdf()
             else:
                 con.execute(query)
