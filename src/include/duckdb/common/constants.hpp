@@ -15,6 +15,9 @@
 
 namespace duckdb {
 
+// Enable Ratchet Source Code
+// #define RATCHET_DEBUG
+
 // API versions
 // if no explicit API version is defined, the latest API version is used
 // Note that using older API versions (i.e. not using DUCKDB_API_LATEST) is deprecated.

@@ -246,7 +246,9 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[HashJoinFinalizeTask:ExecuteTask]" << std::endl;
+#endif
 		sink.hash_table->Finalize(block_idx_start, block_idx_end, parallel);
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
@@ -270,7 +272,9 @@ public:
 
 public:
 	void Schedule() override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[HashJoinFinalizeEvent] Schedule()" << std::endl;
+#endif
 		auto &context = pipeline->GetClientContext();
 
 		vector<unique_ptr<Task>> finalize_tasks;
@@ -303,7 +307,9 @@ public:
 	}
 
 	void FinishEvent() override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[HashJoinFinalizeEvent] FinishEvent()" << std::endl;
+#endif
 		sink.hash_table->finalized = true;
 	}
 
@@ -335,7 +341,9 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[HashJoinPartitionTask:ExecuteTask]" << std::endl;
+#endif
 		local_ht.Partition(global_ht);
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
@@ -360,7 +368,9 @@ public:
 
 public:
 	void Schedule() override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[HashJoinPartitionEvent] Schedule()" << std::endl;
+#endif
 		auto &context = pipeline->GetClientContext();
 		vector<unique_ptr<Task>> partition_tasks;
 		partition_tasks.reserve(local_hts.size());
@@ -372,7 +382,9 @@ public:
 	}
 
 	void FinishEvent() override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[HashJoinPartitionEvent] FinishEvent()" << std::endl;
+#endif
 		local_hts.clear();
 		sink.hash_table->PrepareExternalFinalize();
 		sink.ScheduleFinalize(*pipeline, *this);
@@ -764,7 +776,9 @@ HashJoinLocalSourceState::HashJoinLocalSourceState(const PhysicalHashJoin &op, A
 
 void HashJoinLocalSourceState::ExecuteTask(HashJoinGlobalSinkState &sink, HashJoinGlobalSourceState &gstate,
                                            DataChunk &chunk) {
+#ifdef RATCHET_DEBUG
 	std::cout << "[HashJoinLocalSourceState::ExecuteTask]" << std::endl;
+#endif
 	switch (local_stage) {
 	case HashJoinSourceStage::BUILD:
 		ExternalBuild(sink, gstate);

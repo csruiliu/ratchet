@@ -97,6 +97,9 @@ TaskScheduler::TaskScheduler(DatabaseInstance &db) : db(db), queue(make_unique<C
 }
 
 TaskScheduler::~TaskScheduler() {
+#ifdef RATCHET_DEBUG
+	std::cout << "[TaskScheduler::~TaskScheduler]" << std::endl;
+#endif
 #ifndef DUCKDB_NO_THREADS
 	SetThreadsInternal(1);
 #endif
@@ -217,6 +220,9 @@ void TaskScheduler::Signal(idx_t n) {
 }
 
 void TaskScheduler::SetThreadsInternal(int32_t n) {
+#ifdef RATCHET_DEBUG
+	std::cout << "[TaskScheduler::SetThreadsInternal] Set " << n << " Threads" << std::endl;
+#endif
 #ifndef DUCKDB_NO_THREADS
 	if (threads.size() == idx_t(n - 1)) {
 		return;

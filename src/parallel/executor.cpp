@@ -167,7 +167,9 @@ void Executor::ScheduleEventsInternal(ScheduleEventData &event_data) {
 	// schedule the pipelines that do not have dependencies
 	for (auto &event : events) {
 		if (!event->HasDependencies()) {
+#ifdef RATCHET_DEBUG
 			std::cout << "[ScheduleEventsInternal]: event->Schedule" << std::endl;
+#endif
 			event->Schedule();
 		}
 	}
@@ -378,7 +380,9 @@ void Executor::WorkOnTasks() {
 }
 
 PendingExecutionResult Executor::ExecuteTaskRatchet() {
+#ifdef RATCHET_DEBUG
 	std::cout << "[Executor::ExecuteTaskRatchet]" << std::endl;
+#endif
 	if (execution_result != PendingExecutionResult::RESULT_NOT_READY) {
 		return execution_result;
 	}
@@ -388,13 +392,17 @@ PendingExecutionResult Executor::ExecuteTaskRatchet() {
 		// there are! if we don't already have a task, fetch one
 		// this task variable is "the current task in process"
 		if (!task) {
+#ifdef RATCHET_DEBUG
 			std::cout << "Approx Number of Tasks: " << scheduler.GetNumberOfTasks() << std::endl;
 			std::cout << "Current task does not exist, get 1 task from the queue!" << std::endl;
+#endif
 			scheduler.GetTaskFromProducer(*producer, task);
 		}
 		if (task) {
+#ifdef RATCHET_DEBUG
 			std::cout << "Approx Number of Tasks: " << scheduler.GetNumberOfTasks() << std::endl;
 			std::cout << "Current task exists, execute it!" << std::endl;
+#endif
 			// if we have a task, partially process it
 			auto result = task->Execute(TaskExecutionMode::PROCESS_PARTIAL);
 			if (result != TaskExecutionResult::TASK_NOT_FINISHED) {

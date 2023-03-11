@@ -19,7 +19,9 @@ public:
 
 public:
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[PipelineInitializeTask:ExecuteTask]" << std::endl;
+#endif
 		pipeline.ResetSink();
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
@@ -27,7 +29,9 @@ public:
 };
 
 void PipelineInitializeEvent::Schedule() {
+#ifdef RATCHET_DEBUG
 	std::cout << "[PipelineInitializeEvent::Schedule()]" << std::endl;
+#endif
 	// needs to spawn a task to get the chain of tasks for the query plan going
 	vector<unique_ptr<Task>> tasks;
 	tasks.push_back(make_unique<PipelineInitializeTask>(*pipeline, shared_from_this()));

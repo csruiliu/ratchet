@@ -123,6 +123,9 @@ ConnectionManager &ConnectionManager::Get(ClientContext &context) {
 }
 
 void DatabaseInstance::Initialize(const char *database_path, DBConfig *user_config) {
+#ifdef RATCHET_DEBUG
+	std::cout << "[DatabaseInstance::Initialize]" << std::endl;
+#endif
 	DBConfig default_config;
 	DBConfig *config_ptr = &default_config;
 	if (user_config) {
@@ -186,6 +189,9 @@ void DatabaseInstance::Initialize(const char *database_path, DBConfig *user_conf
 }
 
 DuckDB::DuckDB(const char *path, DBConfig *new_config) : instance(make_shared<DatabaseInstance>()) {
+#ifdef RATCHET_DEBUG
+	std::cout << "[DuckDB::DuckDB] Constructor DuckDB(const char *path, DBConfig *new_config)" << std::endl;
+#endif
 	instance->Initialize(path, new_config);
 	if (instance->config.options.load_extensions) {
 		ExtensionHelper::LoadAllExtensions(*this);

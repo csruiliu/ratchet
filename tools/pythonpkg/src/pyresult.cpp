@@ -294,7 +294,9 @@ py::dict DuckDBPyResult::FetchNumpyInternal(bool stream, idx_t vectors_per_chunk
 
 	NumpyResultConversion conversion(result->types, initial_capacity);
 	if (result->type == QueryResultType::MATERIALIZED_RESULT) {
+#ifdef RATCHET_DEBUG
 		std::cout << "[DuckDBPyResult::FetchNumpyInternal]: Materialized Results" << std::endl;
+#endif
 		auto &materialized = (MaterializedQueryResult &)*result;
 		for (auto &chunk : materialized.Collection().Chunks()) {
 			conversion.Append(chunk);
@@ -302,12 +304,13 @@ py::dict DuckDBPyResult::FetchNumpyInternal(bool stream, idx_t vectors_per_chunk
 		InsertCategory(materialized, categories);
 		materialized.Collection().Reset();
 	} else {
+#ifdef RATCHET_DEBUG
 		std::cout << "[DuckDBPyResult::FetchNumpyInternal]: Stream Results" << std::endl;
+#endif
 		D_ASSERT(result->type == QueryResultType::STREAM_RESULT);
 		if (!stream) {
 			// here vectors_per_chunk is actually 2^64-1 if a 64-bit machine is used.
 			vectors_per_chunk = NumericLimits<idx_t>::Maximum();
-			std::cout << "[DuckDBPyResult::FetchNumpyInternal] Vectors per Chunk: " << vectors_per_chunk << std::endl;
 		}
 		auto stream_result = (StreamQueryResult *)result.get();
 		for (idx_t count_vec = 0; count_vec < vectors_per_chunk; count_vec++) {

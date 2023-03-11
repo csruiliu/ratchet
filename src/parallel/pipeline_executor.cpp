@@ -36,10 +36,12 @@ PipelineExecutor::PipelineExecutor(ClientContext &context_p, Pipeline &pipeline_
 }
 
 bool PipelineExecutor::Execute(idx_t max_chunks) {
-	std::cout << "Max Chunks: " << max_chunks << std::endl;
  	D_ASSERT(pipeline.sink);
-	std::cout << "[PipelineExecutor::Execute] Pipeline Source: " << PhysicalOperatorToString(pipeline.source->type)
-	          << " Sink: " << PhysicalOperatorToString(pipeline.sink->type) << std::endl;
+#ifdef RATCHET_DEBUG
+	std::cout << "[PipelineExecutor::Execute] Max Chunks: " << max_chunks
+	          << ", Pipeline Source: " << PhysicalOperatorToString(pipeline.source->type)
+	          << ", Sink: " << PhysicalOperatorToString(pipeline.sink->type) << std::endl;
+#endif
 	bool exhausted_source = false;
 	auto &source_chunk = pipeline.operators.empty() ? final_chunk : *intermediate_chunks[0];
 	for (idx_t i = 0; i < max_chunks; i++) {
@@ -192,7 +194,9 @@ void PipelineExecutor::PushFinalize() {
 	if (finalized) {
 		throw InternalException("Calling PushFinalize on a pipeline that has been finalized already");
 	}
+#ifdef RATCHET_DEBUG
 	std::cout << "[PipelineExecutor::PushFinalize]" << std::endl;
+#endif
 	finalized = true;
 	// flush all caching operators
 	// note that even if an operator has finished, we might still need to flush caches AFTER

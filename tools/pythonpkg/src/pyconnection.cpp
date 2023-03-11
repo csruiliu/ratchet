@@ -142,14 +142,20 @@ static unique_ptr<QueryResult> CompletePendingQuery(PendingQueryResult &pending_
 }
 
 static unique_ptr<QueryResult> CompletePendingQueryRatchet(PendingQueryResult &pending_query, idx_t suspend_point) {
+#ifdef RATCHET_DEBUG
 	std::cout << "[CompletePendingQueryRatchet]" << std::endl;
+#endif
 	PendingExecutionResult execution_result;
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 	atomic<int> counter (0);
+#ifdef RATCHET_DEBUG
 	std::cout << "==================== START POLLING ====================" << std::endl;
+#endif
 	do {
 		counter++;
+#ifdef RATCHET_DEBUG
 		std::cout << "==================== "<< counter << " POLLING ====================" << std::endl;
+#endif
 		execution_result = pending_query.ExecuteTaskRatchet();
 		{
 			py::gil_scoped_acquire gil;
@@ -168,8 +174,10 @@ static unique_ptr<QueryResult> CompletePendingQueryRatchet(PendingQueryResult &p
 		}
 
 	} while (execution_result == PendingExecutionResult::RESULT_NOT_READY);
+#ifdef RATCHET_DEBUG
 	std::cout << "==================== END POLLING ====================" << std::endl;
 	std::cout << "Total Task Polling: " << counter << std::endl;
+#endif
 	if (execution_result == PendingExecutionResult::EXECUTION_ERROR) {
 		pending_query.ThrowError();
 	}
@@ -247,28 +255,34 @@ DuckDBPyConnection *DuckDBPyConnection::Execute(const string &query, py::object 
 }
 
 DuckDBPyConnection *DuckDBPyConnection::ExecuteRatchet(const string &query, idx_t suspend_point) {
+#ifdef RATCHET_DEBUG
 	std::cout << "[ExecuteRatchet]" << std::endl;
+#endif
 	if (!connection) {
 		throw ConnectionException("Connection has already been closed");
 	}
+#ifdef RATCHET_DEBUG
 	std::cout << "[Ratchet] QUERY: " << query << std::endl;
+#endif
 	result = nullptr;
 	unique_ptr<PreparedStatement> prep;
 	{
 		py::gil_scoped_release release;
 		unique_lock<std::mutex> lock(py_connection_lock);
-
+#ifdef RATCHET_DEBUG
 		std::cout << "==================== ExtractStatementsRatchet ====================" << std::endl;
+#endif
 		auto statements = connection->ExtractStatementsRatchet(query);
 		if (statements.empty()) {
 			return this;
 		}
 		unsigned int statements_size = statements.size();
+#ifdef RATCHET_DEBUG
 		std::cout << "[Ratchet] Statement Vector Size:" << statements_size << std::endl;
 		for(unsigned int i = 0; i < statements_size; i++) {
 			std::cout << "[Ratchet]: " << statements[i]->ToString() << std::endl;
 		}
-
+#endif
 		prep = connection->Prepare(move(statements.back()));
 		if (prep->HasError()) {
 			prep->error.Throw();
@@ -277,14 +291,20 @@ DuckDBPyConnection *DuckDBPyConnection::ExecuteRatchet(const string &query, idx_
 
 	auto args = DuckDBPyConnection::TransformPythonParamList(py::list());
 	unsigned int args_size = args.size();
+#ifdef RATCHET_DEBUG
 	std::cout << "[Ratchet] Statement Vector Size:" << args_size << std::endl;
+#endif
 	auto res = make_unique<DuckDBPyResult>();
 	{
 		py::gil_scoped_release release;
 		unique_lock<std::mutex> lock(py_connection_lock);
+#ifdef RATCHET_DEBUG
 		std::cout << "==================== PendingQueryRatchet ====================" << std::endl;
+#endif
 		auto pending_query = prep->PendingQueryRatchet(args);
+#ifdef RATCHET_DEBUG
 		std::cout << "==================== CompletePendingQueryRatchet ====================" << std::endl;
+#endif
 		res->result = CompletePendingQueryRatchet(*pending_query, suspend_point);
 		if (res->result->HasError()) {
 			res->result->ThrowError();
@@ -735,6 +755,9 @@ unordered_map<string, string> TransformPyConfigDict(const py::dict &py_config_di
 }
 
 void CreateNewInstance(DuckDBPyConnection &res, const string &database, DBConfig &config) {
+#ifdef RATCHET_DEBUG
+	std::cout << "[CreateNewInstance]" << std::endl;
+#endif
 	// We don't cache unnamed memory instances (i.e., :memory:)
 	bool cache_instance = database != ":memory:" && !database.empty();
 	res.database = instance_cache.CreateInstance(database, config, cache_instance);

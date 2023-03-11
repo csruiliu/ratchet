@@ -91,7 +91,9 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[RangeJoinMergeTask:ExecuteTask]" << std::endl;
+#endif
 		// Initialize iejoin sorted and iterate until done
 		auto &global_sort_state = table.global_sort_state;
 		MergeSorter merge_sorter(global_sort_state, BufferManager::GetBufferManager(context));
@@ -120,7 +122,9 @@ public:
 
 public:
 	void Schedule() override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[RangeJoinMergeEvent] Schedule()" << std::endl;
+#endif
 		auto &context = pipeline->GetClientContext();
 
 		// Schedule tasks equal to the number of threads, which will each merge multiple partitions
@@ -135,7 +139,9 @@ public:
 	}
 
 	void FinishEvent() override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[RangeJoinMergeEvent] FinishEvent()" << std::endl;
+#endif
 		auto &global_sort_state = table.global_sort_state;
 
 		global_sort_state.CompleteMergeRound(true);

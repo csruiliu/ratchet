@@ -36,6 +36,9 @@ shared_ptr<DuckDB> DBInstanceCache::GetInstanceInternal(const string &database, 
 }
 
 shared_ptr<DuckDB> DBInstanceCache::GetInstance(const string &database, const DBConfig &config) {
+#ifdef RATCHET_DEBUG
+	std::cout << "[DBInstanceCache::GetInstance]" << std::endl;
+#endif
 	lock_guard<mutex> l(cache_lock);
 	return GetInstanceInternal(database, config);
 }

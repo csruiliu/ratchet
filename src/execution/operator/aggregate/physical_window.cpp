@@ -1554,7 +1554,9 @@ private:
 };
 
 void WindowLocalMergeState::ExecuteTask() {
+#ifdef RATCHET_DEBUG
 	std::cout << "[WindowLocalMergeState::ExecuteTask]" << std::endl;
+#endif
 	auto &global_sort = merge_state->sort_state;
 	switch (stage) {
 	case WindowSortStage::PREPARE:
@@ -1669,7 +1671,9 @@ private:
 };
 
 TaskExecutionResult WindowMergeTask::ExecuteTask(TaskExecutionMode mode) {
+#ifdef RATCHET_DEBUG
 	std::cout << "[WindowMergeTask::ExecuteTask]" << std::endl;
+#endif
 	// Loop until all hash groups are done
 	size_t sorted = 0;
 	while (sorted < hash_groups.states.size()) {
@@ -1737,7 +1741,9 @@ public:
 
 public:
 	void Schedule() override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[WindowMergeEvent] Schedule()" << std::endl;
+#endif
 		auto &context = pipeline->GetClientContext();
 
 		// Schedule tasks equal to the number of threads, which will each merge multiple partitions

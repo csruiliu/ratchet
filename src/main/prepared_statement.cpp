@@ -72,7 +72,9 @@ unique_ptr<PendingQueryResult> PreparedStatement::PendingQuery(vector<Value> &va
 }
 
 unique_ptr<PendingQueryResult> PreparedStatement::PendingQueryRatchet(vector<Value> &values, bool allow_stream_result) {
+#ifdef RATCHET_DEBUG
 	std::cout << "[PreparedStatement::PendingQueryRatchet]" << std::endl;
+#endif
 	if (!success) {
 		throw InvalidInputException("Attempting to execute an unsuccessfully prepared statement!");
 	}

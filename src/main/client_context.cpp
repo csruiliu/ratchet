@@ -145,7 +145,9 @@ void ClientContext::BeginTransactionInternal(ClientContextLock &lock, bool requi
 }
 
 void ClientContext::BeginTransactionInternalRatchet(ClientContextLock &lock, bool requires_valid_transaction) {
+#ifdef RATCHET_DEBUG
 	std::cout << "[ClientContext::BeginTransactionInternalRatchet]" << std::endl;
+#endif
 	// check if we are on AutoCommit. In this case we should start a transaction
 	D_ASSERT(!active_query);
 	auto &db = DatabaseInstance::GetDatabase(*this);
@@ -172,7 +174,9 @@ void ClientContext::BeginQueryInternal(ClientContextLock &lock, const string &qu
 }
 
 void ClientContext::BeginQueryInternalRatchet(ClientContextLock &lock, const string &query) {
+#ifdef RATCHET_DEBUG
 	std::cout << "[ClientContext::BeginQueryInternalRatchet]" << std::endl;
+#endif
 	BeginTransactionInternalRatchet(lock, false);
 	LogQueryInternal(lock, query);
 	active_query->query = query;
@@ -182,7 +186,9 @@ void ClientContext::BeginQueryInternalRatchet(ClientContextLock &lock, const str
 
 PreservedError ClientContext::EndQueryInternalRatchet(ClientContextLock &lock,
                                                       bool success, bool invalidate_transaction) {
+#ifdef RATCHET_DEBUG
 	std::cout << "[ClientContext::EndQueryInternalRatchet]" << std::endl;
+#endif
 	client_data->profiler->EndQuery();
 
 	D_ASSERT(active_query.get());
@@ -313,7 +319,9 @@ const string &ClientContext::GetCurrentQuery() {
 
 unique_ptr<QueryResult> ClientContext::FetchResultInternalRatchet(ClientContextLock &lock,
                                                                   PendingQueryResult &pending) {
+#ifdef RATCHET_DEBUG
 	std::cout << "[ClientContext::FetchResultInternalRatchet]" << std::endl;
+#endif
 	D_ASSERT(active_query);
 	D_ASSERT(active_query->open_result == &pending);
 	D_ASSERT(active_query->prepared);
@@ -321,7 +329,9 @@ unique_ptr<QueryResult> ClientContext::FetchResultInternalRatchet(ClientContextL
 	auto &prepared = *active_query->prepared;
 	bool create_stream_result = prepared.properties.allow_stream_result && pending.allow_stream_result;
 	if (create_stream_result) {
+#ifdef RATCHET_DEBUG
 		std::cout << "[Create Stream Result]" << std::endl;
+#endif
 		D_ASSERT(!executor.HasResultCollector());
 		active_query->progress_bar.reset();
 		query_progress = -1;
@@ -573,7 +583,9 @@ PendingExecutionResult ClientContext::ExecuteTaskInternal(ClientContextLock &loc
 }
 
 PendingExecutionResult ClientContext::ExecuteTaskInternalRatchet(ClientContextLock &lock, PendingQueryResult &result) {
+#ifdef RATCHET_DEBUG
 	std::cout << "[ClientContext::ExecuteTaskInternalRatchet]" << std::endl;
+#endif
 	D_ASSERT(active_query);
 	D_ASSERT(active_query->open_result == &result);
 	try {
@@ -611,7 +623,9 @@ vector<unique_ptr<SQLStatement>> ClientContext::ParseStatements(const string &qu
 }
 
 vector<unique_ptr<SQLStatement>> ClientContext::ParseStatementsRatchet(const string &query) {
+#ifdef RATCHET_DEBUG
 	std::cout << "[ClientContext::ParseStatementsRatchet]" << std::endl;
+#endif
 	auto lock = LockContext();
 	return ParseStatementsInternalRatchet(*lock, query);
 }
@@ -628,7 +642,9 @@ vector<unique_ptr<SQLStatement>> ClientContext::ParseStatementsInternal(ClientCo
 
 vector<unique_ptr<SQLStatement>> ClientContext::ParseStatementsInternalRatchet(ClientContextLock &lock,
                                                                                const string &query) {
+#ifdef RATCHET_DEBUG
 	std::cout << "[ClientContext::ParseStatementsInternalRatchet]" << std::endl;
+#endif
 	Parser parser(GetParserOptions());
 	parser.ParseQuery(query);
 
@@ -738,7 +754,9 @@ unique_ptr<PendingQueryResult> ClientContext::PendingQueryPreparedInternal(Clien
 unique_ptr<PendingQueryResult> ClientContext::PendingQueryPreparedInternalRatchet(
     ClientContextLock &lock, const string &query,
     shared_ptr<PreparedStatementData> &prepared, PendingQueryParameters parameters) {
+#ifdef RATCHET_DEBUG
 	std::cout << "[ClientContext::PendingQueryPreparedInternalRatchet]" << std::endl;
+#endif
 	try {
 		InitialCleanup(lock);
 	} catch (const Exception &ex) {
@@ -759,7 +777,9 @@ unique_ptr<PendingQueryResult> ClientContext::PendingQuery(const string &query,
 unique_ptr<PendingQueryResult> ClientContext::PendingQueryRatchet(const string &query,
                                                            shared_ptr<PreparedStatementData> &prepared,
                                                            PendingQueryParameters parameters) {
+#ifdef RATCHET_DEBUG
 	std::cout << "[ClientContext::PendingQueryRatchet]" << std::endl;
+#endif
 	auto lock = LockContext();
 	return PendingQueryPreparedInternalRatchet(*lock, query, prepared, parameters);
 }
@@ -875,7 +895,9 @@ unique_ptr<PendingQueryResult> ClientContext::PendingStatementOrPreparedStatemen
 unique_ptr<PendingQueryResult> ClientContext::PendingStatementOrPreparedStatementInternalRatchet(
     ClientContextLock &lock, const string &query, unique_ptr<SQLStatement> statement,
     shared_ptr<PreparedStatementData> &prepared, PendingQueryParameters parameters) {
+#ifdef RATCHET_DEBUG
 	std::cout << "[ClientContext::PendingStatementOrPreparedStatementInternalRatchet]" << std::endl;
+#endif
 	// check if we are on AutoCommit. In this case we should start a transaction.
 	if (statement && config.AnyVerification()) {
 		// query verification is enabled
@@ -884,7 +906,9 @@ unique_ptr<PendingQueryResult> ClientContext::PendingStatementOrPreparedStatemen
 		auto copied_statement = statement->Copy();
 		switch (statement->type) {
 		case StatementType::SELECT_STATEMENT: {
+#ifdef RATCHET_DEBUG
 			std::cout << "[Ratchet] Verification Stage for SELECT" << std::endl;
+#endif
 			// in case this is a select query, we verify the original statement
 			PreservedError error;
 			try {
@@ -904,7 +928,9 @@ unique_ptr<PendingQueryResult> ClientContext::PendingStatementOrPreparedStatemen
 		case StatementType::INSERT_STATEMENT:
 		case StatementType::DELETE_STATEMENT:
 		case StatementType::UPDATE_STATEMENT: {
+#ifdef RATCHET_DEBUG
 			std::cout << "[Ratchet] Verification Stage for INSERT, DELETE, UPDATE" << std::endl;
+#endif
 			Parser parser;
 			PreservedError error;
 			try {
@@ -997,7 +1023,9 @@ unique_ptr<PendingQueryResult> ClientContext::PendingStatementOrPreparedStatemen
 unique_ptr<PendingQueryResult> ClientContext::PendingStatementOrPreparedStatementRatchet(
     ClientContextLock &lock, const string &query, unique_ptr<SQLStatement> statement,
     shared_ptr<PreparedStatementData> &prepared, PendingQueryParameters parameters) {
+#ifdef RATCHET_DEBUG
 	std::cout << "[ClientContext::PendingStatementOrPreparedStatementRatchet]" << std::endl;
+#endif
 	unique_ptr<PendingQueryResult> result;
 	try {
 		BeginQueryInternalRatchet(lock, query);

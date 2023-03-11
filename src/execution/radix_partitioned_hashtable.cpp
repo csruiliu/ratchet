@@ -286,7 +286,9 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[RadixAggregateFinalizeTask:ExecuteTask]" << std::endl;
+#endif
 		FinalizeHT(state, radix);
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;

@@ -299,7 +299,9 @@ void PhysicalUngroupedAggregate::CombineDistinct(ExecutionContext &context, Glob
 
 void PhysicalUngroupedAggregate::Combine(ExecutionContext &context, GlobalSinkState &state,
                                          LocalSinkState &lstate) const {
+#ifdef RATCHET_DEBUG
 	std::cout << "[PhysicalUngroupedAggregate::Combine]" << std::endl;
+#endif
 	auto &gstate = (UngroupedAggregateGlobalState &)state;
 	auto &source = (UngroupedAggregateLocalState &)lstate;
 	D_ASSERT(!gstate.finished);
@@ -322,7 +324,9 @@ void PhysicalUngroupedAggregate::Combine(ExecutionContext &context, GlobalSinkSt
 		Vector dest_state(Value::POINTER((uintptr_t)gstate.state.aggregates[aggr_idx].get()));
 
 		AggregateInputData aggr_input_data(aggregate.bind_info.get(), Allocator::DefaultAllocator());
+#ifdef RATCHET_DEBUG
 		std::cout << "[Aggregation Function]: " << aggregate.function.ToString() << std::endl;
+#endif
 		aggregate.function.combine(source_state, dest_state, aggr_input_data, 1);
 #ifdef DEBUG
 		gstate.state.counts[aggr_idx] += source.state.counts[aggr_idx];
@@ -412,7 +416,9 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[UngroupedDistinctAggregateFinalizeTask:ExecuteTask]" << std::endl;
+#endif
 		AggregateDistinct();
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
@@ -439,7 +445,9 @@ public:
 
 public:
 	void Schedule() override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[UngroupedDistinctAggregateFinalizeEvent] Schedule()" << std::endl;
+#endif
 		vector<unique_ptr<Task>> tasks;
 		tasks.push_back(make_unique<UngroupedDistinctAggregateFinalizeTask>(pipeline->executor, shared_from_this(),
 		                                                                    gstate, context, op));
@@ -462,7 +470,9 @@ public:
 
 public:
 	void Schedule() override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[UngroupedDistinctCombineFinalizeEvent] Schedule()" << std::endl;
+#endif
 		auto &distinct_state = *gstate.distinct_state;
 		auto &distinct_data = *op.distinct_data;
 		vector<unique_ptr<Task>> tasks;
@@ -475,7 +485,9 @@ public:
 	}
 
 	void FinishEvent() override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[UngroupedDistinctCombineFinalizeEvent] FinishEvent()" << std::endl;
+#endif
 		//! Now that all tables are combined, it's time to do the distinct aggregations
 		auto new_event = make_shared<UngroupedDistinctAggregateFinalizeEvent>(op, gstate, *pipeline, client);
 		this->InsertEvent(move(new_event));

@@ -452,7 +452,9 @@ public:
 
 public:
 	void Schedule() override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[HashAggregateMergeEvent] Schedule()" << std::endl;
+#endif
 		vector<unique_ptr<Task>> tasks;
 		for (idx_t i = 0; i < op.groupings.size(); i++) {
 			auto &grouping_gstate = gstate.grouping_states[i];
@@ -477,7 +479,9 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[HashAggregateFinalizeTask:ExecuteTask]" << std::endl;
+#endif
 		op.FinalizeInternal(pipeline, *event, context, gstate, false);
 		D_ASSERT(!gstate.finished);
 		gstate.finished = true;
@@ -506,7 +510,9 @@ public:
 
 public:
 	void Schedule() override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[HashAggregateFinalizeEvent] Schedule()" << std::endl;
+#endif
 		vector<unique_ptr<Task>> tasks;
 		tasks.push_back(make_unique<HashAggregateFinalizeTask>(*pipeline, shared_from_this(), gstate, context, op));
 		D_ASSERT(!tasks.empty());
@@ -614,7 +620,9 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[HashDistinctAggregateFinalizeTask:ExecuteTask]" << std::endl;
+#endif
 		D_ASSERT(op.distinct_collection_info);
 		auto &info = *op.distinct_collection_info;
 		for (idx_t i = 0; i < op.groupings.size(); i++) {
@@ -652,7 +660,9 @@ public:
 
 public:
 	void Schedule() override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[HashDistinctAggregateFinalizeEvent] Schedule()" << std::endl;
+#endif
 		global_sources = CreateGlobalSources();
 
 		vector<unique_ptr<Task>> tasks;
@@ -668,7 +678,9 @@ public:
 	}
 
 	void FinishEvent() override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[HashDistinctAggregateFinalizeEvent] FinishEvent()" << std::endl;
+#endif
 		//! Now that everything is added to the main ht, we can actually finalize
 		auto new_event = make_shared<HashAggregateFinalizeEvent>(op, gstate, pipeline.get(), context);
 		this->InsertEvent(move(new_event));
@@ -720,7 +732,9 @@ public:
 
 public:
 	void Schedule() override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[HashDistinctCombineFinalizeEvent] Schedule()" << std::endl;
+#endif
 		vector<unique_ptr<Task>> tasks;
 		for (idx_t i = 0; i < op.groupings.size(); i++) {
 			auto &grouping = op.groupings[i];
@@ -740,7 +754,9 @@ public:
 	}
 
 	void FinishEvent() override {
+#ifdef RATCHET_DEBUG
 		std::cout << "[HashDistinctCombineFinalizeEvent] FinishEvent()" << std::endl;
+#endif
 		//! Now that all tables are combined, it's time to do the distinct aggregations
 		auto new_event = make_shared<HashDistinctAggregateFinalizeEvent>(op, gstate, *pipeline, client);
 		this->InsertEvent(move(new_event));
