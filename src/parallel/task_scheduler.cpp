@@ -139,6 +139,9 @@ void TaskScheduler::ExecuteForever(atomic<bool> *marker) {
 		// wait for a signal with a timeout
 		queue->semaphore.wait();
 		if (queue->q.try_dequeue(task)) {
+#ifdef RATCHET_PRINT
+			std::cout << "[TaskScheduler::ExecuteForever] Get a task and run it in PROCESS_ALL " << std::endl;
+#endif
 			task->Execute(TaskExecutionMode::PROCESS_ALL);
 			task.reset();
 		}
@@ -149,6 +152,9 @@ void TaskScheduler::ExecuteForever(atomic<bool> *marker) {
 }
 
 idx_t TaskScheduler::ExecuteTasks(atomic<bool> *marker, idx_t max_tasks) {
+#ifdef RATCHET_PRINT
+	std::cout << "[TaskScheduler::ExecuteTasks(atomic<bool> *marker, idx_t max_tasks)]" << std::endl;
+#endif
 #ifndef DUCKDB_NO_THREADS
 	idx_t completed_tasks = 0;
 	// loop until the marker is set to false
@@ -168,6 +174,9 @@ idx_t TaskScheduler::ExecuteTasks(atomic<bool> *marker, idx_t max_tasks) {
 }
 
 void TaskScheduler::ExecuteTasks(idx_t max_tasks) {
+#ifdef RATCHET_PRINT
+	std::cout << "[TaskScheduler::ExecuteTasks(idx_t max_tasks)]" << std::endl;
+#endif
 #ifndef DUCKDB_NO_THREADS
 	unique_ptr<Task> task;
 	for (idx_t i = 0; i < max_tasks; i++) {

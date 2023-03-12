@@ -370,6 +370,9 @@ void Executor::CancelTasks() {
 }
 
 void Executor::WorkOnTasks() {
+#ifdef RATCHET_PRINT
+	std::cout << "[Executor::WorkOnTasks]" << std::endl;
+#endif
 	auto &scheduler = TaskScheduler::GetScheduler(context);
 
 	unique_ptr<Task> task;
@@ -409,7 +412,6 @@ PendingExecutionResult Executor::ExecuteTaskRatchet() {
 				// if the task is finished, clean it up
 				task.reset();
 			}
-			// std::cout << "[ExecuteTaskRatchet: task->Execute]" << std::endl;
 		}
 		if (!HasError()) {
 			// we (partially) processed a task and no exceptions were thrown
