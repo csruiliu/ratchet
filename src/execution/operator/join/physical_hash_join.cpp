@@ -246,7 +246,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[HashJoinFinalizeTask:ExecuteTask]" << std::endl;
 #endif
 		sink.hash_table->Finalize(block_idx_start, block_idx_end, parallel);
@@ -272,7 +272,7 @@ public:
 
 public:
 	void Schedule() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[HashJoinFinalizeEvent] Schedule()" << std::endl;
 #endif
 		auto &context = pipeline->GetClientContext();
@@ -307,7 +307,7 @@ public:
 	}
 
 	void FinishEvent() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[HashJoinFinalizeEvent] FinishEvent()" << std::endl;
 #endif
 		sink.hash_table->finalized = true;
@@ -341,7 +341,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[HashJoinPartitionTask:ExecuteTask]" << std::endl;
 #endif
 		local_ht.Partition(global_ht);
@@ -368,7 +368,7 @@ public:
 
 public:
 	void Schedule() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[HashJoinPartitionEvent] Schedule()" << std::endl;
 #endif
 		auto &context = pipeline->GetClientContext();
@@ -382,7 +382,7 @@ public:
 	}
 
 	void FinishEvent() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[HashJoinPartitionEvent] FinishEvent()" << std::endl;
 #endif
 		local_hts.clear();
@@ -776,7 +776,7 @@ HashJoinLocalSourceState::HashJoinLocalSourceState(const PhysicalHashJoin &op, A
 
 void HashJoinLocalSourceState::ExecuteTask(HashJoinGlobalSinkState &sink, HashJoinGlobalSourceState &gstate,
                                            DataChunk &chunk) {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 	std::cout << "[HashJoinLocalSourceState::ExecuteTask]" << std::endl;
 #endif
 	switch (local_stage) {

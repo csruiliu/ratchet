@@ -34,7 +34,7 @@ public:
 			pipeline_executor = make_unique<PipelineExecutor>(pipeline.GetClientContext(), pipeline);
 		}
 		if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 			std::cout << "[Pipeline:ExecuteTask]: PROCESS_PARTIAL" << std::endl;
 #endif
 			bool finished = pipeline_executor->Execute(PARTIAL_CHUNK_COUNT);
@@ -42,7 +42,7 @@ public:
 				return TaskExecutionResult::TASK_NOT_FINISHED;
 			}
 		} else {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 			std::cout << "[Pipeline:ExecuteTask]: PROCESS_ALL" << std::endl;
 #endif
 			pipeline_executor->Execute();
@@ -80,7 +80,7 @@ void Pipeline::ScheduleSequentialTask(shared_ptr<Event> &event) {
 }
 
 bool Pipeline::ScheduleParallel(shared_ptr<Event> &event) {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
     std::cout << "== [Pipeline::ScheduleParallel] ==" << std::endl;
 #endif
 	// check if the sink, source and all intermediate operators support parallelism
@@ -102,7 +102,7 @@ bool Pipeline::ScheduleParallel(shared_ptr<Event> &event) {
 		}
 	}
 	idx_t max_threads = source_state->MaxThreads();
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 	std::cout << "== [Pipeline::ScheduleParallel]" << " MAX THREADS: " << max_threads << " ==" << std::endl;
 #endif
 	return LaunchScanTasks(event, max_threads);
@@ -130,7 +130,7 @@ bool Pipeline::IsOrderDependent() const {
 void Pipeline::Schedule(shared_ptr<Event> &event) {
 	D_ASSERT(ready);
 	D_ASSERT(sink);
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 	std::cout << "### [Pipeline::Schedule] ###" << std::endl;
 #endif
 	Reset();
@@ -141,7 +141,7 @@ void Pipeline::Schedule(shared_ptr<Event> &event) {
 }
 
 bool Pipeline::LaunchScanTasks(shared_ptr<Event> &event, idx_t max_threads) {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 	std::cout << "[Pipeline::LaunchScanTasks]" << std::endl;
 #endif
 	// split the scan up into parts and schedule the parts

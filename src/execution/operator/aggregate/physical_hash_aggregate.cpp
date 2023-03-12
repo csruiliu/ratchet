@@ -452,7 +452,7 @@ public:
 
 public:
 	void Schedule() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[HashAggregateMergeEvent] Schedule()" << std::endl;
 #endif
 		vector<unique_ptr<Task>> tasks;
@@ -479,7 +479,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[HashAggregateFinalizeTask:ExecuteTask]" << std::endl;
 #endif
 		op.FinalizeInternal(pipeline, *event, context, gstate, false);
@@ -510,7 +510,7 @@ public:
 
 public:
 	void Schedule() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[HashAggregateFinalizeEvent] Schedule()" << std::endl;
 #endif
 		vector<unique_ptr<Task>> tasks;
@@ -620,7 +620,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[HashDistinctAggregateFinalizeTask:ExecuteTask]" << std::endl;
 #endif
 		D_ASSERT(op.distinct_collection_info);
@@ -660,7 +660,7 @@ public:
 
 public:
 	void Schedule() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[HashDistinctAggregateFinalizeEvent] Schedule()" << std::endl;
 #endif
 		global_sources = CreateGlobalSources();
@@ -678,7 +678,7 @@ public:
 	}
 
 	void FinishEvent() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[HashDistinctAggregateFinalizeEvent] FinishEvent()" << std::endl;
 #endif
 		//! Now that everything is added to the main ht, we can actually finalize
@@ -732,7 +732,7 @@ public:
 
 public:
 	void Schedule() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[HashDistinctCombineFinalizeEvent] Schedule()" << std::endl;
 #endif
 		vector<unique_ptr<Task>> tasks;
@@ -754,7 +754,7 @@ public:
 	}
 
 	void FinishEvent() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[HashDistinctCombineFinalizeEvent] FinishEvent()" << std::endl;
 #endif
 		//! Now that all tables are combined, it's time to do the distinct aggregations

@@ -91,7 +91,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[RangeJoinMergeTask:ExecuteTask]" << std::endl;
 #endif
 		// Initialize iejoin sorted and iterate until done
@@ -122,7 +122,7 @@ public:
 
 public:
 	void Schedule() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[RangeJoinMergeEvent] Schedule()" << std::endl;
 #endif
 		auto &context = pipeline->GetClientContext();
@@ -139,7 +139,7 @@ public:
 	}
 
 	void FinishEvent() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[RangeJoinMergeEvent] FinishEvent()" << std::endl;
 #endif
 		auto &global_sort_state = table.global_sort_state;

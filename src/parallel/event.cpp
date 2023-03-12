@@ -12,7 +12,7 @@ Event::Event(Executor &executor_p)
 }
 
 void Event::CompleteDependency() {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 	std::cout << "[Event::CompleteDependency]" << std::endl;
 #endif
 	idx_t current_finished = ++finished_dependencies;
@@ -29,7 +29,7 @@ void Event::CompleteDependency() {
 
 void Event::Finish() {
 	D_ASSERT(!finished);
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 	std::cout << "[Event::Finish]" << std::endl;
 #endif
 	FinishEvent();
@@ -60,7 +60,7 @@ const vector<Event *> &Event::GetParentsVerification() const {
 }
 
 void Event::FinishTask() {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 	std::cout << "[Event::FinishTask]" << std::endl;
 #endif
 	D_ASSERT(finished_tasks.load() < total_tasks.load());

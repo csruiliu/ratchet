@@ -37,7 +37,7 @@ PipelineExecutor::PipelineExecutor(ClientContext &context_p, Pipeline &pipeline_
 
 bool PipelineExecutor::Execute(idx_t max_chunks) {
  	D_ASSERT(pipeline.sink);
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 	std::cout << "[PipelineExecutor::Execute] Max Chunks: " << max_chunks
 	          << ", Pipeline Source: " << PhysicalOperatorToString(pipeline.source->type)
 	          << ", Sink: " << PhysicalOperatorToString(pipeline.sink->type) << std::endl;
@@ -194,7 +194,7 @@ void PipelineExecutor::PushFinalize() {
 	if (finalized) {
 		throw InternalException("Calling PushFinalize on a pipeline that has been finalized already");
 	}
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 	std::cout << "[PipelineExecutor::PushFinalize]" << std::endl;
 #endif
 	finalized = true;

@@ -19,7 +19,7 @@ public:
 
 public:
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[PipelineInitializeTask:ExecuteTask]" << std::endl;
 #endif
 		pipeline.ResetSink();
@@ -29,7 +29,7 @@ public:
 };
 
 void PipelineInitializeEvent::Schedule() {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 	std::cout << "[PipelineInitializeEvent::Schedule()]" << std::endl;
 #endif
 	// needs to spawn a task to get the chain of tasks for the query plan going

@@ -117,7 +117,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[PhysicalOrderMergeTask:ExecuteTask]" << std::endl;
 #endif
 		// Initialize merge sorted and iterate until done
@@ -144,7 +144,7 @@ public:
 
 public:
 	void Schedule() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[PhysicalOrderMergeTask] Schedule()" << std::endl;
 #endif
 		auto &context = pipeline->GetClientContext();
@@ -161,7 +161,7 @@ public:
 	}
 
 	void FinishEvent() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[PhysicalOrderMergeTask] FinishEvent()" << std::endl;
 #endif
 		auto &global_sort_state = gstate.global_sort_state;

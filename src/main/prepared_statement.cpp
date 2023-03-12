@@ -72,7 +72,7 @@ unique_ptr<PendingQueryResult> PreparedStatement::PendingQuery(vector<Value> &va
 }
 
 unique_ptr<PendingQueryResult> PreparedStatement::PendingQueryRatchet(vector<Value> &values, bool allow_stream_result) {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 	std::cout << "[PreparedStatement::PendingQueryRatchet]" << std::endl;
 #endif
 	if (!success) {

@@ -167,7 +167,7 @@ void Executor::ScheduleEventsInternal(ScheduleEventData &event_data) {
 	// schedule the pipelines that do not have dependencies
 	for (auto &event : events) {
 		if (!event->HasDependencies()) {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 			std::cout << "[ScheduleEventsInternal]: event->Schedule" << std::endl;
 #endif
 			event->Schedule();
@@ -380,7 +380,7 @@ void Executor::WorkOnTasks() {
 }
 
 PendingExecutionResult Executor::ExecuteTaskRatchet() {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 	std::cout << "[Executor::ExecuteTaskRatchet]" << std::endl;
 #endif
 	if (execution_result != PendingExecutionResult::RESULT_NOT_READY) {
@@ -392,14 +392,14 @@ PendingExecutionResult Executor::ExecuteTaskRatchet() {
 		// there are! if we don't already have a task, fetch one
 		// this task variable is "the current task in process"
 		if (!task) {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 			std::cout << "Approx Number of Tasks: " << scheduler.GetNumberOfTasks() << std::endl;
 			std::cout << "Current task does not exist, get 1 task from the queue!" << std::endl;
 #endif
 			scheduler.GetTaskFromProducer(*producer, task);
 		}
 		if (task) {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 			std::cout << "Approx Number of Tasks: " << scheduler.GetNumberOfTasks() << std::endl;
 			std::cout << "Current task exists, execute it!" << std::endl;
 #endif

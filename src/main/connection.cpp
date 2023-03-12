@@ -122,7 +122,7 @@ vector<unique_ptr<SQLStatement>> Connection::ExtractStatements(const string &que
 }
 
 vector<unique_ptr<SQLStatement>> Connection::ExtractStatementsRatchet(const string &query) {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 	std::cout << "[Connection::ExtractStatementsRatchet]" << std::endl;
 #endif
 	return context->ParseStatementsRatchet(query);

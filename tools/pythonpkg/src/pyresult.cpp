@@ -294,7 +294,7 @@ py::dict DuckDBPyResult::FetchNumpyInternal(bool stream, idx_t vectors_per_chunk
 
 	NumpyResultConversion conversion(result->types, initial_capacity);
 	if (result->type == QueryResultType::MATERIALIZED_RESULT) {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[DuckDBPyResult::FetchNumpyInternal]: Materialized Results" << std::endl;
 #endif
 		auto &materialized = (MaterializedQueryResult &)*result;
@@ -304,7 +304,7 @@ py::dict DuckDBPyResult::FetchNumpyInternal(bool stream, idx_t vectors_per_chunk
 		InsertCategory(materialized, categories);
 		materialized.Collection().Reset();
 	} else {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[DuckDBPyResult::FetchNumpyInternal]: Stream Results" << std::endl;
 #endif
 		D_ASSERT(result->type == QueryResultType::STREAM_RESULT);

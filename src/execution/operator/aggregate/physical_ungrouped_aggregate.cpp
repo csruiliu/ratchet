@@ -299,7 +299,7 @@ void PhysicalUngroupedAggregate::CombineDistinct(ExecutionContext &context, Glob
 
 void PhysicalUngroupedAggregate::Combine(ExecutionContext &context, GlobalSinkState &state,
                                          LocalSinkState &lstate) const {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 	std::cout << "[PhysicalUngroupedAggregate::Combine]" << std::endl;
 #endif
 	auto &gstate = (UngroupedAggregateGlobalState &)state;
@@ -324,7 +324,7 @@ void PhysicalUngroupedAggregate::Combine(ExecutionContext &context, GlobalSinkSt
 		Vector dest_state(Value::POINTER((uintptr_t)gstate.state.aggregates[aggr_idx].get()));
 
 		AggregateInputData aggr_input_data(aggregate.bind_info.get(), Allocator::DefaultAllocator());
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[Aggregation Function]: " << aggregate.function.ToString() << std::endl;
 #endif
 		aggregate.function.combine(source_state, dest_state, aggr_input_data, 1);
@@ -416,7 +416,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[UngroupedDistinctAggregateFinalizeTask:ExecuteTask]" << std::endl;
 #endif
 		AggregateDistinct();
@@ -445,7 +445,7 @@ public:
 
 public:
 	void Schedule() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[UngroupedDistinctAggregateFinalizeEvent] Schedule()" << std::endl;
 #endif
 		vector<unique_ptr<Task>> tasks;
@@ -470,7 +470,7 @@ public:
 
 public:
 	void Schedule() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[UngroupedDistinctCombineFinalizeEvent] Schedule()" << std::endl;
 #endif
 		auto &distinct_state = *gstate.distinct_state;
@@ -485,7 +485,7 @@ public:
 	}
 
 	void FinishEvent() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[UngroupedDistinctCombineFinalizeEvent] FinishEvent()" << std::endl;
 #endif
 		//! Now that all tables are combined, it's time to do the distinct aggregations

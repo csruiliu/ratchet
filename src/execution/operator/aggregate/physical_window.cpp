@@ -1554,7 +1554,7 @@ private:
 };
 
 void WindowLocalMergeState::ExecuteTask() {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 	std::cout << "[WindowLocalMergeState::ExecuteTask]" << std::endl;
 #endif
 	auto &global_sort = merge_state->sort_state;
@@ -1671,7 +1671,7 @@ private:
 };
 
 TaskExecutionResult WindowMergeTask::ExecuteTask(TaskExecutionMode mode) {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 	std::cout << "[WindowMergeTask::ExecuteTask]" << std::endl;
 #endif
 	// Loop until all hash groups are done
@@ -1741,7 +1741,7 @@ public:
 
 public:
 	void Schedule() override {
-#ifdef RATCHET_DEBUG
+#ifdef RATCHET_PRINT
 		std::cout << "[WindowMergeEvent] Schedule()" << std::endl;
 #endif
 		auto &context = pipeline->GetClientContext();
