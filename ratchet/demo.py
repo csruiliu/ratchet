@@ -13,8 +13,10 @@ def main():
                         help="indicate the query id")
     parser.add_argument("-td", "--thread", type=int, action="store", default=1,
                         help="indicate the number of threads in DuckDB")
-    parser.add_argument("-sf", "--scale_factor", type=int, action="store", help="indicate scale factor of the dataset")
-    parser.add_argument("-pt", "--pause_time", type=int, action="store", help="indicate pause time point (second)")
+    parser.add_argument("-sf", "--scale_factor", type=int, action="store",
+                        help="indicate scale factor of the dataset")
+    parser.add_argument("-pt", "--pause_time", type=int, action="store", default=100,
+                        help="indicate pause time point (second)")
     args = parser.parse_args()
 
     qid = args.query_name
