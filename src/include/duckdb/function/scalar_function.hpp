@@ -24,6 +24,7 @@ struct FunctionLocalState {
 
 class Binder;
 class BoundFunctionExpression;
+class DependencyList;
 class ScalarFunctionCatalogEntry;
 
 struct FunctionStatisticsInput {
@@ -48,7 +49,7 @@ typedef unique_ptr<FunctionLocalState> (*init_local_state_t)(ExpressionState &st
                                                              FunctionData *bind_data);
 typedef unique_ptr<BaseStatistics> (*function_statistics_t)(ClientContext &context, FunctionStatisticsInput &input);
 //! Adds the dependencies of this BoundFunctionExpression to the set of dependencies
-typedef void (*dependency_function_t)(BoundFunctionExpression &expr, unordered_set<CatalogEntry *> &dependencies);
+typedef void (*dependency_function_t)(BoundFunctionExpression &expr, DependencyList &dependencies);
 
 typedef void (*function_serialize_t)(FieldWriter &writer, const FunctionData *bind_data,
                                      const ScalarFunction &function);
@@ -107,6 +108,13 @@ public:
 	static void BinaryFunction(DataChunk &input, ExpressionState &state, Vector &result) {
 		D_ASSERT(input.ColumnCount() == 2);
 		BinaryExecutor::ExecuteStandard<TA, TB, TR, OP>(input.data[0], input.data[1], result, input.size());
+	}
+
+	template <class TA, class TB, class TC, class TR, class OP>
+	static void TernaryFunction(DataChunk &input, ExpressionState &state, Vector &result) {
+		D_ASSERT(input.ColumnCount() == 3);
+		TernaryExecutor::ExecuteStandard<TA, TB, TC, TR, OP>(input.data[0], input.data[1], input.data[2], result,
+		                                                     input.size());
 	}
 
 public:

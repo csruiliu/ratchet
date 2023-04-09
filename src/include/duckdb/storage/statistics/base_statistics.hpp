@@ -46,8 +46,8 @@ public:
 public:
 	static unique_ptr<BaseStatistics> CreateEmpty(LogicalType type, StatisticsType stats_type);
 
-	bool CanHaveNull() const;
-	bool CanHaveNoNull() const;
+	DUCKDB_API bool CanHaveNull() const;
+	DUCKDB_API bool CanHaveNoNull() const;
 
 	void UpdateDistinctStatistics(Vector &v, idx_t count);
 
@@ -63,7 +63,7 @@ public:
 	virtual void Serialize(Serializer &serializer) const;
 	virtual void Serialize(FieldWriter &writer) const;
 
-	idx_t GetDistinctCount();
+	virtual idx_t GetDistinctCount();
 
 	static unique_ptr<BaseStatistics> Deserialize(Deserializer &source, LogicalType type);
 

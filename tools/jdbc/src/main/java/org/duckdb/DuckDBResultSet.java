@@ -30,6 +30,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Calendar;
 import java.util.Map;
+import java.util.UUID;
 
 public class DuckDBResultSet implements ResultSet {
 
@@ -196,6 +197,10 @@ public class DuckDBResultSet implements ResultSet {
 			return getJsonObject(columnIndex);
 		case INTERVAL:
 			return getLazyString(columnIndex);
+		case BLOB:
+			return getBlob(columnIndex);
+		case UUID:
+			return getUuid(columnIndex);
 		default:
 			throw new SQLException("Not implemented type: " + meta.column_types_string[columnIndex - 1]);
 		}
@@ -371,7 +376,8 @@ public class DuckDBResultSet implements ResultSet {
 		if (check_and_null(columnIndex)) {
 			return 0;
 		}
-		if (isType(columnIndex, DuckDBColumnType.BIGINT)) {
+		if (isType(columnIndex, DuckDBColumnType.BIGINT)
+			   || isType(columnIndex, DuckDBColumnType.TIMESTAMP)) {
 			return getbuf(columnIndex, 8).getLong();
 		}
 		Object o = getObject(columnIndex);
@@ -548,6 +554,23 @@ public class DuckDBResultSet implements ResultSet {
 		}
 		Object o = getObject(columnIndex);
 		return OffsetDateTime.parse(o.toString());
+	}
+
+	public UUID getUuid(int columnIndex) throws SQLException {
+		if (check_and_null(columnIndex)) {
+			return null;
+		}
+
+		if (isType(columnIndex, DuckDBColumnType.UUID)) {
+			ByteBuffer buffer = getbuf(columnIndex, 16);
+			long leastSignificantBits = buffer.getLong();
+
+			// Account for unsigned
+			long mostSignificantBits = buffer.getLong() - Long.MAX_VALUE - 1;
+			return new UUID(mostSignificantBits, leastSignificantBits);
+		}
+		Object o = getObject(columnIndex);
+		return UUID.fromString(o.toString());
 	}
 
 	static class DuckDBBlobResult implements Blob {
@@ -1352,7 +1375,8 @@ public class DuckDBResultSet implements ResultSet {
 				throw new SQLException("Can't convert value to integer " + type.toString());
 			}
 		} else if (type == Long.class) {
-			if (sqlType == DuckDBColumnType.BIGINT) {
+			if (sqlType == DuckDBColumnType.BIGINT
+					|| sqlType == DuckDBColumnType.TIMESTAMP) {
 				return type.cast(getLong(columnIndex));
 			} else if (sqlType == DuckDBColumnType.UINTEGER) {
 				throw new SQLException("Can't convert value to long " + type.toString());

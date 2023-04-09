@@ -20,8 +20,8 @@ namespace duckdb {
 PhysicalUngroupedAggregate::PhysicalUngroupedAggregate(vector<LogicalType> types,
                                                        vector<unique_ptr<Expression>> expressions,
                                                        idx_t estimated_cardinality)
-    : PhysicalOperator(PhysicalOperatorType::UNGROUPED_AGGREGATE, move(types), estimated_cardinality),
-      aggregates(move(expressions)) {
+    : PhysicalOperator(PhysicalOperatorType::UNGROUPED_AGGREGATE, std::move(types), estimated_cardinality),
+      aggregates(std::move(expressions)) {
 
 	distinct_collection_info = DistinctAggregateCollectionInfo::Create(aggregates);
 	if (!distinct_collection_info) {
@@ -40,7 +40,7 @@ struct AggregateState {
 			auto &aggr = (BoundAggregateExpression &)*aggregate;
 			auto state = unique_ptr<data_t[]>(new data_t[aggr.function.state_size()]);
 			aggr.function.initialize(state.get());
-			aggregates.push_back(move(state));
+			aggregates.push_back(std::move(state));
 			destructors.push_back(aggr.function.destructor);
 #ifdef DEBUG
 			counts.push_back(0);
@@ -61,8 +61,8 @@ struct AggregateState {
 	}
 
 	void Move(AggregateState &other) {
-		other.aggregates = move(aggregates);
-		other.destructors = move(destructors);
+		other.aggregates = std::move(aggregates);
+		other.destructors = std::move(destructors);
 	}
 
 	//! The aggregate values
@@ -299,9 +299,6 @@ void PhysicalUngroupedAggregate::CombineDistinct(ExecutionContext &context, Glob
 
 void PhysicalUngroupedAggregate::Combine(ExecutionContext &context, GlobalSinkState &state,
                                          LocalSinkState &lstate) const {
-#ifdef RATCHET_PRINT
-	std::cout << "[PhysicalUngroupedAggregate::Combine]" << std::endl;
-#endif
 	auto &gstate = (UngroupedAggregateGlobalState &)state;
 	auto &source = (UngroupedAggregateLocalState &)lstate;
 	D_ASSERT(!gstate.finished);
@@ -324,9 +321,6 @@ void PhysicalUngroupedAggregate::Combine(ExecutionContext &context, GlobalSinkSt
 		Vector dest_state(Value::POINTER((uintptr_t)gstate.state.aggregates[aggr_idx].get()));
 
 		AggregateInputData aggr_input_data(aggregate.bind_info.get(), Allocator::DefaultAllocator());
-#ifdef RATCHET_PRINT
-		std::cout << "[Aggregation Function]: " << aggregate.function.ToString() << std::endl;
-#endif
 		aggregate.function.combine(source_state, dest_state, aggr_input_data, 1);
 #ifdef DEBUG
 		gstate.state.counts[aggr_idx] += source.state.counts[aggr_idx];
@@ -343,7 +337,7 @@ public:
 	UngroupedDistinctAggregateFinalizeTask(Executor &executor, shared_ptr<Event> event_p,
 	                                       UngroupedAggregateGlobalState &state_p, ClientContext &context,
 	                                       const PhysicalUngroupedAggregate &op)
-	    : ExecutorTask(executor), event(move(event_p)), gstate(state_p), context(context), op(op) {
+	    : ExecutorTask(executor), event(std::move(event_p)), gstate(state_p), context(context), op(op) {
 	}
 
 	void AggregateDistinct() {
@@ -416,9 +410,6 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-#ifdef RATCHET_PRINT
-		std::cout << "[UngroupedDistinctAggregateFinalizeTask:ExecuteTask]" << std::endl;
-#endif
 		AggregateDistinct();
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
@@ -445,14 +436,11 @@ public:
 
 public:
 	void Schedule() override {
-#ifdef RATCHET_PRINT
-		std::cout << "[UngroupedDistinctAggregateFinalizeEvent] Schedule()" << std::endl;
-#endif
 		vector<unique_ptr<Task>> tasks;
 		tasks.push_back(make_unique<UngroupedDistinctAggregateFinalizeTask>(pipeline->executor, shared_from_this(),
 		                                                                    gstate, context, op));
 		D_ASSERT(!tasks.empty());
-		SetTasks(move(tasks));
+		SetTasks(std::move(tasks));
 	}
 };
 
@@ -470,9 +458,6 @@ public:
 
 public:
 	void Schedule() override {
-#ifdef RATCHET_PRINT
-		std::cout << "[UngroupedDistinctCombineFinalizeEvent] Schedule()" << std::endl;
-#endif
 		auto &distinct_state = *gstate.distinct_state;
 		auto &distinct_data = *op.distinct_data;
 		vector<unique_ptr<Task>> tasks;
@@ -481,16 +466,13 @@ public:
 			                                                     *distinct_state.radix_states[table_idx], tasks);
 		}
 		D_ASSERT(!tasks.empty());
-		SetTasks(move(tasks));
+		SetTasks(std::move(tasks));
 	}
 
 	void FinishEvent() override {
-#ifdef RATCHET_PRINT
-		std::cout << "[UngroupedDistinctCombineFinalizeEvent] FinishEvent()" << std::endl;
-#endif
 		//! Now that all tables are combined, it's time to do the distinct aggregations
 		auto new_event = make_shared<UngroupedDistinctAggregateFinalizeEvent>(op, gstate, *pipeline, client);
-		this->InsertEvent(move(new_event));
+		this->InsertEvent(std::move(new_event));
 	}
 };
 
@@ -511,12 +493,12 @@ SinkFinalizeType PhysicalUngroupedAggregate::FinalizeDistinct(Pipeline &pipeline
 	}
 	if (any_partitioned) {
 		auto new_event = make_shared<UngroupedDistinctCombineFinalizeEvent>(*this, gstate, pipeline, context);
-		event.InsertEvent(move(new_event));
+		event.InsertEvent(std::move(new_event));
 	} else {
 		//! Hashtables aren't partitioned, they dont need to be joined first
 		//! So we can compute the aggregate already
 		auto new_event = make_shared<UngroupedDistinctAggregateFinalizeEvent>(*this, gstate, pipeline, context);
-		event.InsertEvent(move(new_event));
+		event.InsertEvent(std::move(new_event));
 	}
 	return SinkFinalizeType::READY;
 }

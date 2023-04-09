@@ -16,7 +16,7 @@ namespace duckdb {
 
 struct SchedulerThread {
 #ifndef DUCKDB_NO_THREADS
-	explicit SchedulerThread(unique_ptr<thread> thread_p) : internal_thread(move(thread_p)) {
+	explicit SchedulerThread(unique_ptr<thread> thread_p) : internal_thread(std::move(thread_p)) {
 	}
 
 	unique_ptr<thread> internal_thread;
@@ -44,7 +44,7 @@ struct QueueProducerToken {
 
 void ConcurrentQueue::Enqueue(ProducerToken &token, unique_ptr<Task> task) {
 	lock_guard<mutex> producer_lock(token.producer_lock);
-	if (q.enqueue(token.token->queue_token, move(task))) {
+	if (q.enqueue(token.token->queue_token, std::move(task))) {
 		semaphore.signal();
 	} else {
 		throw InternalException("Could not schedule task!");
@@ -67,7 +67,7 @@ struct ConcurrentQueue {
 
 void ConcurrentQueue::Enqueue(ProducerToken &token, unique_ptr<Task> task) {
 	lock_guard<mutex> lock(qlock);
-	q.push(move(task));
+	q.push(std::move(task));
 }
 
 bool ConcurrentQueue::DequeueFromProducer(ProducerToken &token, unique_ptr<Task> &task) {
@@ -75,7 +75,7 @@ bool ConcurrentQueue::DequeueFromProducer(ProducerToken &token, unique_ptr<Task>
 	if (q.empty()) {
 		return false;
 	}
-	task = move(q.front());
+	task = std::move(q.front());
 	q.pop();
 	return true;
 }
@@ -87,7 +87,7 @@ struct QueueProducerToken {
 #endif
 
 ProducerToken::ProducerToken(TaskScheduler &scheduler, unique_ptr<QueueProducerToken> token)
-    : scheduler(scheduler), token(move(token)) {
+    : scheduler(scheduler), token(std::move(token)) {
 }
 
 ProducerToken::~ProducerToken() {
@@ -97,9 +97,6 @@ TaskScheduler::TaskScheduler(DatabaseInstance &db) : db(db), queue(make_unique<C
 }
 
 TaskScheduler::~TaskScheduler() {
-#ifdef RATCHET_PRINT
-	std::cout << "[TaskScheduler::~TaskScheduler]" << std::endl;
-#endif
 #ifndef DUCKDB_NO_THREADS
 	SetThreadsInternal(1);
 #endif
@@ -115,20 +112,16 @@ TaskScheduler &TaskScheduler::GetScheduler(DatabaseInstance &db) {
 
 unique_ptr<ProducerToken> TaskScheduler::CreateProducer() {
 	auto token = make_unique<QueueProducerToken>(*queue);
-	return make_unique<ProducerToken>(*this, move(token));
+	return make_unique<ProducerToken>(*this, std::move(token));
 }
 
 void TaskScheduler::ScheduleTask(ProducerToken &token, unique_ptr<Task> task) {
 	// Enqueue a task for the given producer token and signal any sleeping threads
-	queue->Enqueue(token, move(task));
+	queue->Enqueue(token, std::move(task));
 }
 
 bool TaskScheduler::GetTaskFromProducer(ProducerToken &token, unique_ptr<Task> &task) {
 	return queue->DequeueFromProducer(token, task);
-}
-
-idx_t TaskScheduler::GetNumberOfTasks() {
-	return queue->q.size_approx();
 }
 
 void TaskScheduler::ExecuteForever(atomic<bool> *marker) {
@@ -139,9 +132,6 @@ void TaskScheduler::ExecuteForever(atomic<bool> *marker) {
 		// wait for a signal with a timeout
 		queue->semaphore.wait();
 		if (queue->q.try_dequeue(task)) {
-#ifdef RATCHET_PRINT
-			std::cout << "[TaskScheduler::ExecuteForever] Get a task and run it in PROCESS_ALL " << std::endl;
-#endif
 			task->Execute(TaskExecutionMode::PROCESS_ALL);
 			task.reset();
 		}
@@ -152,9 +142,6 @@ void TaskScheduler::ExecuteForever(atomic<bool> *marker) {
 }
 
 idx_t TaskScheduler::ExecuteTasks(atomic<bool> *marker, idx_t max_tasks) {
-#ifdef RATCHET_PRINT
-	std::cout << "[TaskScheduler::ExecuteTasks(atomic<bool> *marker, idx_t max_tasks)]" << std::endl;
-#endif
 #ifndef DUCKDB_NO_THREADS
 	idx_t completed_tasks = 0;
 	// loop until the marker is set to false
@@ -174,9 +161,6 @@ idx_t TaskScheduler::ExecuteTasks(atomic<bool> *marker, idx_t max_tasks) {
 }
 
 void TaskScheduler::ExecuteTasks(idx_t max_tasks) {
-#ifdef RATCHET_PRINT
-	std::cout << "[TaskScheduler::ExecuteTasks(idx_t max_tasks)]" << std::endl;
-#endif
 #ifndef DUCKDB_NO_THREADS
 	unique_ptr<Task> task;
 	for (idx_t i = 0; i < max_tasks; i++) {
@@ -229,9 +213,6 @@ void TaskScheduler::Signal(idx_t n) {
 }
 
 void TaskScheduler::SetThreadsInternal(int32_t n) {
-#ifdef RATCHET_PRINT
-	std::cout << "[TaskScheduler::SetThreadsInternal] Set " << n << " Threads" << std::endl;
-#endif
 #ifndef DUCKDB_NO_THREADS
 	if (threads.size() == idx_t(n - 1)) {
 		return;
@@ -258,10 +239,10 @@ void TaskScheduler::SetThreadsInternal(int32_t n) {
 			// launch a thread and assign it a cancellation marker
 			auto marker = unique_ptr<atomic<bool>>(new atomic<bool>(true));
 			auto worker_thread = make_unique<thread>(ThreadExecuteTasks, this, marker.get());
-			auto thread_wrapper = make_unique<SchedulerThread>(move(worker_thread));
+			auto thread_wrapper = make_unique<SchedulerThread>(std::move(worker_thread));
 
-			threads.push_back(move(thread_wrapper));
-			markers.push_back(move(marker));
+			threads.push_back(std::move(thread_wrapper));
+			markers.push_back(std::move(marker));
 		}
 	}
 #endif

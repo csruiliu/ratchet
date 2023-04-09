@@ -27,11 +27,9 @@ public:
 
 	//! Fully execute a pipeline with a source and a sink until the source is completely exhausted
 	void Execute();
-
 	//! Execute a pipeline with a source and a sink until finished, or until max_chunks have been processed
 	//! Returns true if execution is finished, false if Execute should be called again
 	bool Execute(idx_t max_chunks);
-	bool ExecuteRatchet(idx_t max_chunks);
 
 	//! Push a single input DataChunk into the pipeline.
 	//! Returns either OperatorResultType::NEED_MORE_INPUT or OperatorResultType::FINISHED
@@ -71,13 +69,6 @@ private:
 	//! The final chunk used for moving data into the sink
 	DataChunk final_chunk;
 
-	//! Indicates that the first non-finished operator in the pipeline with RequireFinalExecute has some pending result
-	bool pending_final_execute = false;
-	//! The OperatorFinalizeResultType corresponding to the currently pending final_execute result
-	OperatorFinalizeResultType cached_final_execute_result;
-	//! Source has been exhausted
-	bool source_empty = false;
-
 	//! The operators that are not yet finished executing and have data remaining
 	//! If the stack of in_process_operators is empty, we fetch from the source instead
 	stack<idx_t> in_process_operators;
@@ -100,7 +91,6 @@ private:
 	bool IsFinished();
 
 	OperatorResultType ExecutePushInternal(DataChunk &input, idx_t initial_idx = 0);
-
 	//! Pushes a chunk through the pipeline and returns a single result chunk
 	//! Returns whether or not a new input chunk is needed, or whether or not we are finished
 	OperatorResultType Execute(DataChunk &input, DataChunk &result, idx_t initial_index = 0);
