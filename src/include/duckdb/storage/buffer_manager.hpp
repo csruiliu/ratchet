@@ -23,6 +23,11 @@ class DatabaseInstance;
 class TemporaryDirectoryHandle;
 struct EvictionQueue;
 
+struct TemporaryFileInformation {
+	string path;
+	idx_t size;
+};
+
 //! The buffer manager is in charge of handling memory management for the database. It hands out memory buffers that can
 //! be used by the database internally.
 //
@@ -57,15 +62,23 @@ public:
 	//! blocks can be evicted
 	void SetLimit(idx_t limit = (idx_t)-1);
 
-	static BufferManager &GetBufferManager(ClientContext &context);
+	DUCKDB_API static BufferManager &GetBufferManager(ClientContext &context);
 	DUCKDB_API static BufferManager &GetBufferManager(DatabaseInstance &db);
+	DUCKDB_API static BufferManager &GetBufferManager(AttachedDatabase &db);
 
+	//! Returns the currently allocated memory
 	idx_t GetUsedMemory() {
 		return current_memory;
 	}
+	//! Returns the maximum available memory
 	idx_t GetMaxMemory() {
 		return maximum_memory;
 	}
+
+	//! Increases the currently allocated memory, but the actual allocation does not go through the buffer manager
+	void IncreaseUsedMemory(idx_t size);
+	//! Decrease the currently allocated memory, but the actual deallocation does not go through the buffer manager
+	void DecreaseUsedMemory(idx_t size);
 
 	const string &GetTemporaryDirectory() {
 		return temp_directory;
@@ -84,13 +97,14 @@ public:
 	}
 
 	//! Construct a managed buffer.
-	//! The block_id is just used for internal tracking. It doesn't map to any actual
-	//! BlockManager.
-	virtual unique_ptr<FileBuffer> ConstructManagedBuffer(idx_t size, unique_ptr<FileBuffer> &&source,
-	                                                      FileBufferType type = FileBufferType::MANAGED_BUFFER);
+	unique_ptr<FileBuffer> ConstructManagedBuffer(idx_t size, unique_ptr<FileBuffer> &&source,
+	                                              FileBufferType type = FileBufferType::MANAGED_BUFFER);
 
 	DUCKDB_API void ReserveMemory(idx_t size);
 	DUCKDB_API void FreeReservedMemory(idx_t size);
+
+	//! Returns a list of all temporary files
+	vector<TemporaryFileInformation> GetTemporaryFiles();
 
 private:
 	//! Register an in-memory buffer of arbitrary size, as long as it is >= BLOCK_SIZE. can_destroy signifies whether or
@@ -140,7 +154,7 @@ private:
 	                                         idx_t size);
 
 	//! When the BlockHandle reaches 0 readers, this creates a new FileBuffer for this BlockHandle and
-	//! overwrites the data within with garbage. Any readers that do not hold the pin will notice TODO rewrite
+	//! overwrites the data within with garbage. Any readers that do not hold the pin will notice
 	void VerifyZeroReaders(shared_ptr<BlockHandle> &handle);
 
 private:

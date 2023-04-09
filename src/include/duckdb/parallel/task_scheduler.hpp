@@ -42,8 +42,8 @@ public:
 	TaskScheduler(DatabaseInstance &db);
 	~TaskScheduler();
 
-	static TaskScheduler &GetScheduler(ClientContext &context);
-	static TaskScheduler &GetScheduler(DatabaseInstance &db);
+	DUCKDB_API static TaskScheduler &GetScheduler(ClientContext &context);
+	DUCKDB_API static TaskScheduler &GetScheduler(DatabaseInstance &db);
 
 	unique_ptr<ProducerToken> CreateProducer();
 	//! Schedule a task to be executed by the task scheduler
@@ -58,13 +58,11 @@ public:
 	//! Run tasks until `max_tasks` have been completed, or until there are no more tasks available
 	void ExecuteTasks(idx_t max_tasks);
 
-	idx_t GetNumberOfTasks();
-
 	//! Sets the amount of active threads executing tasks for the system; n-1 background threads will be launched.
 	//! The main thread will also be used for execution
 	void SetThreads(int32_t n);
 	//! Returns the number of threads
-	int32_t NumberOfThreads();
+	DUCKDB_API int32_t NumberOfThreads();
 
 	//! Send signals to n threads, signalling for them to wake up and attempt to execute a task
 	void Signal(idx_t n);

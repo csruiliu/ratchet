@@ -6,13 +6,13 @@ namespace duckdb {
 
 PendingQueryResult::PendingQueryResult(shared_ptr<ClientContext> context_p, PreparedStatementData &statement,
                                        vector<LogicalType> types_p, bool allow_stream_result)
-    : BaseQueryResult(QueryResultType::PENDING_RESULT, statement.statement_type, statement.properties, move(types_p),
-                      statement.names),
-      context(move(context_p)), allow_stream_result(allow_stream_result) {
+    : BaseQueryResult(QueryResultType::PENDING_RESULT, statement.statement_type, statement.properties,
+                      std::move(types_p), statement.names),
+      context(std::move(context_p)), allow_stream_result(allow_stream_result) {
 }
 
 PendingQueryResult::PendingQueryResult(PreservedError error)
-    : BaseQueryResult(QueryResultType::PENDING_RESULT, move(error)) {
+    : BaseQueryResult(QueryResultType::PENDING_RESULT, std::move(error)) {
 }
 
 PendingQueryResult::~PendingQueryResult() {
@@ -48,19 +48,9 @@ PendingExecutionResult PendingQueryResult::ExecuteTask() {
 	return ExecuteTaskInternal(*lock);
 }
 
-PendingExecutionResult PendingQueryResult::ExecuteTaskRatchet() {
-	auto lock = LockContext();
-	return ExecuteTaskInternalRatchet(*lock);
-}
-
 PendingExecutionResult PendingQueryResult::ExecuteTaskInternal(ClientContextLock &lock) {
 	CheckExecutableInternal(lock);
 	return context->ExecuteTaskInternal(lock, *this);
-}
-
-PendingExecutionResult PendingQueryResult::ExecuteTaskInternalRatchet(ClientContextLock &lock) {
-	CheckExecutableInternal(lock);
-	return context->ExecuteTaskInternalRatchet(lock, *this);
 }
 
 unique_ptr<QueryResult> PendingQueryResult::ExecuteInternal(ClientContextLock &lock) {
@@ -75,27 +65,9 @@ unique_ptr<QueryResult> PendingQueryResult::ExecuteInternal(ClientContextLock &l
 	return result;
 }
 
-unique_ptr<QueryResult> PendingQueryResult::ExecuteInternalRatchet(ClientContextLock &lock) {
-	// std::cout << "[PendingQueryResult::ExecuteInternalRatchet]" << std::endl;
-	CheckExecutableInternal(lock);
-	while (ExecuteTaskInternalRatchet(lock) == PendingExecutionResult::RESULT_NOT_READY) {
-	}
-	if (HasError()) {
-		return make_unique<MaterializedQueryResult>(error);
-	}
-	auto result = context->FetchResultInternalRatchet(lock, *this);
-	Close();
-	return result;
-}
-
 unique_ptr<QueryResult> PendingQueryResult::Execute() {
 	auto lock = LockContext();
 	return ExecuteInternal(*lock);
-}
-
-unique_ptr<QueryResult> PendingQueryResult::ExecuteRatchet() {
-	auto lock = LockContext();
-	return ExecuteInternalRatchet(*lock);
 }
 
 void PendingQueryResult::Close() {

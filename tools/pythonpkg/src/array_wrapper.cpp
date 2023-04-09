@@ -6,6 +6,7 @@
 #include "utf8proc_wrapper.hpp"
 #include "duckdb/common/types/interval.hpp"
 #include "duckdb_python/pyrelation.hpp"
+#include "duckdb_python/python_objects.hpp"
 #include "duckdb_python/pyconnection.hpp"
 #include "duckdb_python/pyresult.hpp"
 #include "duckdb/common/types/uuid.hpp"
@@ -219,11 +220,23 @@ struct BlobConvert {
 	}
 };
 
+struct BitConvert {
+	template <class DUCKDB_T, class NUMPY_T>
+	static PyObject *ConvertValue(string_t val) {
+		return PyBytes_FromStringAndSize(val.GetDataUnsafe(), val.GetSize());
+	}
+
+	template <class NUMPY_T>
+	static NUMPY_T NullValue() {
+		return nullptr;
+	}
+};
+
 struct UUIDConvert {
 	template <class DUCKDB_T, class NUMPY_T>
 	static PyObject *ConvertValue(hugeint_t val) {
 		auto &import_cache = *DuckDBPyConnection::ImportCache();
-		py::handle h = import_cache.uuid.UUID()(UUID::ToString(val)).release();
+		py::handle h = import_cache.uuid().UUID()(UUID::ToString(val)).release();
 		return h.ptr();
 	}
 
@@ -239,13 +252,13 @@ struct ListConvert {
 		auto &list_children = ListValue::GetChildren(val);
 		py::list list;
 		for (auto &list_elem : list_children) {
-			list.append(DuckDBPyResult::GetValueToPython(list_elem, ListType::GetChildType(input.GetType())));
+			list.append(PythonObject::FromValue(list_elem, ListType::GetChildType(input.GetType())));
 		}
 		return list;
 	}
 };
 
-struct StructMapConvert {
+struct StructConvert {
 	static py::dict ConvertValue(Vector &input, idx_t chunk_offset) {
 		py::dict py_struct;
 		auto val = input.GetValue(chunk_offset);
@@ -256,8 +269,31 @@ struct StructMapConvert {
 			auto &child_entry = child_types[i];
 			auto &child_name = child_entry.first;
 			auto &child_type = child_entry.second;
-			py_struct[child_name.c_str()] = DuckDBPyResult::GetValueToPython(struct_children[i], child_type);
+			py_struct[child_name.c_str()] = PythonObject::FromValue(struct_children[i], child_type);
 		}
+		return py_struct;
+	}
+};
+
+struct MapConvert {
+	static py::dict ConvertValue(Vector &input, idx_t chunk_offset) {
+		auto val = input.GetValue(chunk_offset);
+		auto &list_children = ListValue::GetChildren(val);
+
+		auto &key_type = MapType::KeyType(input.GetType());
+		auto &val_type = MapType::ValueType(input.GetType());
+
+		py::list keys;
+		py::list values;
+		for (auto &list_elem : list_children) {
+			auto &struct_children = StructValue::GetChildren(list_elem);
+			keys.append(PythonObject::FromValue(struct_children[0], key_type));
+			values.append(PythonObject::FromValue(struct_children[1], val_type));
+		}
+
+		py::dict py_struct;
+		py_struct["key"] = keys;
+		py_struct["value"] = values;
 		return py_struct;
 	}
 };
@@ -485,7 +521,7 @@ RawArrayWrapper::RawArrayWrapper(const LogicalType &type) : data(nullptr), type(
 	case LogicalTypeId::TIME:
 	case LogicalTypeId::TIME_TZ:
 	case LogicalTypeId::VARCHAR:
-	case LogicalTypeId::JSON:
+	case LogicalTypeId::BIT:
 	case LogicalTypeId::BLOB:
 	case LogicalTypeId::ENUM:
 	case LogicalTypeId::LIST:
@@ -551,7 +587,7 @@ void RawArrayWrapper::Initialize(idx_t capacity) {
 	case LogicalTypeId::TIME:
 	case LogicalTypeId::TIME_TZ:
 	case LogicalTypeId::VARCHAR:
-	case LogicalTypeId::JSON:
+	case LogicalTypeId::BIT:
 	case LogicalTypeId::BLOB:
 	case LogicalTypeId::LIST:
 	case LogicalTypeId::MAP:
@@ -693,7 +729,6 @@ void ArrayWrapper::Append(idx_t current_offset, Vector &input, idx_t count) {
 		may_have_null = ConvertColumn<interval_t, int64_t, duckdb_py_convert::IntervalConvert>(current_offset, dataptr,
 		                                                                                       maskptr, idata, count);
 		break;
-	case LogicalTypeId::JSON:
 	case LogicalTypeId::VARCHAR:
 		may_have_null = ConvertColumn<string_t, PyObject *, duckdb_py_convert::StringConvert>(current_offset, dataptr,
 		                                                                                      maskptr, idata, count);
@@ -702,14 +737,21 @@ void ArrayWrapper::Append(idx_t current_offset, Vector &input, idx_t count) {
 		may_have_null = ConvertColumn<string_t, PyObject *, duckdb_py_convert::BlobConvert>(current_offset, dataptr,
 		                                                                                    maskptr, idata, count);
 		break;
+	case LogicalTypeId::BIT:
+		may_have_null = ConvertColumn<string_t, PyObject *, duckdb_py_convert::BitConvert>(current_offset, dataptr,
+		                                                                                   maskptr, idata, count);
+		break;
 	case LogicalTypeId::LIST:
 		may_have_null = ConvertNested<py::list, duckdb_py_convert::ListConvert>(current_offset, dataptr, maskptr, input,
 		                                                                        idata, count);
 		break;
 	case LogicalTypeId::MAP:
+		may_have_null = ConvertNested<py::dict, duckdb_py_convert::MapConvert>(current_offset, dataptr, maskptr, input,
+		                                                                       idata, count);
+		break;
 	case LogicalTypeId::STRUCT:
-		may_have_null = ConvertNested<py::dict, duckdb_py_convert::StructMapConvert>(current_offset, dataptr, maskptr,
-		                                                                             input, idata, count);
+		may_have_null = ConvertNested<py::dict, duckdb_py_convert::StructConvert>(current_offset, dataptr, maskptr,
+		                                                                          input, idata, count);
 		break;
 	case LogicalTypeId::UUID:
 		may_have_null = ConvertColumn<hugeint_t, PyObject *, duckdb_py_convert::UUIDConvert>(current_offset, dataptr,
@@ -730,12 +772,12 @@ py::object ArrayWrapper::ToArray(idx_t count) const {
 	D_ASSERT(data->array && mask->array);
 	data->Resize(data->count);
 	if (!requires_mask) {
-		return move(data->array);
+		return std::move(data->array);
 	}
 	mask->Resize(mask->count);
 	// construct numpy arrays from the data and the mask
-	auto values = move(data->array);
-	auto nullmask = move(mask->array);
+	auto values = std::move(data->array);
+	auto nullmask = std::move(mask->array);
 
 	// create masked array and return it
 	auto masked_array = py::module::import("numpy.ma").attr("masked_array")(values, nullmask);

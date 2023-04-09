@@ -5,7 +5,7 @@
 namespace duckdb {
 
 PipelineExecutor::PipelineExecutor(ClientContext &context_p, Pipeline &pipeline_p)
-		: pipeline(pipeline_p), thread(context_p), context(context_p, thread, &pipeline_p) {
+    : pipeline(pipeline_p), thread(context_p), context(context_p, thread, &pipeline_p) {
 	D_ASSERT(pipeline.source_state);
 	local_source_state = pipeline.source->GetLocalSourceState(context, *pipeline.source_state);
 	if (pipeline.sink) {
@@ -21,7 +21,7 @@ PipelineExecutor::PipelineExecutor(ClientContext &context_p, Pipeline &pipeline_
 
 		auto chunk = make_unique<DataChunk>();
 		chunk->Initialize(Allocator::Get(context.client), prev_operator->GetTypes());
-		intermediate_chunks.push_back(move(chunk));
+		intermediate_chunks.push_back(std::move(chunk));
 
 		auto op_state = current_operator->GetOperatorState(context);
 		intermediate_states.push_back(std::move(op_state));
@@ -36,12 +36,7 @@ PipelineExecutor::PipelineExecutor(ClientContext &context_p, Pipeline &pipeline_
 }
 
 bool PipelineExecutor::Execute(idx_t max_chunks) {
- 	D_ASSERT(pipeline.sink);
-#ifdef RATCHET_PRINT
-	std::cout << "[PipelineExecutor::Execute] Max Chunks: " << max_chunks
-	          << ", Pipeline Source: " << PhysicalOperatorToString(pipeline.source->type)
-	          << ", Sink: " << PhysicalOperatorToString(pipeline.sink->type) << std::endl;
-#endif
+	D_ASSERT(pipeline.sink);
 	bool exhausted_source = false;
 	auto &source_chunk = pipeline.operators.empty() ? final_chunk : *intermediate_chunks[0];
 	for (idx_t i = 0; i < max_chunks; i++) {
@@ -50,8 +45,6 @@ bool PipelineExecutor::Execute(idx_t max_chunks) {
 		}
 		source_chunk.Reset();
 		FetchFromSource(source_chunk);
-		// printout each data chunk of source_chunk
-		// source_chunk.Print();
 		if (source_chunk.size() == 0) {
 			exhausted_source = true;
 			break;
@@ -121,49 +114,6 @@ OperatorResultType PipelineExecutor::ExecutePushInternal(DataChunk &input, idx_t
 	}
 }
 
-// Pull a single DataChunk from the pipeline by flushing any operators holding cached output
-void PipelineExecutor::FlushCachingOperatorsPull(DataChunk &result) {
-	idx_t start_idx = IsFinished() ? idx_t(finished_processing_idx) : 0;
-	idx_t op_idx = start_idx;
-	while (op_idx < pipeline.operators.size()) {
-		if (!pipeline.operators[op_idx]->RequiresFinalExecute()) {
-			op_idx++;
-			continue;
-		}
-
-		OperatorFinalizeResultType finalize_result;
-		DataChunk &curr_chunk =
-		    op_idx + 1 >= intermediate_chunks.size() ? final_chunk : *intermediate_chunks[op_idx + 1];
-
-		if (pending_final_execute) {
-			// Still have a cached chunk from a last pull, reuse chunk
-			finalize_result = cached_final_execute_result;
-		} else {
-			// Flush the current operator
-			finalize_result = pipeline.operators[op_idx]->FinalExecute(
-			    context, curr_chunk, *pipeline.operators[op_idx]->op_state, *intermediate_states[op_idx]);
-		}
-
-		auto execute_result = Execute(curr_chunk, result, op_idx + 1);
-
-		if (execute_result == OperatorResultType::HAVE_MORE_OUTPUT) {
-			pending_final_execute = true;
-			cached_final_execute_result = finalize_result;
-		} else {
-			pending_final_execute = false;
-			if (finalize_result == OperatorFinalizeResultType::FINISHED) {
-				FinishProcessing(op_idx);
-				op_idx++;
-			}
-		}
-
-		// Some non-empty result was pulled from some caching operator, we're done for this pull
-		if (result.size() > 0) {
-			break;
-		}
-	}
-}
-
 // Push all remaining cached operator output through the pipeline
 void PipelineExecutor::FlushCachingOperatorsPush() {
 	idx_t start_idx = IsFinished() ? idx_t(finished_processing_idx) : 0;
@@ -178,8 +128,11 @@ void PipelineExecutor::FlushCachingOperatorsPush() {
 		do {
 			auto &curr_chunk =
 			    op_idx + 1 >= intermediate_chunks.size() ? final_chunk : *intermediate_chunks[op_idx + 1];
-			finalize_result = pipeline.operators[op_idx]->FinalExecute(
-			    context, curr_chunk, *pipeline.operators[op_idx]->op_state, *intermediate_states[op_idx]);
+			auto current_operator = pipeline.operators[op_idx];
+			StartOperator(current_operator);
+			finalize_result = current_operator->FinalExecute(context, curr_chunk, *current_operator->op_state,
+			                                                 *intermediate_states[op_idx]);
+			EndOperator(current_operator, &curr_chunk);
 			push_result = ExecutePushInternal(curr_chunk, op_idx + 1);
 		} while (finalize_result != OperatorFinalizeResultType::FINISHED &&
 		         push_result != OperatorResultType::FINISHED);
@@ -194,9 +147,6 @@ void PipelineExecutor::PushFinalize() {
 	if (finalized) {
 		throw InternalException("Calling PushFinalize on a pipeline that has been finalized already");
 	}
-#ifdef RATCHET_PRINT
-	std::cout << "[PipelineExecutor::PushFinalize]" << std::endl;
-#endif
 	finalized = true;
 	// flush all caching operators
 	// note that even if an operator has finished, we might still need to flush caches AFTER
@@ -227,21 +177,13 @@ void PipelineExecutor::ExecutePull(DataChunk &result) {
 		D_ASSERT(!pipeline.sink);
 		auto &source_chunk = pipeline.operators.empty() ? result : *intermediate_chunks[0];
 		while (result.size() == 0) {
-			if (source_empty) {
-				FlushCachingOperatorsPull(result);
-				break;
-			}
-
 			if (in_process_operators.empty()) {
 				source_chunk.Reset();
 				FetchFromSource(source_chunk);
-
 				if (source_chunk.size() == 0) {
-					source_empty = true;
-					continue;
+					break;
 				}
 			}
-
 			if (!pipeline.operators.empty()) {
 				auto state = Execute(source_chunk, result);
 				if (state == OperatorResultType::FINISHED) {

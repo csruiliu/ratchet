@@ -7,6 +7,8 @@
 #include "duckdb/common/operator/cast_operators.hpp"
 #include "duckdb/main/db_instance_cache.hpp"
 #include "duckdb/common/arrow/result_arrow_wrapper.hpp"
+#include "duckdb/function/table/arrow.hpp"
+#include "duckdb/main/database_manager.hpp"
 
 using namespace duckdb;
 using namespace std;
@@ -34,6 +36,7 @@ static jclass J_Float;
 static jclass J_Double;
 static jclass J_String;
 static jclass J_Timestamp;
+static jclass J_TimestampTZ;
 static jclass J_Decimal;
 
 static jmethodID J_Bool_booleanValue;
@@ -44,6 +47,7 @@ static jmethodID J_Long_longValue;
 static jmethodID J_Float_floatValue;
 static jmethodID J_Double_doubleValue;
 static jmethodID J_Timestamp_getMicrosEpoch;
+static jmethodID J_TimestampTZ_getMicrosEpoch;
 static jmethodID J_Decimal_precision;
 static jmethodID J_Decimal_scale;
 static jmethodID J_Decimal_scaleByPowTen;
@@ -122,6 +126,9 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 	tmpLocalRef = env->FindClass("org/duckdb/DuckDBTimestamp");
 	J_Timestamp = (jclass)env->NewGlobalRef(tmpLocalRef);
 	env->DeleteLocalRef(tmpLocalRef);
+	tmpLocalRef = env->FindClass("org/duckdb/DuckDBTimestampTZ");
+	J_TimestampTZ = (jclass)env->NewGlobalRef(tmpLocalRef);
+	env->DeleteLocalRef(tmpLocalRef);
 	tmpLocalRef = env->FindClass("java/math/BigDecimal");
 	J_Decimal = (jclass)env->NewGlobalRef(tmpLocalRef);
 	env->DeleteLocalRef(tmpLocalRef);
@@ -152,6 +159,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 	J_Float_floatValue = env->GetMethodID(J_Float, "floatValue", "()F");
 	J_Double_doubleValue = env->GetMethodID(J_Double, "doubleValue", "()D");
 	J_Timestamp_getMicrosEpoch = env->GetMethodID(J_Timestamp, "getMicrosEpoch", "()J");
+	J_TimestampTZ_getMicrosEpoch = env->GetMethodID(J_TimestampTZ, "getMicrosEpoch", "()J");
 	J_Decimal_precision = env->GetMethodID(J_Decimal, "precision", "()I");
 	J_Decimal_scale = env->GetMethodID(J_Decimal, "scale", "()I");
 	J_Decimal_scaleByPowTen = env->GetMethodID(J_Decimal, "scaleByPowerOfTen", "(I)Ljava/math/BigDecimal;");
@@ -201,6 +209,7 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
 	env->DeleteGlobalRef(J_Double);
 	env->DeleteGlobalRef(J_String);
 	env->DeleteGlobalRef(J_Timestamp);
+	env->DeleteGlobalRef(J_TimestampTZ);
 	env->DeleteGlobalRef(J_Decimal);
 	env->DeleteGlobalRef(J_DuckResultSetMeta);
 	env->DeleteGlobalRef(J_DuckVector);
@@ -287,7 +296,7 @@ JNIEXPORT jobject JNICALL Java_org_duckdb_DuckDBNative_duckdb_1jdbc_1startup(JNI
 		auto shared_db = instance_cache.GetOrCreateInstance(database, config, cache_instance);
 		auto db = shared_db.get();
 		std::lock_guard<std::mutex> lock(db_map_lock);
-		db_map[db] = move(shared_db);
+		db_map[db] = std::move(shared_db);
 
 		return env->NewDirectByteBuffer(db, 0);
 	} catch (exception &e) {
@@ -301,7 +310,6 @@ JNIEXPORT void JNICALL Java_org_duckdb_DuckDBNative_duckdb_1jdbc_1shutdown(JNIEn
 	auto db_ref = (DuckDB *)env->GetDirectBufferAddress(db_ref_buf);
 	if (db_ref) {
 		std::lock_guard<std::mutex> lock(db_map_lock);
-		D_ASSERT(db_map.find(db_ref) != db_map.end());
 		db_map.erase(db_ref);
 	}
 }
@@ -325,9 +333,24 @@ JNIEXPORT jstring JNICALL Java_org_duckdb_DuckDBNative_duckdb_1jdbc_1get_1schema
 		return nullptr;
 	}
 
-	auto schema = ClientData::Get(*conn_ref->context).catalog_search_path->GetDefault();
+	auto entry = ClientData::Get(*conn_ref->context).catalog_search_path->GetDefault();
 
-	return env->NewStringUTF(schema.c_str());
+	return env->NewStringUTF(entry.schema.c_str());
+}
+
+JNIEXPORT jstring JNICALL Java_org_duckdb_DuckDBNative_duckdb_1jdbc_1get_1catalog(JNIEnv *env, jclass,
+                                                                                  jobject conn_ref_buf) {
+	auto conn_ref = get_connection(env, conn_ref_buf);
+	if (!conn_ref) {
+		return nullptr;
+	}
+
+	auto entry = ClientData::Get(*conn_ref->context).catalog_search_path->GetDefault();
+	if (entry.catalog == INVALID_CATALOG) {
+		entry.catalog = DatabaseManager::GetDefaultDatabase(*conn_ref->context);
+	}
+
+	return env->NewStringUTF(entry.catalog.c_str());
 }
 
 JNIEXPORT void JNICALL Java_org_duckdb_DuckDBNative_duckdb_1jdbc_1set_1auto_1commit(JNIEnv *env, jclass,
@@ -392,7 +415,7 @@ JNIEXPORT jobject JNICALL Java_org_duckdb_DuckDBNative_duckdb_1jdbc_1prepare(JNI
 	// we only return the result of the last statement to the user, unless one of the previous statements fails
 	for (idx_t i = 0; i + 1 < statements.size(); i++) {
 		try {
-			auto res = conn_ref->Query(move(statements[i]));
+			auto res = conn_ref->Query(std::move(statements[i]));
 			if (res->HasError()) {
 				env->ThrowNew(J_SQLException, res->GetError().c_str());
 				return nullptr;
@@ -404,7 +427,7 @@ JNIEXPORT jobject JNICALL Java_org_duckdb_DuckDBNative_duckdb_1jdbc_1prepare(JNI
 	}
 
 	auto stmt_ref = new StatementHolder();
-	stmt_ref->stmt = conn_ref->Prepare(move(statements.back()));
+	stmt_ref->stmt = conn_ref->Prepare(std::move(statements.back()));
 	if (stmt_ref->stmt->HasError()) {
 		string error_msg = string(stmt_ref->stmt->GetError());
 		stmt_ref->stmt = nullptr;
@@ -429,6 +452,7 @@ JNIEXPORT jobject JNICALL Java_org_duckdb_DuckDBNative_duckdb_1jdbc_1execute(JNI
 	auto stmt_ref = (StatementHolder *)env->GetDirectBufferAddress(stmt_ref_buf);
 	if (!stmt_ref) {
 		env->ThrowNew(J_SQLException, "Invalid statement");
+		return nullptr;
 	}
 	auto res_ref = make_unique<ResultHolder>();
 	vector<Value> duckdb_params;
@@ -460,6 +484,10 @@ JNIEXPORT jobject JNICALL Java_org_duckdb_DuckDBNative_duckdb_1jdbc_1execute(JNI
 			} else if (env->IsInstanceOf(param, J_Long)) {
 				duckdb_params.push_back(Value::BIGINT(env->CallLongMethod(param, J_Long_longValue)));
 				continue;
+			} else if (env->IsInstanceOf(param, J_TimestampTZ)) { // Check for subclass before superclass!
+				duckdb_params.push_back(
+				    Value::TIMESTAMPTZ((timestamp_t)env->CallLongMethod(param, J_TimestampTZ_getMicrosEpoch)));
+				continue;
 			} else if (env->IsInstanceOf(param, J_Timestamp)) {
 				duckdb_params.push_back(
 				    Value::TIMESTAMP((timestamp_t)env->CallLongMethod(param, J_Timestamp_getMicrosEpoch)));
@@ -473,6 +501,18 @@ JNIEXPORT jobject JNICALL Java_org_duckdb_DuckDBNative_duckdb_1jdbc_1execute(JNI
 			} else if (env->IsInstanceOf(param, J_Decimal)) {
 				jint precision = env->CallIntMethod(param, J_Decimal_precision);
 				jint scale = env->CallIntMethod(param, J_Decimal_scale);
+
+				// Java BigDecimal type can have scale that exceeds the precision
+				// Which our DECIMAL type does not support (assert(width >= scale))
+				if (scale > precision) {
+					precision = scale;
+				}
+
+				// DECIMAL scale is unsigned, so negative values are not supported
+				if (scale < 0) {
+					env->ThrowNew(J_SQLException, "Converting from a BigDecimal with negative scale is not supported");
+					return nullptr;
+				}
 
 				if (precision <= 18) { // normal sizes -> avoid string processing
 					jobject no_point_dec = env->CallObjectMethod(param, J_Decimal_scaleByPowTen, scale);
@@ -707,7 +747,6 @@ JNIEXPORT jobjectArray JNICALL Java_org_duckdb_DuckDBNative_duckdb_1jdbc_1fetch(
 			vec.ReferenceAndSetType(string_vec);
 			// fall through on purpose
 		}
-		case LogicalTypeId::JSON:
 		case LogicalTypeId::VARCHAR:
 			varlen_data = env->NewObjectArray(row_count, J_String, nullptr);
 			for (idx_t row_idx = 0; row_idx < row_count; row_idx++) {
@@ -741,6 +780,9 @@ JNIEXPORT jobjectArray JNICALL Java_org_duckdb_DuckDBNative_duckdb_1jdbc_1fetch(
 				auto j_obj = env->NewDirectByteBuffer((void *)d_str.GetDataUnsafe(), d_str.GetSize());
 				env->SetObjectArrayElement(varlen_data, row_idx, j_obj);
 			}
+			break;
+		case LogicalTypeId::UUID:
+			constlen_data = env->NewDirectByteBuffer(FlatVector::GetData(vec), row_count * sizeof(hugeint_t));
 			break;
 		default:
 			env->ThrowNew(J_SQLException, ("Unsupported result column type " + vec.GetType().ToString()).c_str());
@@ -947,6 +989,52 @@ JNIEXPORT jlong JNICALL Java_org_duckdb_DuckDBNative_duckdb_1jdbc_1arrow_1stream
 		env->ThrowNew(J_SQLException, "Invalid result set");
 	}
 
-	auto wrapper = new ResultArrowArrayStreamWrapper(move(res_ref->res), batch_size);
+	auto wrapper = new ResultArrowArrayStreamWrapper(std::move(res_ref->res), batch_size);
 	return (jlong)&wrapper->stream;
+}
+
+class JavaArrowTabularStreamFactory {
+public:
+	JavaArrowTabularStreamFactory(ArrowArrayStream *stream_ptr_p) : stream_ptr(stream_ptr_p) {};
+
+	static unique_ptr<ArrowArrayStreamWrapper> Produce(uintptr_t factory_p, ArrowStreamParameters &parameters) {
+
+		auto factory = (JavaArrowTabularStreamFactory *)factory_p;
+		if (!factory->stream_ptr->release) {
+			throw InvalidInputException("This stream has been released");
+		}
+		auto res = make_unique<ArrowArrayStreamWrapper>();
+		res->arrow_array_stream = *factory->stream_ptr;
+		factory->stream_ptr->release = nullptr;
+		return res;
+	}
+
+	static void GetSchema(uintptr_t factory_p, ArrowSchemaWrapper &schema) {
+		auto factory = (JavaArrowTabularStreamFactory *)factory_p;
+		if (!factory->stream_ptr->release) {
+			throw InvalidInputException("This stream has been released");
+		}
+		factory->stream_ptr->get_schema(factory->stream_ptr, &schema.arrow_schema);
+		return;
+	}
+
+	ArrowArrayStream *stream_ptr;
+};
+
+JNIEXPORT void JNICALL Java_org_duckdb_DuckDBNative_duckdb_1jdbc_1arrow_1register(JNIEnv *env, jclass,
+                                                                                  jobject conn_ref_buf,
+                                                                                  jlong arrow_array_stream_pointer,
+                                                                                  jbyteArray name_j) {
+
+	auto conn = get_connection(env, conn_ref_buf);
+	auto name = byte_array_to_string(env, name_j);
+
+	auto arrow_array_stream = (ArrowArrayStream *)(uintptr_t)arrow_array_stream_pointer;
+
+	auto factory = new JavaArrowTabularStreamFactory(arrow_array_stream);
+	vector<Value> parameters;
+	parameters.push_back(Value::POINTER((uintptr_t)factory));
+	parameters.push_back(Value::POINTER((uintptr_t)JavaArrowTabularStreamFactory::Produce));
+	parameters.push_back(Value::POINTER((uintptr_t)JavaArrowTabularStreamFactory::GetSchema));
+	conn->TableFunction("arrow_scan_dumb", parameters)->CreateView(name, true, true);
 }

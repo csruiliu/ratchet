@@ -2,6 +2,7 @@ add_library_unity(
   duckdb_func_string
   OBJECT
   ascii.cpp
+  bar.cpp
   chr.cpp
   reverse.cpp
   caseconvert.cpp
@@ -20,9 +21,11 @@ add_library_unity(
   replace.cpp
   strip_accents.cpp
   suffix.cpp
+  translate.cpp
   trim.cpp
   left_right.cpp
   contains.cpp
+  starts_with.cpp
   string_split.cpp
   mismatches.cpp
   levenshtein.cpp

@@ -16,7 +16,6 @@
 #include "duckdb/parallel/thread_context.hpp"
 
 #include <algorithm>
-#include <iostream>
 
 namespace duckdb {
 
@@ -35,7 +34,7 @@ void Executor::AddEvent(shared_ptr<Event> event) {
 	if (cancelled) {
 		return;
 	}
-	events.push_back(move(event));
+	events.push_back(std::move(event));
 }
 
 struct PipelineEventStack {
@@ -72,10 +71,10 @@ void Executor::SchedulePipeline(const shared_ptr<MetaPipeline> &meta_pipeline, S
 	auto base_complete_event = make_shared<PipelineCompleteEvent>(base_pipeline->executor, event_data.initial_schedule);
 	PipelineEventStack base_stack {base_initialize_event.get(), base_event.get(), base_finish_event.get(),
 	                               base_complete_event.get()};
-	events.push_back(move(base_initialize_event));
-	events.push_back(move(base_event));
-	events.push_back(move(base_finish_event));
-	events.push_back(move(base_complete_event));
+	events.push_back(std::move(base_initialize_event));
+	events.push_back(std::move(base_event));
+	events.push_back(std::move(base_finish_event));
+	events.push_back(std::move(base_complete_event));
 
 	// dependencies: initialize -> event -> finish -> complete
 	base_stack.pipeline_event->AddDependency(*base_stack.pipeline_initialize_event);
@@ -96,14 +95,14 @@ void Executor::SchedulePipeline(const shared_ptr<MetaPipeline> &meta_pipeline, S
 			// this pipeline has its own finish event (despite going into the same sink - Finalize twice!)
 			auto pipeline_finish_event = make_unique<PipelineFinishEvent>(pipeline);
 			pipeline_finish_event_ptr = pipeline_finish_event.get();
-			events.push_back(move(pipeline_finish_event));
+			events.push_back(std::move(pipeline_finish_event));
 			base_stack.pipeline_complete_event->AddDependency(*pipeline_finish_event_ptr);
 		} else {
 			pipeline_finish_event_ptr = base_stack.pipeline_finish_event;
 		}
 		PipelineEventStack pipeline_stack {base_stack.pipeline_initialize_event, pipeline_event.get(),
 		                                   pipeline_finish_event_ptr, base_stack.pipeline_complete_event};
-		events.push_back(move(pipeline_event));
+		events.push_back(std::move(pipeline_event));
 
 		// dependencies: base_initialize -> pipeline_event -> base_finish
 		pipeline_stack.pipeline_event->AddDependency(*base_stack.pipeline_initialize_event);
@@ -167,9 +166,6 @@ void Executor::ScheduleEventsInternal(ScheduleEventData &event_data) {
 	// schedule the pipelines that do not have dependencies
 	for (auto &event : events) {
 		if (!event->HasDependencies()) {
-#ifdef RATCHET_PRINT
-			std::cout << "[ScheduleEventsInternal]: event->Schedule" << std::endl;
-#endif
 			event->Schedule();
 		}
 	}
@@ -284,7 +280,7 @@ void Executor::VerifyPipelines() {
 
 void Executor::Initialize(unique_ptr<PhysicalOperator> physical_plan) {
 	Reset();
-	owned_plan = move(physical_plan);
+	owned_plan = std::move(physical_plan);
 	InitializeInternal(owned_plan.get());
 }
 
@@ -299,6 +295,7 @@ void Executor::InitializeInternal(PhysicalOperator *plan) {
 	{
 		lock_guard<mutex> elock(executor_lock);
 		physical_plan = plan;
+
 		this->profiler = ClientData::Get(context).profiler;
 		profiler->Initialize(physical_plan);
 		this->producer = scheduler.CreateProducer();
@@ -326,7 +323,7 @@ void Executor::InitializeInternal(PhysicalOperator *plan) {
 
 		// number of 'PipelineCompleteEvent's is equal to the number of meta pipelines, so we have to set it here
 		total_pipelines = to_schedule.size();
-		
+
 		// collect all pipelines from the root pipelines (recursively) for the progress bar and verify them
 		root_pipeline->GetPipelines(pipelines, true);
 
@@ -370,9 +367,6 @@ void Executor::CancelTasks() {
 }
 
 void Executor::WorkOnTasks() {
-#ifdef RATCHET_PRINT
-	std::cout << "[Executor::WorkOnTasks]" << std::endl;
-#endif
 	auto &scheduler = TaskScheduler::GetScheduler(context);
 
 	unique_ptr<Task> task;
@@ -382,61 +376,8 @@ void Executor::WorkOnTasks() {
 	}
 }
 
-PendingExecutionResult Executor::ExecuteTaskRatchet() {
-#ifdef RATCHET_PRINT
-	std::cout << "[Executor::ExecuteTaskRatchet]" << std::endl;
-#endif
-	if (execution_result != PendingExecutionResult::RESULT_NOT_READY) {
-		return execution_result;
-	}
-	// check if there are any incomplete pipelines
-	auto &scheduler = TaskScheduler::GetScheduler(context);
-	while (completed_pipelines < total_pipelines) {
-		// there are! if we don't already have a task, fetch one
-		// this task variable is "the current task in process"
-		if (!task) {
-#ifdef RATCHET_PRINT
-			std::cout << "Approx Number of Tasks: " << scheduler.GetNumberOfTasks() << std::endl;
-			std::cout << "Current task does not exist, get 1 task from the queue!" << std::endl;
-#endif
-			scheduler.GetTaskFromProducer(*producer, task);
-		}
-		if (task) {
-#ifdef RATCHET_PRINT
-			std::cout << "Approx Number of Tasks: " << scheduler.GetNumberOfTasks() << std::endl;
-			std::cout << "Current task exists, execute it!" << std::endl;
-#endif
-			// if we have a task, partially process it
-			auto result = task->Execute(TaskExecutionMode::PROCESS_PARTIAL);
-			if (result != TaskExecutionResult::TASK_NOT_FINISHED) {
-				// if the task is finished, clean it up
-				task.reset();
-			}
-		}
-		if (!HasError()) {
-			// we (partially) processed a task and no exceptions were thrown
-			// give back control to the caller
-			return PendingExecutionResult::RESULT_NOT_READY;
-		}
-		execution_result = PendingExecutionResult::EXECUTION_ERROR;
-
-		// an exception has occurred executing one of the pipelines
-		// we need to cancel all tasks associated with this executor
-		CancelTasks();
-		ThrowException();
-	}
-	D_ASSERT(!task);
-
-	lock_guard<mutex> elock(executor_lock);
-	pipelines.clear();
-	NextExecutor();
-	if (HasError()) { // LCOV_EXCL_START
-		// an exception has occurred executing one of the pipelines
-		execution_result = PendingExecutionResult::EXECUTION_ERROR;
-		ThrowException();
-	} // LCOV_EXCL_STOP
-	execution_result = PendingExecutionResult::RESULT_READY;
-	return execution_result;
+bool Executor::ExecutionIsFinished() {
+	return completed_pipelines >= total_pipelines || HasError();
 }
 
 PendingExecutionResult Executor::ExecuteTask() {
@@ -530,7 +471,7 @@ void Executor::PushError(PreservedError exception) {
 	// interrupt execution of any other pipelines that belong to this executor
 	context.interrupted = true;
 	// push the exception onto the stack
-	exceptions.push_back(move(exception));
+	exceptions.push_back(std::move(exception));
 }
 
 bool Executor::HasError() {
