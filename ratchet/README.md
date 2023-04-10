@@ -1,7 +1,11 @@
 
-# Ratchet-DuckDB
+# Ratchet
 
-Ratchet-DuckDB is a fine-grained suspend/resume prototype system modified from DuckDB 0.6.1.
+Ratchet is a prototype system for efficient fine-grained data analytic suspending and resuming 
+
+Ratchet implementation is modified from DuckDB v0.7.1.
+
+Ratchet implementation is modified from DuckDB v0.6.1.
 
 ## Prerequisite
 
