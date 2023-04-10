@@ -35,10 +35,13 @@ First, you need to generate the original tables using TPC-H tools and then move 
 
 ## Three-way Join Example
 
+Following the example in "morsel-driven parallelism" paper, we conduct a three-way join query, as shown in the following example:
+
+
+
 ```mermaid
 graph TD;
-    A-->B;
-    A-->C;
-    B-->D;
-    C-->D;
+    J1["⋈"]-->S1["σ"]-->T;
+    J1-->J2["⋈"]-->S2["σ"]-->R;
+    J2["⋈"]-->S3["σ"]-->S;
 ```
