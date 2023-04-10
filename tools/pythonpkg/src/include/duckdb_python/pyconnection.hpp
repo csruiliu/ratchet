@@ -81,6 +81,12 @@ public:
 
 	shared_ptr<DuckDBPyConnection> Execute(const string &query, py::object params = py::list(), bool many = false);
 
+    shared_ptr<DuckDBPyConnection> ExecuteRatchet(const string &query,
+                                                  uint32_t suspend_point,
+                                                  float suspend_prob,
+                                                  py::object params = py::list(),
+                                                  bool many = false);
+
 	shared_ptr<DuckDBPyConnection> Append(const string &name, DataFrame value);
 
 	shared_ptr<DuckDBPyConnection> RegisterPythonObject(const string &name, py::object python_object);
