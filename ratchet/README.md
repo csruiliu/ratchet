@@ -5,7 +5,7 @@ Ratchet is a prototype system for efficient fine-grained data analytic suspendin
 
 Ratchet implementation is modified from DuckDB v0.7.1.
 
-Ratchet implementation is modified from DuckDB v0.6.1.
+~~Ratchet implementation is modified from DuckDB v0.6.1.~~
 
 ## Prerequisite
 
@@ -27,9 +27,18 @@ cd <Ratchet-DuckDB>/tools/pythonpkg
 python setup.py install
 ```
 
-## TPC-H Evaluation
+## TPC-H Benchmark
 
 First, you need to generate the original tables using TPC-H tools and then move them to `tpch/tbl` folder. Simply running `tpch_data.py` can convert the table files to `parquet` format, you can move the parquet files to `tpch/parquet` folder.
 
 `tpch_perf` will trigger the original TPC-H queries from q1 to q22.
 
+## Three-way Join Example
+
+```mermaid
+graph TD;
+    A-->B;
+    A-->C;
+    B-->D;
+    C-->D;
+```
