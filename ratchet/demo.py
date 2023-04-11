@@ -6,7 +6,7 @@ import time
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-q", "--query_name", type=str, action="store", required=True,
-                        choices=['slim', 'mid', "three-way-join"],
+                        choices=['slim', 'mid'],
                         help="indicate the query id")
     parser.add_argument("-td", "--thread", type=int, action="store", default=1,
                         help="indicate the number of threads in DuckDB")
@@ -41,26 +41,16 @@ def main():
         """
     elif qid == "mid":
         exec_query = f"""
-            SELECT  count(L_EXTENDEDPRICE) AS REVENUE
+            SELECT  C_CUSTKEY, O_ORDERKEY, L_LINENUMBER, L_QUANTITY, C_ACCTBAL
             FROM  	customer,
                     orders,
-                    lineitem,
+                    lineitem
             WHERE	C_CUSTKEY = O_CUSTKEY
                     AND	L_ORDERKEY = O_ORDERKEY
                     AND CAST(O_ORDERDATE AS DATE) >= '1994-01-01'
                     AND CAST(O_ORDERDATE AS DATE) < '1995-01-01'
-        """
-    elif qid == "three-way-join":
-        exec_query = f"""
-            SELECT  count(L_EXTENDEDPRICE) AS REVENUE
-            FROM  	customer,
-            JOIN    ON 
-                    'TPCH_DATAPATH/orders.parquet',
-                    'TPCH_DATAPATH/lineitem.parquet',
-            WHERE	C_CUSTKEY = O_CUSTKEY
-                    AND	L_ORDERKEY = O_ORDERKEY
-                    AND CAST(O_ORDERDATE AS DATE) >= '1994-01-01'
-                    AND CAST(O_ORDERDATE AS DATE) < '1995-01-01'
+                    AND C_ACCTBAL > 100
+                    AND L_QUANTITY > 5
         """
     else:
         raise ValueError("Query is not supported in demo")

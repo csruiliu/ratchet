@@ -48,6 +48,8 @@
 #include "duckdb/common/http_stats.hpp"
 #include "duckdb/main/attached_database.hpp"
 
+#include <iostream>
+
 namespace duckdb {
 
 struct ActiveQueryContext {
@@ -327,6 +329,10 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 	profiler.EndPhase();
 
 	auto plan = std::move(planner.plan);
+#ifdef RATCHET_PRINT_PLAN
+    std::cout << "==== Logical Plan ====" << std::endl;
+    plan->Print();
+#endif
 	// extract the result column names from the plan
 	result->properties = planner.properties;
 	result->names = planner.names;
@@ -356,7 +362,11 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 	// now convert logical query plan into a physical query plan
 	PhysicalPlanGenerator physical_planner(*this);
 	auto physical_plan = physical_planner.CreatePlan(std::move(plan));
-	profiler.EndPhase();
+#ifdef RATCHET_PRINT_PLAN
+    std::cout << "==== Physical Plan ====" << std::endl;
+    physical_plan->Print();
+#endif
+    profiler.EndPhase();
 
 #ifdef DEBUG
 	D_ASSERT(!physical_plan->ToString().empty());
