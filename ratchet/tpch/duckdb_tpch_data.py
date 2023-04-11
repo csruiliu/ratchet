@@ -8,17 +8,23 @@ def main():
     parser.add_argument("-t", "--table_name", type=str, action="store",
                         choices=["part", "supplier", "partsupp", "customer", "orders", "lineitem", "nation", "region"],
                         help="indicate the name of table that needs to be converted to parquet")
-    parser.add_argument("-sf", "--scale_factor", type=int, action="store", choices=[1, 10],
-                        help="indicate scale factor of the dataset")
-    parser.add_argument("-rgs", "--row_group_size", type=int, action="store", default=100000,
-                        help="indicate scale factor of the dataset")
+    parser.add_argument("-d", "--data_folder", type=str, action="store", required=True,
+                        help="indicate the data source folder for conversion such as <dataset/tbl/sf1>")
+    parser.add_argument("-f", "--output_format", type=str, action="store", required=True,
+                        help="indicate the output data format", choices=["csv", "parquet"])
+    parser.add_argument("-rgs", "--row_group_size", type=int, action="store",
+                        help="indicate scale factor of the dataset, such as 100000")
     args = parser.parse_args()
 
     tbl_name = args.table_name
-    scale_factor = args.scale_factor
+    data_folder = args.data_folder
+    output_format = args.output_format
     row_group_size = args.row_group_size
 
-    if tbl_name != None:
+    if output_format == "parquet" and row_group_size is None:
+        raise ValueError("Please indicate row group size for parquet")
+
+    if tbl_name is not None:
         table_list = [tbl_name]
     else:
         table_list = ["part", "supplier", "partsupp", "customer", "orders", "lineitem", "nation", "region"]
@@ -53,11 +59,13 @@ def main():
         print(f"Convert {table}.tbl to parquet...")
         table_schema = table + "_schema"
         db_conn.execute(f"CREATE TABLE {table} {locals()[table_schema]};")
-        db_conn.execute(f"COPY {table} FROM 'tbl/SF{scale_factor}/{table}.tbl' ( DELIMITER '|' );")
-        db_conn.execute(f"COPY {table} TO '{table}.parquet' (FORMAT 'parquet', ROW_GROUP_SIZE {row_group_size});")
-
-        parquet_file = pq.ParquetFile(f"{table}.parquet")
-        print("Number of row groups in {}.parquet: {}".format(table, parquet_file.num_row_groups))
+        db_conn.execute(f"COPY {table} FROM '{data_folder}/{table}.tbl' ( DELIMITER '|' );")
+        if output_format == "parquet":
+            db_conn.execute(f"COPY {table} TO '{table}.parquet' (FORMAT 'parquet', ROW_GROUP_SIZE {row_group_size});")
+            parquet_file = pq.ParquetFile(f"{table}.parquet")
+            print("Number of row groups in {}.parquet: {}".format(table, parquet_file.num_row_groups))
+        elif output_format == "csv":
+            db_conn.execute(f"COPY {table} TO '{table}.csv' WITH (HEADER 1, DELIMITER ',');;")
 
 
 if __name__ == "__main__":

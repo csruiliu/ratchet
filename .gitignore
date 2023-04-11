@@ -6,8 +6,7 @@
 # Dataset to be ignored in ratchet folder.
 #==============================================================================#
 
-/ratchet/tpch/parquet
-/ratchet/tpch/tbl
+/ratchet/tpch/dataset
 
 #==============================================================================#
 # File extensions to be ignored anywhere in the tree.
