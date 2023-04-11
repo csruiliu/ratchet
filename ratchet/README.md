@@ -35,9 +35,18 @@ When you want to add a new Python API or modify an existing one for DuckDB espec
 
 ## TPC-H Benchmark
 
-First, you need to generate the original tables using TPC-H tools and then move them to `tpch/tbl` folder. Simply running `tpch_data.py` can convert the table files to `parquet` format, you can move the parquet files to `tpch/parquet` folder.
+First, you need to generate the original tables using TPC-H tools and then move them to `dataset/tpch/tbl` folder. Simply running `duckdb_tpch_data.py` can convert the table files to `parquet` or `csv` format using, for example, the following command,
+```bash
+python3 duckdb_tpch_data.py -d dataset/tbl/sf1 -f parquet -rgs 100000
+```
+You can move the converted data to any folder you want.
 
-`tpch_perf` will trigger the original TPC-H queries from q1 to q22.
+`tpch_perf` will trigger the original TPC-H queries from q1 to q22. For example,
+```bash
+python3 tpch_perf.py -q q1 -d dataset/parquet/sf1 -td 1
+```
+The above command will run `q1` in TPC-H based on the data from `dataset/parquet/sf1` using `1` thread.
+
 
 ## Three-way Join Example
 

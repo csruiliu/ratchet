@@ -11,16 +11,16 @@ def main():
                         choices=['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9', 'q10', 'q11', 
                                  'q12', 'q13', 'q14', 'q15', 'q16', 'q17', 'q18', 'q19', 'q20', 'q21', 'q22'], 
                         help="indicate the query id")
+    parser.add_argument("-d", "--data_folder", type=str, action="store", required=True,
+                        help="indicate the data source folder for conversion such as <dataset/tbl/sf1>")
     parser.add_argument("-td", "--thread", type=int, action="store", default=1,
                         help="indicate the number of threads in DuckDB")
-    parser.add_argument("-sf", "--scale_factor", type=int, action="store",
-                        help="indicate scale factor of the dataset")
 
     args = parser.parse_args()
 
-    qid = args.query_name
+    qid = args.query
+    data_folder = args.data_folder
     thread = args.thread
-    sf = "SF" + str(args.scale_factor)
 
     exec_query = globals()[qid].query
 
@@ -34,11 +34,11 @@ def main():
     if isinstance(exec_query, list):
         for idx, query in enumerate(exec_query):
             if idx == query_len:
-                results = db_conn.execute(query.replace("TPCH_DATAPATH", f"tpch/parquet/{sf}")).fetchdf()
+                results = db_conn.execute(query.replace("TPCH_DATAPATH", f"{data_folder}")).fetchdf()
             else:
-                db_conn.execute(query.replace("TPCH_DATAPATH", f"tpch/parquet/{sf}"))
+                db_conn.execute(query.replace("TPCH_DATAPATH", f"{data_folder}"))
     else:
-        exec_query = exec_query.replace("TPCH_DATAPATH", f"tpch/parquet/{sf}")
+        exec_query = exec_query.replace("TPCH_DATAPATH", f"{data_folder}")
         results = db_conn.execute(exec_query).fetchdf()
 
     print(results)
