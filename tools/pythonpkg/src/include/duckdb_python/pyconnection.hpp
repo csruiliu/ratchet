@@ -79,11 +79,15 @@ public:
 
 	unique_ptr<QueryResult> ExecuteInternal(const string &query, py::object params = py::list(), bool many = false);
 
+    unique_ptr<QueryResult> ExecuteInternalRatchet(const string &query,
+                                                   py::object params = py::list(),
+                                                   bool many = false);
+
 	shared_ptr<DuckDBPyConnection> Execute(const string &query, py::object params = py::list(), bool many = false);
 
     shared_ptr<DuckDBPyConnection> ExecuteRatchet(const string &query,
-                                                  uint32_t suspend_point,
-                                                  float suspend_prob,
+                                                  uint32_t suspend_start_time,
+                                                  uint32_t suspend_end_time,
                                                   py::object params = py::list(),
                                                   bool many = false);
 

@@ -32,6 +32,7 @@ When you want to add a new Python API or modify an existing one for DuckDB espec
 2. Modify the source code in `tools/pythonpkg/src` to reflect to API change 
 3. Run `scripts/regenerate_python_stubs.sh` at the **root directory of DuckDB**, making sure `<Ratchet-DuckDB>/tools/pythonpkg/duckdb-stubs/__init__.pyi` already reflect the API change 
 4. Install the modified DuckDB again using `python setup.py install` in `<Ratchet-DuckDB>/tools/pythonpkg`
+5. If you still cannot apply the change you made for Python Client APIs, please repeat 3,4 for mutiple times, you should be fine.
 
 ## TPC-H Benchmark
 

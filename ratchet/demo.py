@@ -10,16 +10,16 @@ def main():
                         help="indicate the query id")
     parser.add_argument("-td", "--thread", type=int, action="store", default=1,
                         help="indicate the number of threads in DuckDB")
-    parser.add_argument("-st", "--suspend_time", type=int, action="store",
-                        help="indicate pause time point (second)")
-    parser.add_argument("-sp", "--suspend_probability", type=float, action="store",
-                        help="indicate pause time point (second)")
+    parser.add_argument("-st", "--suspend_start_time", type=int, action="store",
+                        help="indicate start time for suspension (second)")
+    parser.add_argument("-se", "--suspend_end_time", type=int, action="store",
+                        help="indicate end time for suspension (second)")
     args = parser.parse_args()
 
     qid = args.query_name
     thread = args.thread
-    suspend_time = args.suspend_time
-    suspend_prob = args.suspend_probability
+    suspend_start_time = args.suspend_start_time
+    suspend_end_time = args.suspend_end_time
 
     # open and connect a database
     # db_conn = duckdb.connect(database=':memory:')
@@ -57,10 +57,10 @@ def main():
 
     # start the query execution and count the time
     start = time.perf_counter()
-    if suspend_time is None:
-        results = db_conn.execute(exec_query).fetchdf()
+    if suspend_start_time is not None and suspend_end_time is not None:
+        results = db_conn.execute_ratchet(exec_query, suspend_start_time, suspend_end_time).fetchdf()
     else:
-        results = db_conn.execute_ratchet(exec_query, suspend_time, suspend_prob).fetchdf()
+        results = db_conn.execute(exec_query).fetchdf()
     print(results)
     end = time.perf_counter()
     print("Total Runtime: {}".format(end - start))
