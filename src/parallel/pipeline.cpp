@@ -45,6 +45,23 @@ public:
 		pipeline_executor.reset();
 		return TaskExecutionResult::TASK_FINISHED;
 	}
+
+    TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) override {
+        if (!pipeline_executor) {
+            pipeline_executor = make_unique<PipelineExecutor>(pipeline.GetClientContext(), pipeline);
+        }
+        if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
+            bool finished = pipeline_executor->Execute(PARTIAL_CHUNK_COUNT);
+            if (!finished) {
+                return TaskExecutionResult::TASK_NOT_FINISHED;
+            }
+        } else {
+            pipeline_executor->Execute();
+        }
+        event->FinishTask();
+        pipeline_executor.reset();
+        return TaskExecutionResult::TASK_FINISHED;
+    }
 };
 
 Pipeline::Pipeline(Executor &executor_p)

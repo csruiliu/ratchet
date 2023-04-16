@@ -415,6 +415,12 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
+    TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) override {
+        AggregateDistinct();
+        event->FinishTask();
+        return TaskExecutionResult::TASK_FINISHED;
+    }
+
 private:
 	shared_ptr<Event> event;
 	UngroupedAggregateGlobalState &gstate;

@@ -1538,6 +1538,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override;
+    TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) override;
 
 private:
 	shared_ptr<Event> event;
@@ -1600,6 +1601,63 @@ TaskExecutionResult WindowMergeTask::ExecuteTask(TaskExecutionMode mode) {
 
 	event->FinishTask();
 	return TaskExecutionResult::TASK_FINISHED;
+}
+
+TaskExecutionResult WindowMergeTask::ExecuteTaskRatchet(TaskExecutionMode mode) {
+    // Loop until all hash groups are done
+    size_t sorted = 0;
+    while (sorted < hash_groups.states.size()) {
+        // First check if there is an unfinished task for this thread
+        if (!local_state.TaskFinished()) {
+            local_state.ExecuteTask();
+            continue;
+        }
+
+        // Thread is done with its assigned task, try to fetch new work
+        for (auto group = sorted; group < hash_groups.states.size(); ++group) {
+            auto &global_state = hash_groups.states[group];
+            if (global_state->IsSorted()) {
+                // This hash group is done
+                // Update the high water mark of densely completed groups
+                if (sorted == group) {
+                    ++sorted;
+                }
+                continue;
+            }
+
+            // Try to assign work for this hash group to this thread
+            if (global_state->AssignTask(local_state)) {
+                // We assigned a task to this thread!
+                // Break out of this loop to re-enter the top-level loop and execute the task
+                break;
+            }
+
+            // Hash group global state couldn't assign a task to this thread
+            // Try to prepare the next stage
+            if (!global_state->TryPrepareNextStage()) {
+                // This current hash group is not yet done
+                // But we were not able to assign a task for it to this thread
+                // See if the next hash group is better
+                continue;
+            }
+
+            // We were able to prepare the next stage for this hash group!
+            // Try to assign a task once more
+            if (global_state->AssignTask(local_state)) {
+                // We assigned a task to this thread!
+                // Break out of this loop to re-enter the top-level loop and execute the task
+                break;
+            }
+
+            // We were able to prepare the next merge round,
+            // but we were not able to assign a task for it to this thread
+            // The tasks were assigned to other threads while this thread waited for the lock
+            // Go to the next iteration to see if another hash group has a task
+        }
+    }
+
+    event->FinishTask();
+    return TaskExecutionResult::TASK_FINISHED;
 }
 
 class WindowMergeEvent : public BasePipelineEvent {

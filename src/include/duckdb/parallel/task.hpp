@@ -29,6 +29,7 @@ public:
 	//! If mode is PROCESS_PARTIAL, Execute can return TASK_NOT_FINISHED, in which case Execute will be called again
 	//! In case of an error, TASK_ERROR is returned
 	virtual TaskExecutionResult Execute(TaskExecutionMode mode) = 0;
+    virtual TaskExecutionResult ExecuteRatchet(TaskExecutionMode mode) = 0;
 };
 
 //! Execute a task within an executor, including exception handling
@@ -43,7 +44,9 @@ public:
 
 public:
 	virtual TaskExecutionResult ExecuteTask(TaskExecutionMode mode) = 0;
+    virtual TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) = 0;
 	TaskExecutionResult Execute(TaskExecutionMode mode) override;
+    TaskExecutionResult ExecuteRatchet(TaskExecutionMode mode) override;
 };
 
 } // namespace duckdb

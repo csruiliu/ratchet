@@ -80,6 +80,7 @@ public:
 	unique_ptr<QueryResult> ExecuteInternal(const string &query, py::object params = py::list(), bool many = false);
 
     unique_ptr<QueryResult> ExecuteInternalRatchet(const string &query,
+                                                   uint32_t suspend_point,
                                                    py::object params = py::list(),
                                                    bool many = false);
 
@@ -180,6 +181,8 @@ public:
 	static bool IsAcceptedArrowObject(const py::object &object);
 
 	static unique_ptr<QueryResult> CompletePendingQuery(PendingQueryResult &pending_query);
+    static unique_ptr<QueryResult> CompletePendingQueryRatchet(PendingQueryResult &pending_query,
+                                                               uint32_t suspend_point);
 
 private:
 	unique_lock<std::mutex> AcquireConnectionLock();

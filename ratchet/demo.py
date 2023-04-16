@@ -8,29 +8,37 @@ def main():
     parser.add_argument("-q", "--query_name", type=str, action="store", required=True,
                         choices=['slim', 'mid'],
                         help="indicate the query id")
+    parser.add_argument("-d", "--data_folder", type=str, action="store", required=True,
+                        help="indicate the data source folder for conversion such as <tpch/dataset/parquet/sf1>")
     parser.add_argument("-td", "--thread", type=int, action="store", default=1,
                         help="indicate the number of threads in DuckDB")
     parser.add_argument("-st", "--suspend_start_time", type=int, action="store",
                         help="indicate start time for suspension (second)")
     parser.add_argument("-se", "--suspend_end_time", type=int, action="store",
                         help="indicate end time for suspension (second)")
+    parser.add_argument("-u", "--update_table", action="store_true",
+                        help="force to update table in database")
     args = parser.parse_args()
 
     qid = args.query_name
+    data_folder = args.data_folder
     thread = args.thread
     suspend_start_time = args.suspend_start_time
     suspend_end_time = args.suspend_end_time
+    update_table = args.update_table
 
     # open and connect a database
     # db_conn = duckdb.connect(database=':memory:')
     db_conn = duckdb.connect(database='demo.db')
     db_conn.execute(f"PRAGMA threads={thread}")
 
-    # Copy the TPC-H Datasets
     tpch_table_names = ["part", "supplier", "partsupp", "customer", "orders", "lineitem", "nation", "region"]
-    tpch_dataset_path = "tpch/dataset/parquet/sf1"
+
+    # Create or Update TPC-H Datasets
     for t in tpch_table_names:
-        db_conn.execute(f"CREATE TABLE IF NOT EXISTS {t} AS SELECT * FROM read_parquet('{tpch_dataset_path}/{t}.parquet');")
+        if update_table:
+            db_conn.execute(f"DROP TABLE {t};")
+        db_conn.execute(f"CREATE TABLE IF NOT EXISTS {t} AS SELECT * FROM read_parquet('{data_folder}/{t}.parquet');")
 
     # start the query execution
     if qid == "slim":
@@ -48,7 +56,6 @@ def main():
             WHERE	C_CUSTKEY = O_CUSTKEY
                     AND	L_ORDERKEY = O_ORDERKEY
                     AND CAST(O_ORDERDATE AS DATE) >= '1994-01-01'
-                    AND CAST(O_ORDERDATE AS DATE) < '1995-01-01'
                     AND C_ACCTBAL > 100
                     AND L_QUANTITY > 5
         """
