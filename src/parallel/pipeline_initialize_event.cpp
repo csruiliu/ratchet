@@ -23,6 +23,12 @@ public:
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
 	}
+
+    TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) override {
+        pipeline.ResetSink();
+        event->FinishTask();
+        return TaskExecutionResult::TASK_FINISHED;
+    }
 };
 
 void PipelineInitializeEvent::Schedule() {

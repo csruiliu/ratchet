@@ -123,6 +123,15 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
+    TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) override {
+        // Initialize merge sorted and iterate until done
+        auto &global_sort_state = state.global_sort_state;
+        MergeSorter merge_sorter(global_sort_state, BufferManager::GetBufferManager(context));
+        merge_sorter.PerformInMergeRound();
+        event->FinishTask();
+        return TaskExecutionResult::TASK_FINISHED;
+    }
+
 private:
 	shared_ptr<Event> event;
 	ClientContext &context;

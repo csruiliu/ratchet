@@ -288,6 +288,12 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
+    TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) override {
+        FinalizeHT(state, radix);
+        event->FinishTask();
+        return TaskExecutionResult::TASK_FINISHED;
+    }
+
 private:
 	shared_ptr<Event> event;
 	RadixHTGlobalState &state;

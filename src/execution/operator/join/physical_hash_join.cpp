@@ -249,6 +249,12 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
+    TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) override {
+        sink.hash_table->Finalize(block_idx_start, block_idx_end, parallel);
+        event->FinishTask();
+        return TaskExecutionResult::TASK_FINISHED;
+    }
+
 private:
 	shared_ptr<Event> event;
 	HashJoinGlobalSinkState &sink;
@@ -334,6 +340,12 @@ public:
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
 	}
+
+    TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) override {
+        local_ht.Partition(global_ht);
+        event->FinishTask();
+        return TaskExecutionResult::TASK_FINISHED;
+    }
 
 private:
 	shared_ptr<Event> event;

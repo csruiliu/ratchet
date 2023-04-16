@@ -48,9 +48,19 @@ PendingExecutionResult PendingQueryResult::ExecuteTask() {
 	return ExecuteTaskInternal(*lock);
 }
 
+PendingExecutionResult PendingQueryResult::ExecuteTaskRatchet() {
+    auto lock = LockContext();
+    return ExecuteTaskInternalRatchet(*lock);
+}
+
 PendingExecutionResult PendingQueryResult::ExecuteTaskInternal(ClientContextLock &lock) {
 	CheckExecutableInternal(lock);
 	return context->ExecuteTaskInternal(lock, *this);
+}
+
+PendingExecutionResult PendingQueryResult::ExecuteTaskInternalRatchet(ClientContextLock &lock) {
+    CheckExecutableInternal(lock);
+    return context->ExecuteTaskInternalRatchet(lock, *this);
 }
 
 unique_ptr<QueryResult> PendingQueryResult::ExecuteInternal(ClientContextLock &lock) {
