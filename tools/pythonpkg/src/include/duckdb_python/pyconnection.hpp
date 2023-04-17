@@ -86,11 +86,13 @@ public:
 
 	shared_ptr<DuckDBPyConnection> Execute(const string &query, py::object params = py::list(), bool many = false);
 
-    shared_ptr<DuckDBPyConnection> ExecuteRatchet(const string &query,
+    shared_ptr<DuckDBPyConnection> ExecuteSuspend(const string &query,
                                                   uint32_t suspend_start_time,
                                                   uint32_t suspend_end_time,
                                                   py::object params = py::list(),
                                                   bool many = false);
+
+    shared_ptr<DuckDBPyConnection> ExecuteResume(const string &query, const string &resume_point);
 
 	shared_ptr<DuckDBPyConnection> Append(const string &name, DataFrame value);
 
