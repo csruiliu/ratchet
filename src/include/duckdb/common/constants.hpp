@@ -16,7 +16,7 @@
 namespace duckdb {
 
 // Enable Ratchet Source Code
-// #define RATCHET_PRINT
+#define RATCHET
 // #define RATCHET_PRINT_PLAN
 
 // API versions

@@ -98,10 +98,13 @@ static void InitializeConnectionMethods(py::class_<DuckDBPyConnection, shared_pt
 	    .def("execute", &DuckDBPyConnection::Execute,
 	         "Execute the given SQL query, optionally using prepared statements with parameters set", py::arg("query"),
 	         py::arg("parameters") = py::none(), py::arg("multiple_parameter_sets") = false)
-        .def("execute_ratchet", &DuckDBPyConnection::ExecuteRatchet,
+        .def("execute_suspend", &DuckDBPyConnection::ExecuteSuspend,
              "Execute the given SQL query with suspension, optionally using prepared statements with parameters set",
              py::arg("query"), py::arg("suspend_start_time"), py::arg("suspend_end_time"),
              py::arg("parameters") = py::none(), py::arg("multiple_parameter_sets") = false)
+        .def("execute_resume", &DuckDBPyConnection::ExecuteResume,
+             "Execute the given SQL query from resume point",
+             py::arg("query"), py::arg("resume_point"))
 	    .def("executemany", &DuckDBPyConnection::ExecuteMany,
 	         "Execute the given prepared statement multiple times using the list of parameter sets in parameters",
 	         py::arg("query"), py::arg("parameters") = py::none())
@@ -288,7 +291,6 @@ unique_ptr<QueryResult> DuckDBPyConnection::CompletePendingQueryRatchet(PendingQ
             execution_result = pending_query.ExecuteTask();
         }
 
-        // execution_result = pending_query.ExecuteTask();
         {
             py::gil_scoped_acquire gil;
             if (PyErr_CheckSignals() != 0) {
@@ -530,7 +532,7 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::Execute(const string &query, 
 	return shared_from_this();
 }
 
-shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteRatchet(const string &query,
+shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteSuspend(const string &query,
                                                                   uint32_t suspend_start_time,
                                                                   uint32_t suspend_end_time,
                                                                   py::object params, bool many) {
@@ -543,6 +545,11 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteRatchet(const string &
         auto py_result = make_unique<DuckDBPyResult>(std::move(res));
         result = make_unique<DuckDBPyRelation>(std::move(py_result));
     }
+    return shared_from_this();
+}
+
+shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteResume(const string &query, const string &resume_point) {
+    std::cout << "Resume from " << resume_point << std::endl;
     return shared_from_this();
 }
 

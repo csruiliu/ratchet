@@ -177,7 +177,7 @@ static void InitializeConnectionMethods(py::module_ &m) {
 	    .def("register_filesystem", &PyConnectionWrapper::RegisterFilesystem, "Register a fsspec compliant filesystem",
 	         py::arg("filesystem"), py::arg("connection") = py::none())
 	    .def("unregister_filesystem", &PyConnectionWrapper::UnregisterFilesystem, "Unregister a filesystem",
-	         py::arg("name"), py::arg("connection") = py::none())
+             py::arg("name"), py::arg("connection") = py::none())
 	    .def("list_filesystems", &PyConnectionWrapper::ListFilesystems,
 	         "List registered filesystems, including builtin ones", py::arg("connection") = py::none());
 }
