@@ -87,6 +87,7 @@ public:
 	shared_ptr<DuckDBPyConnection> Execute(const string &query, py::object params = py::list(), bool many = false);
 
     shared_ptr<DuckDBPyConnection> ExecuteSuspend(const string &query,
+                                                  const string &ratchet_file,
                                                   uint32_t suspend_start_time,
                                                   uint32_t suspend_end_time,
                                                   py::object params = py::list(),

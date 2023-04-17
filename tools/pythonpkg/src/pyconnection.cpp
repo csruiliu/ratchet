@@ -100,7 +100,8 @@ static void InitializeConnectionMethods(py::class_<DuckDBPyConnection, shared_pt
 	         py::arg("parameters") = py::none(), py::arg("multiple_parameter_sets") = false)
         .def("execute_suspend", &DuckDBPyConnection::ExecuteSuspend,
              "Execute the given SQL query with suspension, optionally using prepared statements with parameters set",
-             py::arg("query"), py::arg("suspend_start_time"), py::arg("suspend_end_time"),
+             py::arg("query"), py::arg("ratchet_file"),
+             py::arg("suspend_start_time"), py::arg("suspend_end_time"),
              py::arg("parameters") = py::none(), py::arg("multiple_parameter_sets") = false)
         .def("execute_resume", &DuckDBPyConnection::ExecuteResume,
              "Execute the given SQL query from resume point",
@@ -533,13 +534,14 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::Execute(const string &query, 
 }
 
 shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteSuspend(const string &query,
+                                                                  const string &ratchet_file,
                                                                   uint32_t suspend_start_time,
                                                                   uint32_t suspend_end_time,
                                                                   py::object params, bool many) {
     std::default_random_engine generator;
     std::uniform_int_distribution<uint32_t> distribution(suspend_start_time, suspend_end_time);
     uint32_t suspend_point = distribution(generator);
-    std::cout << "$$$ Query can suspend at " << suspend_point << " $$$" << std::endl;
+    std::cout << "## Query will suspend after " << suspend_point << "s (" << ratchet_file << ") ##" << std::endl;
     auto res = ExecuteInternalRatchet(query, suspend_point, std::move(params), many);
     if (res) {
         auto py_result = make_unique<DuckDBPyResult>(std::move(res));

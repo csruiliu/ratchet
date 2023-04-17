@@ -65,13 +65,13 @@ def main():
     # start the query execution and count the time
     start = time.perf_counter()
     if suspend_start_time is not None and suspend_end_time is not None:
-        results = db_conn.execute_suspend(exec_query, suspend_start_time, suspend_end_time).fetchdf()
+        results = db_conn.execute_suspend(exec_query, "demo.ratchet", suspend_start_time, suspend_end_time).fetchdf()
     else:
         results = db_conn.execute(exec_query).fetchdf()
     print(results)
     end = time.perf_counter()
     print("Total Runtime: {}".format(end - start))
-    db_conn.execute_resume(exec_query, "demo.db")
+    db_conn.execute_resume(exec_query, "demo.ratchet")
     db_conn.close()
 
 
