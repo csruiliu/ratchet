@@ -241,7 +241,9 @@ private:
 	PreservedError EndQueryInternal(ClientContextLock &lock, bool success, bool invalidate_transaction);
 
 	PendingExecutionResult ExecuteTaskInternal(ClientContextLock &lock, PendingQueryResult &result);
-    PendingExecutionResult ExecuteTaskInternalRatchet(ClientContextLock &lock, PendingQueryResult &result);
+    PendingExecutionResult ExecuteTaskInternalRatchet(ClientContextLock &lock,
+                                                      PendingQueryResult &result,
+                                                      const string &ratchet_file);
 
 	unique_ptr<PendingQueryResult> PendingStatementOrPreparedStatementInternal(
 	    ClientContextLock &lock, const string &query, unique_ptr<SQLStatement> statement,
