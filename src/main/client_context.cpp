@@ -467,11 +467,13 @@ PendingExecutionResult ClientContext::ExecuteTaskInternal(ClientContextLock &loc
 	return PendingExecutionResult::EXECUTION_ERROR;
 }
 
-PendingExecutionResult ClientContext::ExecuteTaskInternalRatchet(ClientContextLock &lock, PendingQueryResult &result) {
+PendingExecutionResult ClientContext::ExecuteTaskInternalRatchet(ClientContextLock &lock,
+																 PendingQueryResult &result,
+																 const string &ratchet_file) {
 	D_ASSERT(active_query);
 	D_ASSERT(active_query->open_result == &result);
 	try {
-		auto result = active_query->executor->ExecuteTaskRatchet();
+		auto result = active_query->executor->ExecuteTaskRatchet(ratchet_file);
 		if (active_query->progress_bar) {
 			active_query->progress_bar->Update(result == PendingExecutionResult::RESULT_READY);
 			query_progress = active_query->progress_bar->GetCurrentPercentage();

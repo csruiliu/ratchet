@@ -273,7 +273,8 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteMany(const string &que
 }
 
 unique_ptr<QueryResult> DuckDBPyConnection::CompletePendingQueryRatchet(PendingQueryResult &pending_query,
-                                                                        uint32_t suspend_point) {
+                                                                        uint32_t suspend_point,
+                                                                        const string &ratchet_file) {
     PendingExecutionResult execution_result;
     uint32_t suspend_point_ms = suspend_point * 1000;
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
@@ -282,7 +283,7 @@ unique_ptr<QueryResult> DuckDBPyConnection::CompletePendingQueryRatchet(PendingQ
         uint32_t time_dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
         if (time_dur > suspend_point_ms) {
             std::cout << "It is time to suspend the given query" << std::endl;
-            execution_result = pending_query.ExecuteTaskRatchet();
+            execution_result = pending_query.ExecuteTaskRatchet(ratchet_file);
             PyErr_SetInterrupt();
             if (PyErr_CheckSignals() != 0) {
                 throw std::runtime_error("Query has been suspended");
@@ -440,6 +441,7 @@ unique_ptr<QueryResult> DuckDBPyConnection::ExecuteInternal(const string &query,
 }
 
 unique_ptr<QueryResult> DuckDBPyConnection::ExecuteInternalRatchet(const string &query,
+                                                                   const string &ratchet_file,
                                                                    uint32_t suspend_point,
                                                                    py::object params, bool many) {
     if (!connection) {
@@ -510,7 +512,7 @@ unique_ptr<QueryResult> DuckDBPyConnection::ExecuteInternalRatchet(const string 
             py::gil_scoped_release release;
             unique_lock<std::mutex> lock(py_connection_lock);
             auto pending_query = prep->PendingQuery(args);
-            res = CompletePendingQueryRatchet(*pending_query, suspend_point);
+            res = CompletePendingQueryRatchet(*pending_query, suspend_point, ratchet_file);
 
             if (res->HasError()) {
                 res->ThrowError();
@@ -542,7 +544,8 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteSuspend(const string &
     std::uniform_int_distribution<uint32_t> distribution(suspend_start_time, suspend_end_time);
     uint32_t suspend_point = distribution(generator);
     std::cout << "## Query will suspend after " << suspend_point << "s (" << ratchet_file << ") ##" << std::endl;
-    auto res = ExecuteInternalRatchet(query, suspend_point, std::move(params), many);
+    auto res =
+            ExecuteInternalRatchet(query, ratchet_file, suspend_point,std::move(params), many);
     if (res) {
         auto py_result = make_unique<DuckDBPyResult>(std::move(res));
         result = make_unique<DuckDBPyRelation>(std::move(py_result));

@@ -80,6 +80,7 @@ public:
 	unique_ptr<QueryResult> ExecuteInternal(const string &query, py::object params = py::list(), bool many = false);
 
     unique_ptr<QueryResult> ExecuteInternalRatchet(const string &query,
+                                                   const string &ratchet_file,
                                                    uint32_t suspend_point,
                                                    py::object params = py::list(),
                                                    bool many = false);
@@ -185,7 +186,8 @@ public:
 
 	static unique_ptr<QueryResult> CompletePendingQuery(PendingQueryResult &pending_query);
     static unique_ptr<QueryResult> CompletePendingQueryRatchet(PendingQueryResult &pending_query,
-                                                               uint32_t suspend_point);
+                                                               uint32_t suspend_point,
+                                                               const string &ratchet_file);
 
 private:
 	unique_lock<std::mutex> AcquireConnectionLock();
