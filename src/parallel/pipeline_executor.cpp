@@ -2,6 +2,8 @@
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/common/limits.hpp"
 
+#include <iostream>
+
 namespace duckdb {
 
 PipelineExecutor::PipelineExecutor(ClientContext &context_p, Pipeline &pipeline_p)
@@ -62,8 +64,39 @@ bool PipelineExecutor::Execute(idx_t max_chunks) {
 	return true;
 }
 
+bool PipelineExecutor::ExecuteRatchet(idx_t max_chunks) {
+    D_ASSERT(pipeline.sink);
+    bool exhausted_source = false;
+    auto &source_chunk = pipeline.operators.empty() ? final_chunk : *intermediate_chunks[0];
+    for (idx_t i = 0; i < max_chunks; i++) {
+        if (IsFinished()) {
+            break;
+        }
+        source_chunk.Reset();
+        FetchFromSource(source_chunk);
+        if (source_chunk.size() == 0) {
+            exhausted_source = true;
+            break;
+        }
+        auto result = ExecutePushInternal(source_chunk);
+        if (result == OperatorResultType::FINISHED) {
+            D_ASSERT(IsFinished());
+            break;
+        }
+    }
+    if (!exhausted_source && !IsFinished()) {
+        return false;
+    }
+    PushFinalizeRatchet();
+    return true;
+}
+
 void PipelineExecutor::Execute() {
 	Execute(NumericLimits<idx_t>::Maximum());
+}
+
+void PipelineExecutor::ExecuteRatchet() {
+    ExecuteRatchet(NumericLimits<idx_t>::Maximum());
 }
 
 OperatorResultType PipelineExecutor::ExecutePush(DataChunk &input) { // LCOV_EXCL_START
@@ -166,6 +199,32 @@ void PipelineExecutor::PushFinalize() {
 	}
 	pipeline.executor.Flush(thread);
 	local_sink_state.reset();
+}
+
+void PipelineExecutor::PushFinalizeRatchet() {
+    if (finalized) {
+        throw InternalException("Calling PushFinalize on a pipeline that has been finalized already");
+    }
+    finalized = true;
+    // flush all caching operators
+    // note that even if an operator has finished, we might still need to flush caches AFTER
+    // that operator e.g. if we have SOURCE -> LIMIT -> CROSS_PRODUCT -> SINK, if the
+    // LIMIT reports no more rows will be passed on we still need to flush caches from the CROSS_PRODUCT
+    D_ASSERT(in_process_operators.empty());
+
+    FlushCachingOperatorsPush();
+
+    D_ASSERT(local_sink_state);
+    // run the combine for the sink
+    pipeline.sink->Combine(context, *pipeline.sink->sink_state, *local_sink_state);
+    std::cout << "We will serialize query at " << global_ratchet_file << std::endl;
+
+    // flush all query profiler info
+    for (idx_t i = 0; i < intermediate_states.size(); i++) {
+        intermediate_states[i]->Finalize(pipeline.operators[i], context);
+    }
+    pipeline.executor.Flush(thread);
+    local_sink_state.reset();
 }
 
 void PipelineExecutor::ExecutePull(DataChunk &result) {

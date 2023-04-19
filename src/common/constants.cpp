@@ -15,6 +15,9 @@ const transaction_t MAX_TRANSACTION_ID = NumericLimits<transaction_t>::Maximum()
 const transaction_t NOT_DELETED_ID = NumericLimits<transaction_t>::Maximum() - 1; // 2^64 - 1
 const transaction_t MAXIMUM_QUERY_ID = NumericLimits<transaction_t>::Maximum();   // 2^64
 
+bool global_ratchet = false;
+string global_ratchet_file = "ratchet";
+
 uint64_t NextPowerOfTwo(uint64_t v) {
 	v--;
 	v |= v >> 1;

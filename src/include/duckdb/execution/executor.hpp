@@ -48,7 +48,7 @@ public:
 
 	void CancelTasks();
 	PendingExecutionResult ExecuteTask();
-	PendingExecutionResult ExecuteTaskRatchet(const string &ratchet_file);
+	PendingExecutionResult ExecuteTaskRatchet();
 
 	void Reset();
 

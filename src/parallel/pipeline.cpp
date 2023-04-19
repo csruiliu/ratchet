@@ -51,12 +51,12 @@ public:
             pipeline_executor = make_unique<PipelineExecutor>(pipeline.GetClientContext(), pipeline);
         }
         if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
-            bool finished = pipeline_executor->Execute(PARTIAL_CHUNK_COUNT);
+            bool finished = pipeline_executor->ExecuteRatchet(PARTIAL_CHUNK_COUNT);
             if (!finished) {
                 return TaskExecutionResult::TASK_NOT_FINISHED;
             }
         } else {
-            pipeline_executor->Execute();
+            pipeline_executor->ExecuteRatchet();
         }
         event->FinishTask();
         pipeline_executor.reset();

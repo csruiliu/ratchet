@@ -44,6 +44,10 @@ public:
 
 public:
 	virtual TaskExecutionResult ExecuteTask(TaskExecutionMode mode) = 0;
+    //! ExecutorTask inherits Task
+    //! So ExecuteRatchet in [ExecutorTask] implements the ExecuteRatchet in [Task]
+    //! ExecuteTaskRatchet is invoked in [ExecutorTask::ExecuteRatchet]
+    //! ExecuteTaskRatchet is a pure virtual need to be implemented by various physical operators
     virtual TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) = 0;
 	TaskExecutionResult Execute(TaskExecutionMode mode) override;
     TaskExecutionResult ExecuteRatchet(TaskExecutionMode mode) override;

@@ -425,7 +425,7 @@ PendingExecutionResult Executor::ExecuteTask() {
 	return execution_result;
 }
 
-PendingExecutionResult Executor::ExecuteTaskRatchet(const string &ratchet_file) {
+PendingExecutionResult Executor::ExecuteTaskRatchet() {
     if (execution_result != PendingExecutionResult::RESULT_NOT_READY) {
         return execution_result;
     }
