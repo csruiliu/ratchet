@@ -151,7 +151,14 @@ void TaskScheduler::ExecuteForeverRatchet(atomic<bool> *marker) {
         // wait for a signal with a timeout
         queue->semaphore.wait();
         if (queue->q.try_dequeue(task)) {
-            task->ExecuteRatchet(TaskExecutionMode::PROCESS_ALL);
+            if (global_ratchet) {
+				std::cout << "task->ExecuteRatchet" << std::endl;
+                task->ExecuteRatchet(TaskExecutionMode::PROCESS_ALL);
+            }
+            else {
+                std::cout << "task->Execute" << std::endl;
+                task->Execute(TaskExecutionMode::PROCESS_ALL);
+            }
             task.reset();
         }
     }

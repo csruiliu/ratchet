@@ -17,7 +17,7 @@ namespace duckdb {
 
 // Enable Ratchet Source Code
 #define RATCHET
-#define RATCHET_PRINT_PLAN
+// #define RATCHET_PRINT_PLAN
 
 // API versions
 // if no explicit API version is defined, the latest API version is used
@@ -94,6 +94,10 @@ extern const transaction_t MAXIMUM_QUERY_ID;
 extern const transaction_t NOT_DELETED_ID;
 
 extern const double PI;
+
+//! global variable for Ratchet
+extern bool global_ratchet;
+extern string global_ratchet_file;
 
 struct DConstants {
 	//! The value used to signify an invalid index entry
