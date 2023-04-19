@@ -12,9 +12,9 @@ def main():
                         help="indicate the data source folder for conversion such as <tpch/dataset/parquet/sf1>")
     parser.add_argument("-td", "--thread", type=int, action="store", default=1,
                         help="indicate the number of threads in DuckDB")
-    parser.add_argument("-st", "--suspend_start_time", type=int, action="store",
+    parser.add_argument("-st", "--suspend_start_time", type=float, action="store",
                         help="indicate start time for suspension (second)")
-    parser.add_argument("-se", "--suspend_end_time", type=int, action="store",
+    parser.add_argument("-se", "--suspend_end_time", type=float, action="store",
                         help="indicate end time for suspension (second)")
     parser.add_argument("-u", "--update_table", action="store_true",
                         help="force to update table in database")
