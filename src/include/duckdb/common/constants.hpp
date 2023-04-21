@@ -96,8 +96,10 @@ extern const transaction_t NOT_DELETED_ID;
 extern const double PI;
 
 //! global variable for Ratchet
-extern bool global_ratchet;
+extern bool global_ratchet_start;
+extern uint16_t global_threads;
 extern string global_ratchet_file;
+extern std::atomic<uint16_t> global_stopped_threads;
 
 struct DConstants {
 	//! The value used to signify an invalid index entry

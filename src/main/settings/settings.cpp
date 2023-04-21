@@ -965,6 +965,7 @@ void ThreadsSetting::SetGlobal(DatabaseInstance *db, DBConfig &config, const Val
 	config.options.maximum_threads = input.GetValue<int64_t>();
 	if (db) {
 		TaskScheduler::GetScheduler(*db).SetThreads(config.options.maximum_threads);
+        global_threads = config.options.maximum_threads;
 	}
 }
 
