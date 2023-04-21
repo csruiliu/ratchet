@@ -280,11 +280,13 @@ unique_ptr<QueryResult> DuckDBPyConnection::CompletePendingQueryRatchet(PendingQ
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
         uint64_t time_dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
         if (time_dur > suspend_point) {
-            global_ratchet = true;
+            global_ratchet_start = true;
             execution_result = pending_query.ExecuteTaskRatchet();
-            PyErr_SetInterrupt();
-            if (PyErr_CheckSignals() != 0) {
-                throw std::runtime_error("Query has been suspended");
+            while(global_stopped_threads == global_threads - 1) {
+                PyErr_SetInterrupt();
+                if (PyErr_CheckSignals() != 0) {
+                    throw std::runtime_error("Query has been suspended");
+                }
             }
         }
         else {
@@ -1406,7 +1408,6 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::Connect(const string &databas
                                                            const py::dict &config_options) {
     auto config_dict = TransformPyConfigDict(config_options);
 	DBConfig config(config_dict, read_only);
-
 	auto res = FetchOrCreateInstance(database, config);
 	auto &client_context = *res->connection->context;
 	SetDefaultConfigArguments(client_context);
