@@ -232,10 +232,6 @@ void PhysicalHashJoin::Combine(ExecutionContext &context, GlobalSinkState &gstat
 	auto &client_profiler = QueryProfiler::Get(context.client);
 	context.thread.profiler.Flush(this, &lstate.build_executor, "build_executor", 1);
 	client_profiler.Flush(context.thread.profiler);
-    if (global_ratchet_start) {
-        std::cout << "[RATCHET] Serialize Global State";
-
-    }
 }
 
 //===--------------------------------------------------------------------===//
@@ -255,7 +251,7 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
-    TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) override {
+    TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
         sink.hash_table->Finalize(block_idx_start, block_idx_end, parallel);
         event->FinishTask();
         return TaskExecutionResult::TASK_FINISHED;
@@ -347,7 +343,7 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
-    TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) override {
+    TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
         local_ht.Partition(global_ht);
         event->FinishTask();
         return TaskExecutionResult::TASK_FINISHED;

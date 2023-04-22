@@ -288,7 +288,7 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
-    TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) override {
+    TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
         FinalizeHT(state, radix);
         event->FinishTask();
         return TaskExecutionResult::TASK_FINISHED;

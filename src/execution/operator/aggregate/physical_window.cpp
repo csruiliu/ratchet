@@ -1538,7 +1538,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override;
-    TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) override;
+    TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override;
 
 private:
 	shared_ptr<Event> event;
@@ -1603,7 +1603,7 @@ TaskExecutionResult WindowMergeTask::ExecuteTask(TaskExecutionMode mode) {
 	return TaskExecutionResult::TASK_FINISHED;
 }
 
-TaskExecutionResult WindowMergeTask::ExecuteTaskRatchet(TaskExecutionMode mode) {
+TaskExecutionResult WindowMergeTask::RatchetExecuteTask(TaskExecutionMode mode) {
     // Loop until all hash groups are done
     size_t sorted = 0;
     while (sorted < hash_groups.states.size()) {

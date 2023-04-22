@@ -395,6 +395,61 @@ void JoinHashTable::Finalize(idx_t block_idx_start, idx_t block_idx_end, bool pa
 	}
 }
 
+Vector JoinHashTable::RatchetFinalize(idx_t block_idx_start, idx_t block_idx_end, bool parallel) {
+	// Pointer table should be allocated
+	D_ASSERT(hash_map.get());
+
+	const auto unswizzle = external && !layout.AllConstant();
+	vector<BufferHandle> local_pinned_handles;
+
+	Vector hashes(LogicalType::HASH);
+	auto hash_data = FlatVector::GetData<hash_t>(hashes);
+	data_ptr_t key_locations[STANDARD_VECTOR_SIZE];
+	// now construct the actual hash table; scan the nodes
+	// as we scan the nodes we pin all the blocks of the HT and keep them pinned until the HT is destroyed
+	// this is so that we can keep pointers around to the blocks
+	for (idx_t block_idx = block_idx_start; block_idx < block_idx_end; block_idx++) {
+		auto &block = block_collection->blocks[block_idx];
+		auto handle = buffer_manager.Pin(block->block);
+		data_ptr_t dataptr = handle.Ptr();
+
+		data_ptr_t heap_ptr = nullptr;
+		if (unswizzle) {
+			auto &heap_block = string_heap->blocks[block_idx];
+			auto heap_handle = buffer_manager.Pin(heap_block->block);
+			heap_ptr = heap_handle.Ptr();
+			local_pinned_handles.push_back(std::move(heap_handle));
+		}
+
+		idx_t entry = 0;
+		while (entry < block->count) {
+			idx_t next = MinValue<idx_t>(STANDARD_VECTOR_SIZE, block->count - entry);
+
+			if (unswizzle) {
+				RowOperations::UnswizzlePointers(layout, dataptr, heap_ptr, next);
+			}
+
+			// fetch the next vector of entries from the blocks
+			for (idx_t i = 0; i < next; i++) {
+				hash_data[i] = Load<hash_t>((data_ptr_t)(dataptr + pointer_offset));
+				key_locations[i] = dataptr;
+				dataptr += entry_size;
+			}
+			// now insert into the hash table
+			InsertHashes(hashes, next, key_locations, parallel);
+
+			entry += next;
+		}
+		local_pinned_handles.push_back(std::move(handle));
+	}
+
+	lock_guard<mutex> lock(pinned_handles_lock);
+	for (auto &local_pinned_handle : local_pinned_handles) {
+		pinned_handles.push_back(std::move(local_pinned_handle));
+	}
+	return hashes;
+}
+
 unique_ptr<ScanStructure> JoinHashTable::InitializeScanStructure(DataChunk &keys, const SelectionVector *&current_sel) {
 	D_ASSERT(Count() > 0); // should be handled before
 	D_ASSERT(finalized);

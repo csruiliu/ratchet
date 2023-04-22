@@ -143,7 +143,7 @@ void TaskScheduler::ExecuteForever(atomic<bool> *marker) {
 #endif
 }
 
-void TaskScheduler::ExecuteForeverRatchet(atomic<bool> *marker) {
+void TaskScheduler::RatchetExecuteForever(atomic<bool> *marker) {
 #ifndef DUCKDB_NO_THREADS
     unique_ptr<Task> task;
     // loop until the marker is set to false
@@ -153,7 +153,7 @@ void TaskScheduler::ExecuteForeverRatchet(atomic<bool> *marker) {
         if (queue->q.try_dequeue(task)) {
             if (global_ratchet_start) {
 				std::cout << "task->ExecuteRatchet" << std::endl;
-                task->ExecuteRatchet(TaskExecutionMode::PROCESS_ALL);
+                task->RatchetExecute(TaskExecutionMode::PROCESS_ALL);
                 task.reset();
                 global_stopped_threads++;
                 break;
@@ -214,7 +214,7 @@ static void ThreadExecuteTasks(TaskScheduler *scheduler, atomic<bool> *marker) {
 #ifndef RATCHET
 	scheduler->ExecuteForever(marker);
 #else
-    scheduler->ExecuteForeverRatchet(marker);
+    scheduler->RatchetExecuteForever(marker);
 #endif
 }
 #endif
