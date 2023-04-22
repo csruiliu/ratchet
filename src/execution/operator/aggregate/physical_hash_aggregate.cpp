@@ -483,7 +483,7 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
-    TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) override {
+    TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
         op.FinalizeInternal(pipeline, *event, context, gstate, false);
         D_ASSERT(!gstate.finished);
         gstate.finished = true;
@@ -630,7 +630,7 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
-    TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) override {
+    TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
         D_ASSERT(op.distinct_collection_info);
         auto &info = *op.distinct_collection_info;
         for (idx_t i = 0; i < op.groupings.size(); i++) {

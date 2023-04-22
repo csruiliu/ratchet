@@ -25,9 +25,9 @@ TaskExecutionResult ExecutorTask::Execute(TaskExecutionMode mode) {
 	return TaskExecutionResult::TASK_ERROR;
 }
 
-TaskExecutionResult ExecutorTask::ExecuteRatchet(TaskExecutionMode mode) {
+TaskExecutionResult ExecutorTask::RatchetExecute(TaskExecutionMode mode) {
     try {
-        return ExecuteTaskRatchet(mode);
+        return RatchetExecuteTask(mode);
     } catch (Exception &ex) {
         executor.PushError(PreservedError(ex));
     } catch (std::exception &ex) {

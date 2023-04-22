@@ -64,7 +64,7 @@ bool PipelineExecutor::Execute(idx_t max_chunks) {
 	return true;
 }
 
-bool PipelineExecutor::ExecuteRatchet(idx_t max_chunks) {
+bool PipelineExecutor::RatchetExecute(idx_t max_chunks) {
     D_ASSERT(pipeline.sink);
     bool exhausted_source = false;
     auto &source_chunk = pipeline.operators.empty() ? final_chunk : *intermediate_chunks[0];
@@ -87,7 +87,7 @@ bool PipelineExecutor::ExecuteRatchet(idx_t max_chunks) {
     if (!exhausted_source && !IsFinished()) {
         return false;
     }
-    PushFinalizeRatchet();
+    RatchetPushFinalize();
     return true;
 }
 
@@ -95,8 +95,8 @@ void PipelineExecutor::Execute() {
 	Execute(NumericLimits<idx_t>::Maximum());
 }
 
-void PipelineExecutor::ExecuteRatchet() {
-    ExecuteRatchet(NumericLimits<idx_t>::Maximum());
+void PipelineExecutor::RatchetExecute() {
+    RatchetExecute(NumericLimits<idx_t>::Maximum());
 }
 
 OperatorResultType PipelineExecutor::ExecutePush(DataChunk &input) { // LCOV_EXCL_START
@@ -201,7 +201,7 @@ void PipelineExecutor::PushFinalize() {
 	local_sink_state.reset();
 }
 
-void PipelineExecutor::PushFinalizeRatchet() {
+void PipelineExecutor::RatchetPushFinalize() {
     if (finalized) {
         throw InternalException("Calling PushFinalize on a pipeline that has been finalized already");
     }

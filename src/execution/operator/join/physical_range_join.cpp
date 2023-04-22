@@ -99,7 +99,7 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
-    TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) override {
+    TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
         // Initialize iejoin sorted and iterate until done
         auto &global_sort_state = table.global_sort_state;
         MergeSorter merge_sorter(global_sort_state, BufferManager::GetBufferManager(context));

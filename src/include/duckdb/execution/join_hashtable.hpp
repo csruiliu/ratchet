@@ -139,6 +139,7 @@ public:
 	//! Finalize must be called before any call to Probe, and after Finalize is called Build should no longer be
 	//! ever called.
 	void Finalize(idx_t block_idx_start, idx_t block_idx_end, bool parallel);
+    Vector RatchetFinalize(idx_t block_idx_start, idx_t block_idx_end, bool parallel);
 	//! Probe the HT with the given input chunk, resulting in the given result
 	unique_ptr<ScanStructure> Probe(DataChunk &keys, Vector *precomputed_hashes = nullptr);
 	//! Scan the HT to find the rows for the full outer join and return the number of found entries

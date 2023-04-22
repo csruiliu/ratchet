@@ -425,7 +425,7 @@ PendingExecutionResult Executor::ExecuteTask() {
 	return execution_result;
 }
 
-PendingExecutionResult Executor::ExecuteTaskRatchet() {
+PendingExecutionResult Executor::RatchetExecuteTask() {
     if (execution_result != PendingExecutionResult::RESULT_NOT_READY) {
         return execution_result;
     }
@@ -438,7 +438,7 @@ PendingExecutionResult Executor::ExecuteTaskRatchet() {
         }
         if (task) {
             // if we have a task, partially process it
-            auto result = task->ExecuteRatchet(TaskExecutionMode::PROCESS_PARTIAL);
+            auto result = task->RatchetExecute(TaskExecutionMode::PROCESS_PARTIAL);
             if (result != TaskExecutionResult::TASK_NOT_FINISHED) {
                 // if the task is finished, clean it up
                 task.reset();

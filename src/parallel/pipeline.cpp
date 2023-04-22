@@ -46,17 +46,17 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
-    TaskExecutionResult ExecuteTaskRatchet(TaskExecutionMode mode) override {
+    TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
         if (!pipeline_executor) {
             pipeline_executor = make_unique<PipelineExecutor>(pipeline.GetClientContext(), pipeline);
         }
         if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
-            bool finished = pipeline_executor->ExecuteRatchet(PARTIAL_CHUNK_COUNT);
+            bool finished = pipeline_executor->RatchetExecute(PARTIAL_CHUNK_COUNT);
             if (!finished) {
                 return TaskExecutionResult::TASK_NOT_FINISHED;
             }
         } else {
-            pipeline_executor->ExecuteRatchet();
+            pipeline_executor->RatchetExecute();
         }
         event->FinishTask();
         pipeline_executor.reset();
