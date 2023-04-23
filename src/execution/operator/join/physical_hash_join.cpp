@@ -252,10 +252,12 @@ public:
 	}
 
     TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
-        sink.hash_table->Finalize(block_idx_start, block_idx_end, parallel);
+        std::cout << "[HashJoinFinalizeTask] RatchetExecuteTask" << std::endl;
+        AllocatedData hash_map = sink.hash_table->RatchetFinalize(block_idx_start, block_idx_end, parallel);
+        std::cout << hash_map.get() << std::endl;
         event->FinishTask();
         return TaskExecutionResult::TASK_FINISHED;
-    }
+    }   
 
 private:
 	shared_ptr<Event> event;

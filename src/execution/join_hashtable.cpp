@@ -395,7 +395,7 @@ void JoinHashTable::Finalize(idx_t block_idx_start, idx_t block_idx_end, bool pa
 	}
 }
 
-Vector JoinHashTable::RatchetFinalize(idx_t block_idx_start, idx_t block_idx_end, bool parallel) {
+AllocatedData JoinHashTable::RatchetFinalize(idx_t block_idx_start, idx_t block_idx_end, bool parallel) {
 	// Pointer table should be allocated
 	D_ASSERT(hash_map.get());
 
@@ -447,7 +447,8 @@ Vector JoinHashTable::RatchetFinalize(idx_t block_idx_start, idx_t block_idx_end
 	for (auto &local_pinned_handle : local_pinned_handles) {
 		pinned_handles.push_back(std::move(local_pinned_handle));
 	}
-	return hashes;
+
+	return std::move(hash_map);	
 }
 
 unique_ptr<ScanStructure> JoinHashTable::InitializeScanStructure(DataChunk &keys, const SelectionVector *&current_sel) {
