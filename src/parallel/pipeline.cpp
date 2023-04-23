@@ -14,6 +14,8 @@
 #include "duckdb/parallel/task_scheduler.hpp"
 #include "duckdb/parallel/thread_context.hpp"
 
+#include <iostream>
+
 namespace duckdb {
 
 class PipelineTask : public ExecutorTask {
@@ -47,6 +49,7 @@ public:
 	}
 
     TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
+		std::cout << "[PipelineTask] RatchetExecuteTask" << std::endl;
         if (!pipeline_executor) {
             pipeline_executor = make_unique<PipelineExecutor>(pipeline.GetClientContext(), pipeline);
         }

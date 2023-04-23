@@ -217,7 +217,6 @@ void PipelineExecutor::RatchetPushFinalize() {
     D_ASSERT(local_sink_state);
     // run the combine for the sink
     pipeline.sink->Combine(context, *pipeline.sink->sink_state, *local_sink_state);
-    std::cout << "We will serialize query at " << global_ratchet_file << std::endl;
 
     // flush all query profiler info
     for (idx_t i = 0; i < intermediate_states.size(); i++) {

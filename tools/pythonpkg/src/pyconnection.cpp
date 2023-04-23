@@ -281,7 +281,7 @@ unique_ptr<QueryResult> DuckDBPyConnection::RatchetCompletePendingQuery(PendingQ
         uint64_t time_dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
         if (time_dur > suspend_point) {
             global_ratchet_start = true;
-            execution_result = pending_query.RatchetExecuteTask();
+            execution_result = pending_query.ExecuteTask();
             while(global_stopped_threads == global_threads - 1) {
                 PyErr_SetInterrupt();
                 if (PyErr_CheckSignals() != 0) {
