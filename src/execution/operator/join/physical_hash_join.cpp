@@ -246,8 +246,9 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-		sink.hash_table->Finalize(block_idx_start, block_idx_end, parallel);
-		event->FinishTask();
+        std::cout << "[HashJoinFinalizeTask] ExecuteTask start " << block_idx_start << ", " << block_idx_end << std::endl;
+        sink.hash_table->Finalize(block_idx_start, block_idx_end, parallel);
+        event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
@@ -340,12 +341,14 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+        std::cout << "[HashJoinPartitionTask] ExecuteTask" << std::endl;
 		local_ht.Partition(global_ht);
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
     TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
+        std::cout << "[HashJoinPartitionTask] RatchetExecuteTask" << std::endl;
         local_ht.Partition(global_ht);
         event->FinishTask();
         return TaskExecutionResult::TASK_FINISHED;

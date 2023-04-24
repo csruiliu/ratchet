@@ -1547,6 +1547,7 @@ private:
 };
 
 TaskExecutionResult WindowMergeTask::ExecuteTask(TaskExecutionMode mode) {
+    std::cout << "[WindowMergeTask] ExecuteTask" << std::endl;
 	// Loop until all hash groups are done
 	size_t sorted = 0;
 	while (sorted < hash_groups.states.size()) {
@@ -1604,6 +1605,7 @@ TaskExecutionResult WindowMergeTask::ExecuteTask(TaskExecutionMode mode) {
 }
 
 TaskExecutionResult WindowMergeTask::RatchetExecuteTask(TaskExecutionMode mode) {
+    std::cout << "[WindowMergeTask] RatchetExecuteTask" << std::endl;
     // Loop until all hash groups are done
     size_t sorted = 0;
     while (sorted < hash_groups.states.size()) {

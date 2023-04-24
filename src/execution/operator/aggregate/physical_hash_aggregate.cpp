@@ -14,6 +14,8 @@
 #include "duckdb/common/atomic.hpp"
 #include "duckdb/execution/operator/aggregate/distinct_aggregate_data.hpp"
 
+#include <iostream>
+
 namespace duckdb {
 
 HashAggregateGroupingData::HashAggregateGroupingData(GroupingSet &grouping_set_p,
@@ -476,6 +478,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+        std::cout << "[HashAggregateFinalizeTask] ExecuteTask" << std::endl;
 		op.FinalizeInternal(pipeline, *event, context, gstate, false);
 		D_ASSERT(!gstate.finished);
 		gstate.finished = true;
@@ -484,6 +487,7 @@ public:
 	}
 
     TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
+        std::cout << "[HashAggregateFinalizeTask] RatchetExecuteTask" << std::endl;
         op.FinalizeInternal(pipeline, *event, context, gstate, false);
         D_ASSERT(!gstate.finished);
         gstate.finished = true;
@@ -619,6 +623,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+        std::cout << "[HashDistinctAggregateFinalizeTask] ExecuteTask" << std::endl;
 		D_ASSERT(op.distinct_collection_info);
 		auto &info = *op.distinct_collection_info;
 		for (idx_t i = 0; i < op.groupings.size(); i++) {
@@ -631,6 +636,7 @@ public:
 	}
 
     TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
+        std::cout << "[HashDistinctAggregateFinalizeTask] RatchetExecuteTask" << std::endl;
         D_ASSERT(op.distinct_collection_info);
         auto &info = *op.distinct_collection_info;
         for (idx_t i = 0; i < op.groupings.size(); i++) {

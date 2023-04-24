@@ -304,6 +304,7 @@ unique_ptr<QueryResult> DuckDBPyConnection::RatchetCompletePendingQuery(PendingQ
     if (execution_result == PendingExecutionResult::EXECUTION_ERROR) {
         pending_query.ThrowError();
     }
+    std::cout << "Start to pull data for root pipeline" << std::endl;
     return pending_query.Execute();
 }
 
@@ -321,6 +322,7 @@ unique_ptr<QueryResult> DuckDBPyConnection::CompletePendingQuery(PendingQueryRes
 	if (execution_result == PendingExecutionResult::EXECUTION_ERROR) {
 		pending_query.ThrowError();
 	}
+    std::cout << "Start to pull data for root pipeline" << std::endl;
 	return pending_query.Execute();
 }
 

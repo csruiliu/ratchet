@@ -7,6 +7,8 @@
 #include "duckdb/parallel/event.hpp"
 #include "duckdb/storage/buffer_manager.hpp"
 
+#include <iostream>
+
 namespace duckdb {
 
 PhysicalOrder::PhysicalOrder(vector<LogicalType> types, vector<BoundOrderByNode> orders, vector<idx_t> projections,
@@ -115,6 +117,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+        std::cout << "[PhysicalOrderMergeTask] ExecuteTask" << std::endl;
 		// Initialize merge sorted and iterate until done
 		auto &global_sort_state = state.global_sort_state;
 		MergeSorter merge_sorter(global_sort_state, BufferManager::GetBufferManager(context));
@@ -124,6 +127,7 @@ public:
 	}
 
     TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
+        std::cout << "[PhysicalOrderMergeTask] RatchetExecuteTask" << std::endl;
         // Initialize merge sorted and iterate until done
         auto &global_sort_state = state.global_sort_state;
         MergeSorter merge_sorter(global_sort_state, BufferManager::GetBufferManager(context));
