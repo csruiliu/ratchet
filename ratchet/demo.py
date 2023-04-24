@@ -6,7 +6,7 @@ import time
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-q", "--query_name", type=str, action="store", required=True,
-                        choices=['slim', 'mid'],
+                        choices=['slim', 'join1', 'join2', 'join3'],
                         help="indicate the query id")
     parser.add_argument("-d", "--data_folder", type=str, action="store", required=True,
                         help="indicate the data source folder for conversion such as <tpch/dataset/parquet/sf1>")
@@ -47,9 +47,25 @@ def main():
                     sum(L_QUANTITY) as SUM_QTY
             FROM    lineitem
         """
-    elif qid == "mid":
+    elif qid == "join1":
         exec_query = f"""
-            SELECT  C_CUSTKEY, O_ORDERKEY, L_LINENUMBER, L_QUANTITY, C_ACCTBAL
+            SELECT  C_CUSTKEY, C_NAME, O_ORDERKEY, O_ORDERSTATUS
+            FROM  	customer,
+                    orders
+            WHERE	C_CUSTKEY = O_CUSTKEY
+        """
+    elif qid == "join2":
+        exec_query = f"""
+            SELECT  P_NAME, PS_AVAILQTY, S_ACCTBAL
+            FROM  	partsupp,
+                    part,
+                    supplier
+            WHERE	PS_PARTKEY = P_PARTKEY
+                    AND	PS_SUPPKEY = S_SUPPKEY
+        """
+    elif qid == "join3":
+        exec_query = f"""
+            SELECT  C_CUSTKEY, O_ORDERKEY, L_LINENUMBER, L_QUANTITY, C_ACCTBAL, O_TOTALPRICE
             FROM  	customer,
                     orders,
                     lineitem
