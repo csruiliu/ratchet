@@ -36,12 +36,16 @@ public:
 			pipeline_executor = make_unique<PipelineExecutor>(pipeline.GetClientContext(), pipeline);
 		}
 		if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
-			bool finished = pipeline_executor->Execute(PARTIAL_CHUNK_COUNT);
+			std::cout << "[PipelineTask] ExecuteTask at PARTIAL MODE for" << std::endl;
+            pipeline.Print();
+            bool finished = pipeline_executor->Execute(PARTIAL_CHUNK_COUNT);
 			if (!finished) {
 				return TaskExecutionResult::TASK_NOT_FINISHED;
 			}
 		} else {
-			pipeline_executor->Execute();
+			std::cout << "[PipelineTask] ExecuteTask at ALL MODE (" << NumericLimits<idx_t>::Maximum() << ") for " << std::endl;
+            pipeline.Print();
+            pipeline_executor->Execute();
 		}
 		event->FinishTask();
 		pipeline_executor.reset();
@@ -49,16 +53,17 @@ public:
 	}
 
     TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
-		std::cout << "[PipelineTask] RatchetExecuteTask" << std::endl;
         if (!pipeline_executor) {
             pipeline_executor = make_unique<PipelineExecutor>(pipeline.GetClientContext(), pipeline);
         }
         if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
+			std::cout << "[PipelineTask] RatchetExecuteTask at PARTIAL MODE" << std::endl;
             bool finished = pipeline_executor->RatchetExecute(PARTIAL_CHUNK_COUNT);
             if (!finished) {
                 return TaskExecutionResult::TASK_NOT_FINISHED;
             }
         } else {
+			std::cout << "[PipelineTask] RatchetExecuteTask at ALL MODE" << std::endl;
             pipeline_executor->RatchetExecute();
         }
         event->FinishTask();

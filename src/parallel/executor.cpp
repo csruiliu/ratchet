@@ -17,6 +17,8 @@
 
 #include <algorithm>
 
+#include <iostream>
+
 namespace duckdb {
 
 Executor::Executor(ClientContext &context) : context(context) {
@@ -278,6 +280,24 @@ void Executor::VerifyPipelines() {
 #endif
 }
 
+void Executor::PrintPipelines() {
+    uint16_t pipeline_count = 0;
+    for (auto &pipeline : pipelines) {
+        std::cout << "Pipeline " << pipeline_count << ":" << std::endl;
+        pipeline->Print();
+        pipeline_count++;
+    }
+}
+
+void Executor::PrintRootPipelines() {
+    uint16_t root_pipeline_count = 0;
+    for (auto &root_pipeline : root_pipelines) {
+        std::cout << "Root Pipeline " << root_pipeline_count << ":" << std::endl;
+        root_pipeline->Print();
+        root_pipeline_count++;
+    }
+}
+
 void Executor::Initialize(unique_ptr<PhysicalOperator> physical_plan) {
 	Reset();
 	owned_plan = std::move(physical_plan);
@@ -329,6 +349,7 @@ void Executor::InitializeInternal(PhysicalOperator *plan) {
 
 		// finally, verify and schedule
 		VerifyPipelines();
+        PrintPipelines();
 		ScheduleEvents(to_schedule);
 	}
 }
@@ -572,10 +593,9 @@ unique_ptr<QueryResult> Executor::GetResult() {
 
 unique_ptr<DataChunk> Executor::FetchChunk() {
 	D_ASSERT(physical_plan);
-
 	auto chunk = make_unique<DataChunk>();
 	root_executor->InitializeChunk(*chunk);
-	while (true) {
+    while (true) {
 		root_executor->ExecutePull(*chunk);
 		if (chunk->size() == 0) {
 			root_executor->PullFinalize();

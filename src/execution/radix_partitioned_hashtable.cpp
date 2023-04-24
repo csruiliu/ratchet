@@ -3,6 +3,8 @@
 #include "duckdb/execution/operator/aggregate/physical_hash_aggregate.hpp"
 #include "duckdb/parallel/event.hpp"
 
+#include <iostream>
+
 namespace duckdb {
 
 // compute the GROUPING values
@@ -283,12 +285,14 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+        std::cout << "[RadixAggregateFinalizeTask] ExecuteTask" << std::endl;
 		FinalizeHT(state, radix);
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
     TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
+        std::cout << "[RadixAggregateFinalizeTask] RatchetExecuteTask" << std::endl;
         FinalizeHT(state, radix);
         event->FinishTask();
         return TaskExecutionResult::TASK_FINISHED;
