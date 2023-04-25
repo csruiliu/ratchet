@@ -486,8 +486,17 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
-    TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
-        std::cout << "[HashAggregateFinalizeTask] RatchetExecuteTask" << std::endl;
+    TaskExecutionResult ExecuteTaskSuspend(TaskExecutionMode mode) override {
+        std::cout << "[HashAggregateFinalizeTask] ExecuteTaskSuspend" << std::endl;
+        op.FinalizeInternal(pipeline, *event, context, gstate, false);
+        D_ASSERT(!gstate.finished);
+        gstate.finished = true;
+        event->FinishTask();
+        return TaskExecutionResult::TASK_FINISHED;
+    }
+
+    TaskExecutionResult ExecuteTaskResume(TaskExecutionMode mode) override {
+        std::cout << "[HashAggregateFinalizeTask] ExecuteTaskResume" << std::endl;
         op.FinalizeInternal(pipeline, *event, context, gstate, false);
         D_ASSERT(!gstate.finished);
         gstate.finished = true;
@@ -635,8 +644,21 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
-    TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
-        std::cout << "[HashDistinctAggregateFinalizeTask] RatchetExecuteTask" << std::endl;
+    TaskExecutionResult ExecuteTaskSuspend(TaskExecutionMode mode) override {
+        std::cout << "[HashDistinctAggregateFinalizeTask] ExecuteTaskSuspend" << std::endl;
+        D_ASSERT(op.distinct_collection_info);
+        auto &info = *op.distinct_collection_info;
+        for (idx_t i = 0; i < op.groupings.size(); i++) {
+            auto &grouping = op.groupings[i];
+            auto &grouping_state = gstate.grouping_states[i];
+            AggregateDistinctGrouping(info, grouping, grouping_state, i);
+        }
+        event->FinishTask();
+        return TaskExecutionResult::TASK_FINISHED;
+    }
+
+    TaskExecutionResult ExecuteTaskResume(TaskExecutionMode mode) override {
+        std::cout << "[HashDistinctAggregateFinalizeTask] ExecuteTaskResume" << std::endl;
         D_ASSERT(op.distinct_collection_info);
         auto &info = *op.distinct_collection_info;
         for (idx_t i = 0; i < op.groupings.size(); i++) {

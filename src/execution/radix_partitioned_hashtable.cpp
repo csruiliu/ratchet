@@ -291,8 +291,15 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
-    TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
-        std::cout << "[RadixAggregateFinalizeTask] RatchetExecuteTask" << std::endl;
+    TaskExecutionResult ExecuteTaskSuspend(TaskExecutionMode mode) override {
+        std::cout << "[RadixAggregateFinalizeTask] ExecuteTaskSuspend" << std::endl;
+        FinalizeHT(state, radix);
+        event->FinishTask();
+        return TaskExecutionResult::TASK_FINISHED;
+    }
+
+    TaskExecutionResult ExecuteTaskResume(TaskExecutionMode mode) override {
+        std::cout << "[RadixAggregateFinalizeTask] ExecuteTaskResume" << std::endl;
         FinalizeHT(state, radix);
         event->FinishTask();
         return TaskExecutionResult::TASK_FINISHED;

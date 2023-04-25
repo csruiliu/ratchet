@@ -43,12 +43,14 @@ bool PipelineExecutor::Execute(idx_t max_chunks) {
 	auto &source_chunk = pipeline.operators.empty() ? final_chunk : *intermediate_chunks[0];
 	for (idx_t i = 0; i < max_chunks; i++) {
 		if (IsFinished()) {
+            std::cout << "PipelineExecutor::Execute, IsFinished() is true" << std::endl;
 			break;
 		}
 		source_chunk.Reset();
 		FetchFromSource(source_chunk);
 		if (source_chunk.size() == 0) {
 			exhausted_source = true;
+            std::cout << "PipelineExecutor::Execute, exhausted_source is true" << std::endl;
 			break;
 		}
 		auto result = ExecutePushInternal(source_chunk);
@@ -64,18 +66,20 @@ bool PipelineExecutor::Execute(idx_t max_chunks) {
 	return true;
 }
 
-bool PipelineExecutor::RatchetExecute(idx_t max_chunks) {
+bool PipelineExecutor::ExecuteSuspend(idx_t max_chunks) {
     D_ASSERT(pipeline.sink);
     bool exhausted_source = false;
     auto &source_chunk = pipeline.operators.empty() ? final_chunk : *intermediate_chunks[0];
     for (idx_t i = 0; i < max_chunks; i++) {
         if (IsFinished()) {
+            std::cout << "PipelineExecutor::ExecuteSuspend, IsFinished() is true" << std::endl;
             break;
         }
         source_chunk.Reset();
         FetchFromSource(source_chunk);
         if (source_chunk.size() == 0) {
             exhausted_source = true;
+            std::cout << "PipelineExecutor::ExecuteSuspend, exhausted_source is true" << std::endl;
             break;
         }
         auto result = ExecutePushInternal(source_chunk);
@@ -87,7 +91,7 @@ bool PipelineExecutor::RatchetExecute(idx_t max_chunks) {
     if (!exhausted_source && !IsFinished()) {
         return false;
     }
-    RatchetPushFinalize();
+    PushFinalizeSuspend();
     return true;
 }
 
@@ -95,8 +99,8 @@ void PipelineExecutor::Execute() {
 	Execute(NumericLimits<idx_t>::Maximum());
 }
 
-void PipelineExecutor::RatchetExecute() {
-    RatchetExecute(NumericLimits<idx_t>::Maximum());
+void PipelineExecutor::ExecuteSuspend() {
+    ExecuteSuspend(NumericLimits<idx_t>::Maximum());
 }
 
 OperatorResultType PipelineExecutor::ExecutePush(DataChunk &input) { // LCOV_EXCL_START
@@ -201,7 +205,7 @@ void PipelineExecutor::PushFinalize() {
 	local_sink_state.reset();
 }
 
-void PipelineExecutor::RatchetPushFinalize() {
+void PipelineExecutor::PushFinalizeSuspend() {
     if (finalized) {
         throw InternalException("Calling PushFinalize on a pipeline that has been finalized already");
     }
@@ -217,6 +221,8 @@ void PipelineExecutor::RatchetPushFinalize() {
     D_ASSERT(local_sink_state);
     // run the combine for the sink
     pipeline.sink->Combine(context, *pipeline.sink->sink_state, *local_sink_state);
+    std::cout << "Sink Print:" << std::endl;
+    pipeline.sink->Print();
 
     // flush all query profiler info
     for (idx_t i = 0; i < intermediate_states.size(); i++) {

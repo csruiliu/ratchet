@@ -395,7 +395,7 @@ void JoinHashTable::Finalize(idx_t block_idx_start, idx_t block_idx_end, bool pa
 	}
 }
 
-AllocatedData JoinHashTable::RatchetFinalize(idx_t block_idx_start, idx_t block_idx_end, bool parallel) {
+AllocatedData JoinHashTable::FinalizeSuspend(idx_t block_idx_start, idx_t block_idx_end, bool parallel) {
 	// Pointer table should be allocated
 	D_ASSERT(hash_map.get());
 

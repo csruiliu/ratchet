@@ -87,7 +87,7 @@ def main():
     print(results)
     end = time.perf_counter()
     print("Total Runtime: {}".format(end - start))
-    db_conn.execute_resume(exec_query, "demo.ratchet")
+    # db_conn.execute_resume(exec_query, "demo.ratchet")
     db_conn.close()
 
 

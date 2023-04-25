@@ -467,11 +467,11 @@ PendingExecutionResult ClientContext::ExecuteTaskInternal(ClientContextLock &loc
 	return PendingExecutionResult::EXECUTION_ERROR;
 }
 
-PendingExecutionResult ClientContext::RatchetExecuteTaskInternal(ClientContextLock &lock, PendingQueryResult &result) {
+PendingExecutionResult ClientContext::ExecuteTaskInternalSuspend(ClientContextLock &lock, PendingQueryResult &result) {
 	D_ASSERT(active_query);
 	D_ASSERT(active_query->open_result == &result);
 	try {
-		auto result = active_query->executor->RatchetExecuteTask();
+		auto result = active_query->executor->ExecuteTaskSuspend();
 		if (active_query->progress_bar) {
 			active_query->progress_bar->Update(result == PendingExecutionResult::RESULT_READY);
 			query_progress = active_query->progress_bar->GetCurrentPercentage();
@@ -491,6 +491,32 @@ PendingExecutionResult ClientContext::RatchetExecuteTaskInternal(ClientContextLo
 	} // LCOV_EXCL_STOP
 	EndQueryInternal(lock, false, true);
 	return PendingExecutionResult::EXECUTION_ERROR;
+}
+
+PendingExecutionResult ClientContext::ExecuteTaskInternalResume(ClientContextLock &lock, PendingQueryResult &result) {
+    D_ASSERT(active_query);
+    D_ASSERT(active_query->open_result == &result);
+    try {
+        auto result = active_query->executor->ExecuteTaskResume();
+        if (active_query->progress_bar) {
+            active_query->progress_bar->Update(result == PendingExecutionResult::RESULT_READY);
+            query_progress = active_query->progress_bar->GetCurrentPercentage();
+        }
+        return result;
+    } catch (FatalException &ex) {
+        // fatal exceptions invalidate the entire database
+        result.SetError(PreservedError(ex));
+        auto &db = DatabaseInstance::GetDatabase(*this);
+        ValidChecker::Invalidate(db, ex.what());
+    } catch (const Exception &ex) {
+        result.SetError(PreservedError(ex));
+    } catch (std::exception &ex) {
+        result.SetError(PreservedError(ex));
+    } catch (...) { // LCOV_EXCL_START
+        result.SetError(PreservedError("Unhandled exception in ExecuteTaskInternal"));
+    } // LCOV_EXCL_STOP
+    EndQueryInternal(lock, false, true);
+    return PendingExecutionResult::EXECUTION_ERROR;
 }
 
 void ClientContext::InitialCleanup(ClientContextLock &lock) {

@@ -223,6 +223,7 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
 }
 
 void PhysicalHashJoin::Combine(ExecutionContext &context, GlobalSinkState &gstate_p, LocalSinkState &lstate_p) const {
+    std::cout << "[PhysicalHashJoin::Combine]" << std::endl;
 	auto &gstate = (HashJoinGlobalSinkState &)gstate_p;
 	auto &lstate = (HashJoinLocalSinkState &)lstate_p;
 	if (lstate.hash_table) {
@@ -252,13 +253,21 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
-    TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
-        std::cout << "[HashJoinFinalizeTask] RatchetExecuteTask" << std::endl;
-        AllocatedData hash_map = sink.hash_table->RatchetFinalize(block_idx_start, block_idx_end, parallel);
+    TaskExecutionResult ExecuteTaskSuspend(TaskExecutionMode mode) override {
+        std::cout << "[HashJoinFinalizeTask] ExecuteTaskSuspend" << std::endl;
+        AllocatedData hash_map = sink.hash_table->FinalizeSuspend(block_idx_start, block_idx_end, parallel);
         std::cout << hash_map.get() << std::endl;
         event->FinishTask();
         return TaskExecutionResult::TASK_FINISHED;
-    }   
+    }
+
+    TaskExecutionResult ExecuteTaskResume(TaskExecutionMode mode) override {
+        std::cout << "[HashJoinFinalizeTask] ExecuteTaskResume" << std::endl;
+        AllocatedData hash_map = sink.hash_table->FinalizeSuspend(block_idx_start, block_idx_end, parallel);
+        std::cout << hash_map.get() << std::endl;
+        event->FinishTask();
+        return TaskExecutionResult::TASK_FINISHED;
+    }
 
 private:
 	shared_ptr<Event> event;
@@ -347,8 +356,15 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
-    TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
-        std::cout << "[HashJoinPartitionTask] RatchetExecuteTask" << std::endl;
+    TaskExecutionResult ExecuteTaskSuspend(TaskExecutionMode mode) override {
+        std::cout << "[HashJoinPartitionTask] ExecuteTaskSuspend" << std::endl;
+        local_ht.Partition(global_ht);
+        event->FinishTask();
+        return TaskExecutionResult::TASK_FINISHED;
+    }
+
+    TaskExecutionResult ExecuteTaskResume(TaskExecutionMode mode) override {
+        std::cout << "[HashJoinPartitionTask] ExecuteTaskResume" << std::endl;
         local_ht.Partition(global_ht);
         event->FinishTask();
         return TaskExecutionResult::TASK_FINISHED;
