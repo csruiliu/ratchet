@@ -79,10 +79,14 @@ public:
 
 	unique_ptr<QueryResult> ExecuteInternal(const string &query, py::object params = py::list(), bool many = false);
 
-    unique_ptr<QueryResult> RatchetExecuteInternal(const string &query,
+    unique_ptr<QueryResult> ExecuteInternalSuspend(const string &query,
                                                    uint64_t suspend_point,
                                                    py::object params = py::list(),
                                                    bool many = false);
+
+    unique_ptr<QueryResult> ExecuteInternalResume(const string &query,
+                                                  py::object params = py::list(),
+                                                  bool many = false);
 
 	shared_ptr<DuckDBPyConnection> Execute(const string &query, py::object params = py::list(), bool many = false);
 
@@ -93,7 +97,10 @@ public:
                                                   py::object params = py::list(),
                                                   bool many = false);
 
-    shared_ptr<DuckDBPyConnection> ExecuteResume(const string &query, const string &resume_point);
+    shared_ptr<DuckDBPyConnection> ExecuteResume(const string &query,
+                                                 const string &resume_file,
+                                                 py::object params = py::list(),
+                                                 bool many = false);
 
 	shared_ptr<DuckDBPyConnection> Append(const string &name, DataFrame value);
 
@@ -184,8 +191,9 @@ public:
 	static bool IsAcceptedArrowObject(const py::object &object);
 
 	static unique_ptr<QueryResult> CompletePendingQuery(PendingQueryResult &pending_query);
-    static unique_ptr<QueryResult> RatchetCompletePendingQuery(PendingQueryResult &pending_query,
+    static unique_ptr<QueryResult> CompletePendingQuerySuspend(PendingQueryResult &pending_query,
                                                                uint64_t suspend_point);
+    static unique_ptr<QueryResult> CompletePendingQueryResume(PendingQueryResult &pending_query);
 
 private:
 	unique_lock<std::mutex> AcquireConnectionLock();

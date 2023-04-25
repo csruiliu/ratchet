@@ -26,8 +26,15 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
-    TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
-        std::cout << "[PipelineInitializeTask] RatchetExecuteTask" << std::endl;
+    TaskExecutionResult ExecuteTaskSuspend(TaskExecutionMode mode) override {
+        std::cout << "[PipelineInitializeTask] ExecuteTaskSuspend" << std::endl;
+        pipeline.ResetSink();
+        event->FinishTask();
+        return TaskExecutionResult::TASK_FINISHED;
+    }
+
+    TaskExecutionResult ExecuteTaskResume(TaskExecutionMode mode) override {
+        std::cout << "[PipelineInitializeTask] ExecuteTaskResume" << std::endl;
         pipeline.ResetSink();
         event->FinishTask();
         return TaskExecutionResult::TASK_FINISHED;

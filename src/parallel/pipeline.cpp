@@ -52,19 +52,38 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
-    TaskExecutionResult RatchetExecuteTask(TaskExecutionMode mode) override {
+    TaskExecutionResult ExecuteTaskSuspend(TaskExecutionMode mode) override {
         if (!pipeline_executor) {
             pipeline_executor = make_unique<PipelineExecutor>(pipeline.GetClientContext(), pipeline);
         }
         if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
-			std::cout << "[PipelineTask] RatchetExecuteTask at PARTIAL MODE" << std::endl;
-            bool finished = pipeline_executor->RatchetExecute(PARTIAL_CHUNK_COUNT);
+			std::cout << "[PipelineTask] ExecuteTaskSuspend at PARTIAL MODE" << std::endl;
+            bool finished = pipeline_executor->ExecuteSuspend(PARTIAL_CHUNK_COUNT);
             if (!finished) {
                 return TaskExecutionResult::TASK_NOT_FINISHED;
             }
         } else {
-			std::cout << "[PipelineTask] RatchetExecuteTask at ALL MODE" << std::endl;
-            pipeline_executor->RatchetExecute();
+			std::cout << "[PipelineTask] ExecuteTaskSuspend at ALL MODE" << std::endl;
+            pipeline_executor->ExecuteSuspend();
+        }
+        event->FinishTask();
+        pipeline_executor.reset();
+        return TaskExecutionResult::TASK_FINISHED;
+    }
+
+    TaskExecutionResult ExecuteTaskResume(TaskExecutionMode mode) override {
+        if (!pipeline_executor) {
+            pipeline_executor = make_unique<PipelineExecutor>(pipeline.GetClientContext(), pipeline);
+        }
+        if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
+            std::cout << "[PipelineTask] ExecuteTaskResume at PARTIAL MODE" << std::endl;
+            bool finished = pipeline_executor->ExecuteSuspend(PARTIAL_CHUNK_COUNT);
+            if (!finished) {
+                return TaskExecutionResult::TASK_NOT_FINISHED;
+            }
+        } else {
+            std::cout << "[PipelineTask] ExecuteTaskResume at ALL MODE" << std::endl;
+            pipeline_executor->ExecuteSuspend();
         }
         event->FinishTask();
         pipeline_executor.reset();
