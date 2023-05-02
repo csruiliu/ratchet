@@ -7,6 +7,18 @@ Ratchet implementation is modified from DuckDB v0.7.1.
 
 ~~Ratchet implementation is modified from DuckDB v0.6.1.~~
 
+## Third-Party
+
+It is highly recommended to add third-party libs whose whole source code is in a single header file. Then, you can add them by,
+
+1. copying the header file of the third-party lib to `third_party` folder
+2. adding `include_directories(third_party/xxx)` after `include_directories(src/include)` in the `CMakeLists.txt` at the root directory. You may have to recompile the source code if needed.
+3. if you are working on Python client, you also need to update `third_party_includes()` in `scripts/package_build.py`. You may have to reinstall python client to reflect the change.
+
+### JSON for Modern C++ 
+
+We import the `nlohmann/json` to serialize and deserialize JSON. Github: https://github.com/nlohmann/json
+
 ## Prerequisite
 
 Install pybind11 using `pip3 install pybind11` (system-wide or virtual environment)

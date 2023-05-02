@@ -1,6 +1,6 @@
 # Ratchet 
 
-Ratchet-DuckDB [README](ratchet/README.md)
+Please find the [README](ratchet/README.md) of Ratchet-DuckDB.
 
 ## DuckDB
 DuckDB is a high-performance analytical database system. It is designed to be fast, reliable and easy to use. DuckDB provides a rich SQL dialect, with support far beyond basic SQL. DuckDB supports arbitrary and nested correlated subqueries, window functions, collations, complex types (arrays, structs), and more. For more information on the goals of DuckDB, please refer to [the Why DuckDB page on our website](https://duckdb.org/why_duckdb).
