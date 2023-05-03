@@ -2,6 +2,10 @@
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/common/limits.hpp"
 
+#include "json.hpp"
+using json = nlohmann::json;
+#include <fstream>
+
 #include <iostream>
 
 namespace duckdb {
@@ -63,6 +67,9 @@ bool PipelineExecutor::Execute(idx_t max_chunks) {
 		return false;
 	}
 	PushFinalize();
+	std::ifstream f("/home/ruiliu/Develop/ratchet-duckdb/ratchet/example.json");
+	json jdata = json::parse(f);
+	std::cout << "== [TEST] " << jdata["name"] << std::endl;
 	return true;
 }
 
