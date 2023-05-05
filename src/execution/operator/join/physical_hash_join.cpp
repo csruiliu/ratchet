@@ -53,7 +53,7 @@ PhysicalHashJoin::PhysicalHashJoin(LogicalOperator &op, unique_ptr<PhysicalOpera
 class HashJoinGlobalSinkState : public GlobalSinkState {
 public:
 	HashJoinGlobalSinkState(const PhysicalHashJoin &op, ClientContext &context)
-	    : finalized(false), scanned_data(false) {
+	    : finalized(false), scanned_data(false), serialized_state(false) {
 		hash_table = op.InitializeHashTable(context);
 
 		// for perfect hash join
@@ -75,6 +75,7 @@ public:
 
 	void ScheduleFinalize(Pipeline &pipeline, Event &event);
 	void InitializeProbeSpill(ClientContext &context);
+    void serializeJSON();
 
 public:
 	//! Global HT used by the join
@@ -100,6 +101,9 @@ public:
 
 	//! Whether or not we have started scanning data using GetData
 	atomic<bool> scanned_data;
+
+    //! Whether or not we have serialized the sink state
+    atomic<bool> serialized_state;
 };
 
 class HashJoinLocalSinkState : public LocalSinkState {
@@ -233,6 +237,14 @@ void PhysicalHashJoin::Combine(ExecutionContext &context, GlobalSinkState &gstat
 	auto &client_profiler = QueryProfiler::Get(context.client);
 	context.thread.profiler.Flush(this, &lstate.build_executor, "build_executor", 1);
 	client_profiler.Flush(context.thread.profiler);
+    gstate.serializeJSON();
+
+    /*
+    if (!gstate.serialized_state) {
+        gstate.serializeJSON();
+    }
+    gstate.serialized_state = true;
+    */
 }
 
 //===--------------------------------------------------------------------===//
@@ -340,6 +352,10 @@ void HashJoinGlobalSinkState::InitializeProbeSpill(ClientContext &context) {
 	if (!probe_spill) {
 		probe_spill = make_unique<JoinHashTable::ProbeSpill>(*hash_table, context, probe_types);
 	}
+}
+
+void HashJoinGlobalSinkState::serializeJSON() {
+    std::cout << "== Serialize Global JSON, " << local_hash_tables.size() << std::endl;
 }
 
 class HashJoinPartitionTask : public ExecutorTask {
