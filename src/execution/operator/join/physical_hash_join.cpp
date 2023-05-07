@@ -15,6 +15,10 @@
 
 #include <iostream>
 
+#include "json.hpp"
+using json = nlohmann::json;
+#include <fstream>
+
 namespace duckdb {
 
 PhysicalHashJoin::PhysicalHashJoin(LogicalOperator &op, unique_ptr<PhysicalOperator> left,
@@ -53,7 +57,7 @@ PhysicalHashJoin::PhysicalHashJoin(LogicalOperator &op, unique_ptr<PhysicalOpera
 class HashJoinGlobalSinkState : public GlobalSinkState {
 public:
 	HashJoinGlobalSinkState(const PhysicalHashJoin &op, ClientContext &context)
-	    : finalized(false), scanned_data(false), serialized_state(false) {
+	    : finalized(false), scanned_data(false) {
 		hash_table = op.InitializeHashTable(context);
 
 		// for perfect hash join
@@ -75,7 +79,7 @@ public:
 
 	void ScheduleFinalize(Pipeline &pipeline, Event &event);
 	void InitializeProbeSpill(ClientContext &context);
-    void serializeJSON();
+    void SerializeGlobalState();
 
 public:
 	//! Global HT used by the join
@@ -101,9 +105,6 @@ public:
 
 	//! Whether or not we have started scanning data using GetData
 	atomic<bool> scanned_data;
-
-    //! Whether or not we have serialized the sink state
-    atomic<bool> serialized_state;
 };
 
 class HashJoinLocalSinkState : public LocalSinkState {
@@ -227,7 +228,6 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
 }
 
 void PhysicalHashJoin::Combine(ExecutionContext &context, GlobalSinkState &gstate_p, LocalSinkState &lstate_p) const {
-    std::cout << "[PhysicalHashJoin::Combine]" << std::endl;
 	auto &gstate = (HashJoinGlobalSinkState &)gstate_p;
 	auto &lstate = (HashJoinLocalSinkState &)lstate_p;
 	if (lstate.hash_table) {
@@ -237,14 +237,6 @@ void PhysicalHashJoin::Combine(ExecutionContext &context, GlobalSinkState &gstat
 	auto &client_profiler = QueryProfiler::Get(context.client);
 	context.thread.profiler.Flush(this, &lstate.build_executor, "build_executor", 1);
 	client_profiler.Flush(context.thread.profiler);
-    gstate.serializeJSON();
-
-    /*
-    if (!gstate.serialized_state) {
-        gstate.serializeJSON();
-    }
-    gstate.serialized_state = true;
-    */
 }
 
 //===--------------------------------------------------------------------===//
@@ -354,8 +346,62 @@ void HashJoinGlobalSinkState::InitializeProbeSpill(ClientContext &context) {
 	}
 }
 
-void HashJoinGlobalSinkState::serializeJSON() {
-    std::cout << "== Serialize Global JSON, " << local_hash_tables.size() << std::endl;
+void HashJoinGlobalSinkState::SerializeGlobalState() {
+    std::cout << "== Serialize Global State" << std::endl;
+    json jsonfile;
+    jsonfile["finalized"] = finalized;
+    jsonfile["external"] = external;
+    jsonfile["scanned_data"] = scanned_data.load();
+    jsonfile["hash_table"]["entry_size"] = hash_table->entry_size;
+    jsonfile["hash_table"]["tuple_size"] = hash_table->tuple_size;
+    jsonfile["hash_table"]["pointer_offset"] = hash_table->pointer_offset;
+    jsonfile["hash_table"]["finalized"] = hash_table->finalized;
+    jsonfile["hash_table"]["has_null"] = hash_table->has_null;
+    jsonfile["hash_table"]["bitmask"] = hash_table->bitmask;
+    jsonfile["hash_table"]["tuple_size"] = hash_table->tuple_size;
+    jsonfile["hash_table"]["tuples_per_round"] = hash_table->tuples_per_round;
+    jsonfile["hash_table"]["external"] = hash_table->external;
+    jsonfile["hash_table"]["predicates"] = hash_table->predicates;
+    jsonfile["hash_table"]["layout"]["flag_width"] = hash_table->layout.GetDataOffset();
+    jsonfile["hash_table"]["layout"]["data_width"] = hash_table->layout.GetDataWidth();
+    jsonfile["hash_table"]["layout"]["aggr_width"] = hash_table->layout.GetAggrWidth();
+    jsonfile["hash_table"]["layout"]["row_width"] = hash_table->layout.GetRowWidth();
+    jsonfile["hash_table"]["layout"]["offsets"] = hash_table->layout.GetOffsets();
+    jsonfile["hash_table"]["layout"]["all_constant"] = hash_table->layout.AllConstant();
+    jsonfile["hash_table"]["layout"]["heap_pointer_offset"] = hash_table->layout.GetHeapOffset();
+    jsonfile["hash_table"]["buffer_manager"]["temp_directory"] = hash_table->buffer_manager.GetTemporaryDirectory();
+
+    vector<LogicalTypeId> logical_type_ids;
+    vector<PhysicalType> physical_types;
+    for (const auto& item: hash_table->equality_types) {
+        logical_type_ids.push_back(item.id());
+        physical_types.push_back(item.InternalType());
+    }
+    jsonfile["hash_table"]["equality_types"]["logical_type_ids"] = logical_type_ids;
+    jsonfile["hash_table"]["equality_types"]["physical_types"] = physical_types;
+    logical_type_ids.clear();
+    physical_types.clear();
+
+    for (const auto& item: hash_table->condition_types) {
+        logical_type_ids.push_back(item.id());
+        physical_types.push_back(item.InternalType());
+    }
+    jsonfile["hash_table"]["condition_types"]["logical_type_ids"] = logical_type_ids;
+    jsonfile["hash_table"]["condition_types"]["physical_types"] = physical_types;
+    logical_type_ids.clear();
+    physical_types.clear();
+
+    for (const auto& item: hash_table->build_types) {
+        logical_type_ids.push_back(item.id());
+        physical_types.push_back(item.InternalType());
+    }
+    jsonfile["hash_table"]["build_types"]["logical_type_ids"] = logical_type_ids;
+    jsonfile["hash_table"]["build_types"]["physical_types"] = physical_types;
+    logical_type_ids.clear();
+    physical_types.clear();
+
+    std::ofstream file("/home/ruiliu/Develop/ratchet-duckdb/ratchet/test-td" + std::to_string(global_threads) + ".json");
+    file << jsonfile;
 }
 
 class HashJoinPartitionTask : public ExecutorTask {
@@ -424,9 +470,11 @@ public:
 
 SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
                                             GlobalSinkState &gstate) const {
+    std::cout << "[PhysicalHashJoin::Finalize]" << std::endl;
 	auto &sink = (HashJoinGlobalSinkState &)gstate;
 
 	if (sink.external) {
+        std::cout << "== External Hash ==" << std::endl;
 		D_ASSERT(can_go_external);
 		// External join - partition HT
 		sink.perfect_join_executor.reset();
@@ -436,6 +484,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
 		sink.finalized = true;
 		return SinkFinalizeType::READY;
 	} else {
+        std::cout << "== No External Hash ==" << std::endl;
 		for (auto &local_ht : sink.local_hash_tables) {
 			sink.hash_table->Merge(*local_ht);
 		}
@@ -445,12 +494,14 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
 	// check for possible perfect hash table
 	auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
 	if (use_perfect_hash) {
+        std::cout << "== Use Perfect Hash ==" << std::endl;
 		D_ASSERT(sink.hash_table->equality_types.size() == 1);
 		auto key_type = sink.hash_table->equality_types[0];
 		use_perfect_hash = sink.perfect_join_executor->BuildPerfectHashTable(key_type);
 	}
 	// In case of a large build side or duplicates, use regular hash join
 	if (!use_perfect_hash) {
+        std::cout << "== No Perfect Hash ==" << std::endl;
 		sink.perfect_join_executor.reset();
 		sink.ScheduleFinalize(pipeline, event);
 	}
@@ -458,6 +509,8 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
 	if (sink.hash_table->Count() == 0 && EmptyResultIfRHSIsEmpty()) {
 		return SinkFinalizeType::NO_OUTPUT_POSSIBLE;
 	}
+
+    sink.SerializeGlobalState();
 	return SinkFinalizeType::READY;
 }
 
