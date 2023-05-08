@@ -10,6 +10,7 @@
 
 #include <memory>
 #include <cstdint>
+#include <vector>
 #include "duckdb/common/string.hpp"
 #include "duckdb/common/winapi.hpp"
 
@@ -101,6 +102,7 @@ extern uint16_t global_threads;
 extern string global_suspend_file;
 extern string global_resume_file;
 extern std::atomic<uint16_t> global_stopped_threads;
+extern std::vector<string> global_finalized_sinks;
 
 struct DConstants {
 	//! The value used to signify an invalid index entry
