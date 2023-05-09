@@ -400,8 +400,8 @@ void HashJoinGlobalSinkState::SerializeGlobalState() {
     logical_type_ids.clear();
     physical_types.clear();
 
-    jsonfile["finalized_sinks"] = global_finalized_sinks;
-
+    // jsonfile["finalized_sinks"] = global_finalized_sinks;
+    jsonfile["finalized_pipeline"] = global_finalized_pipelines;
     std::ofstream file("/home/ruiliu/Develop/ratchet-duckdb/ratchet/test-td" + std::to_string(global_threads) + ".json");
     file << jsonfile;
 }
@@ -511,7 +511,8 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
 	if (sink.hash_table->Count() == 0 && EmptyResultIfRHSIsEmpty()) {
 		return SinkFinalizeType::NO_OUTPUT_POSSIBLE;
 	}
-    global_finalized_sinks.emplace_back("PhysicalHashJoin");
+    // global_finalized_sinks.emplace_back("PhysicalHashJoin");
+    global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
     sink.SerializeGlobalState();
 	return SinkFinalizeType::READY;
 }

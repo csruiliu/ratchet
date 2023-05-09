@@ -114,6 +114,8 @@ private:
 	void VerifyPipelines();
     void PrintPipelines();
     void PrintRootPipelines();
+    
+    void AssignPipelineIds();
 
 private:
 	PhysicalOperator *physical_plan;
