@@ -159,6 +159,14 @@ bool Pipeline::IsOrderDependent() const {
 	return false;
 }
 
+idx_t Pipeline::GetPipelineId() {
+    return pipeline_id;
+}
+
+void Pipeline::SetPipelineId(idx_t pl_id) {
+    pipeline_id = pl_id;
+}
+
 void Pipeline::Schedule(shared_ptr<Event> &event) {
 	D_ASSERT(ready);
 	D_ASSERT(sink);

@@ -280,6 +280,14 @@ void Executor::VerifyPipelines() {
 #endif
 }
 
+void Executor::AssignPipelineIds() {
+    idx_t pipeline_id = 1;
+    for (auto &pipeline : pipelines) {
+        pipeline->pipeline_id = pipeline_id;
+        pipeline_id++;
+    }
+}
+
 void Executor::PrintPipelines() {
     uint16_t pipeline_count = 0;
     for (auto &pipeline : pipelines) {
@@ -350,6 +358,7 @@ void Executor::InitializeInternal(PhysicalOperator *plan) {
 		// finally, verify and schedule
 		VerifyPipelines();
         PrintPipelines();
+        AssignPipelineIds();
 		ScheduleEvents(to_schedule);
 	}
 }

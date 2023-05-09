@@ -93,6 +93,9 @@ public:
 	//! Returns whether any of the operators in the pipeline care about preserving insertion order
 	bool IsOrderDependent() const;
 
+    idx_t GetPipelineId();
+    void SetPipelineId(idx_t pipeline_id);
+
 private:
 	//! Whether or not the pipeline has been readied
 	bool ready;
@@ -115,6 +118,9 @@ private:
 
 	//! The base batch index of this pipeline
 	idx_t base_batch_index = 0;
+
+    //! The Pipeline ID
+    idx_t pipeline_id = 0;
 
 private:
 	void ScheduleSequentialTask(shared_ptr<Event> &event);

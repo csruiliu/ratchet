@@ -20,7 +20,8 @@ string global_suspend_file = "suspend";
 string global_resume_file = "resume";
 uint16_t global_threads = 0;
 atomic<uint16_t> global_stopped_threads(0);
-vector<string> global_finalized_sinks;
+vector<idx_t> global_finalized_pipelines;
+// vector<string> global_finalized_sinks;
 
 uint64_t NextPowerOfTwo(uint64_t v) {
 	v--;
