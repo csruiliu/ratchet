@@ -6,7 +6,6 @@ import time
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-q", "--query_name", type=str, action="store", required=True,
-                        choices=['slim', 'join1', 'join2', 'join3'],
                         help="indicate the query id")
     parser.add_argument("-d", "--data_folder", type=str, action="store", required=True,
                         help="indicate the data source folder for conversion such as <tpch/dataset/parquet/sf1>")
@@ -47,14 +46,14 @@ def main():
                     sum(L_QUANTITY) as SUM_QTY
             FROM    lineitem
         """
-    elif qid == "join1":
+    elif qid == "join-1":
         exec_query = f"""
             SELECT  C_CUSTKEY, C_NAME, O_ORDERKEY, O_ORDERSTATUS
             FROM  	customer,
                     orders
             WHERE	C_CUSTKEY = O_CUSTKEY
         """
-    elif qid == "join2":
+    elif qid == "join-2":
         exec_query = f"""
             SELECT  P_NAME, PS_AVAILQTY, S_ACCTBAL
             FROM  	partsupp,
@@ -63,7 +62,7 @@ def main():
             WHERE	PS_PARTKEY = P_PARTKEY
                     AND	PS_SUPPKEY = S_SUPPKEY
         """
-    elif qid == "join3":
+    elif qid == "join-3":
         exec_query = f"""
             SELECT  C_CUSTKEY, O_ORDERKEY, L_LINENUMBER, L_QUANTITY, C_ACCTBAL, O_TOTALPRICE
             FROM  	customer,
@@ -74,6 +73,25 @@ def main():
                     AND CAST(O_ORDERDATE AS DATE) >= '1994-01-01'
                     AND C_ACCTBAL > 100
                     AND L_QUANTITY > 5
+        """
+    elif qid == "join-groupby-orderby-1":
+        exec_query = f"""
+            SELECT  L_ORDERKEY, sum(L_EXTENDEDPRICE*(1-L_DISCOUNT)) as REVENUE, O_ORDERDATE, O_SHIPPRIORITY
+            FROM    orders,
+                    lineitem
+            WHERE	L_ORDERKEY = O_ORDERKEY
+                    AND CAST(O_ORDERDATE AS DATE) >= '1994-01-01'
+            GROUP BY    L_ORDERKEY,
+                        O_ORDERDATE,
+                        O_SHIPPRIORITY
+            ORDER BY    O_ORDERDATE
+        """
+    elif qid == "groupby-orderby-1":
+        exec_query = f"""
+            SELECT  L_ORDERKEY, sum(L_EXTENDEDPRICE*(1-L_DISCOUNT)) as REVENUE
+            FROM    lineitem
+            GROUP BY    L_ORDERKEY
+            ORDER BY    REVENUE
         """
     else:
         raise ValueError("Query is not supported in demo")
