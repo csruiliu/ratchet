@@ -23,9 +23,12 @@ We import the `nlohmann/json` to serialize and deserialize JSON. Github: https:/
 
 Install pybind11 using `pip3 install pybind11` (system-wide or virtual environment)
 
-`pip3 show pybind11` will tell you where is the pybind11
+`pip3 show pybind11` will tell you where is the pybind11, for example, /home/{user_path}/{venv}/lib/python3.7/site-packages
 
-If you are using CLion IDE for development, and make sure CLion can link all the source code, you may need to add `-DBUILD_PYTHON_PKG=TRUE -DCMAKE_PREFIX_PATH=/path/to/pybind11` in `Settings | Build, Execution, Deployment | CMake | CMake Options`. This will tell CLion where to find pybind11. 
+Then, `</path/to/pybind11>` is, for example, `/home/{user_path}/{venv}/lib/python3.7/site-packages/pybind11`
+
+
+If you are using CLion IDE for development, and make sure CLion can link all the source code, you may need to add `-DBUILD_PYTHON_PKG=TRUE -DCMAKE_PREFIX_PATH=</path/to/pybind11>` in `Settings | Build, Execution, Deployment | CMake | CMake Options`. This will tell CLion where to find pybind11. 
 
 ## Python Client
 
