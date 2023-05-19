@@ -27,7 +27,6 @@ Install pybind11 using `pip3 install pybind11` (system-wide or virtual environme
 
 Then, `</path/to/pybind11>` is, for example, `/home/{user_path}/{venv}/lib/python3.7/site-packages/pybind11`
 
-
 If you are using CLion IDE for development, and make sure CLion can link all the source code, you may need to add `-DBUILD_PYTHON_PKG=TRUE -DCMAKE_PREFIX_PATH=</path/to/pybind11>` in `Settings | Build, Execution, Deployment | CMake | CMake Options`. This will tell CLion where to find pybind11. 
 
 ## Python Client
@@ -63,6 +62,12 @@ python3 tpch_perf.py -q q1 -d dataset/parquet/sf1 -td 1
 ```
 The above command will run `q1` in TPC-H based on the data from `dataset/parquet/sf1` using `1` thread.
 
+We have several dataset:
+
++ TCP-H SF10: `tpch/dataset/tbl/sf10`, `tpch/dataset/parquet/sf10` 
++ TCP-H SF1: `tpch/dataset/tbl/sf1`, `tpch/dataset/parquet/sf1`
++ TCP-H Small (SF-0.1): `tpch/dataset/tbl/small`, `tpch/dataset/parquet/small`
++ TCP-H Tiny (SF-0.01): `tpch/dataset/tbl/tiny`, `tpch/dataset/parquet/tiny`
 
 ## Three-way Join Example
 
