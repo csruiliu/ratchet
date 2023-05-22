@@ -40,11 +40,21 @@ def main():
         db_conn.execute(f"CREATE TABLE IF NOT EXISTS {t} AS SELECT * FROM read_parquet('{data_folder}/{t}.parquet');")
 
     # start the query execution
-    if qid == "slim":
+    if qid == "sum-1":
         exec_query = f"""
-            SELECT  avg(L_DISCOUNT) as AVG_DISC,
-                    sum(L_QUANTITY) as SUM_QTY
+            SELECT  sum(L_QUANTITY) as SUM_QTY
             FROM    lineitem
+        """
+    elif qid == "avg-1":
+        exec_query = f"""
+            SELECT  avg(L_DISCOUNT) as AVG_DISC
+            FROM    lineitem
+        """
+    elif qid == "orderby-1":
+        exec_query = f"""
+            SELECT  sum(L_EXTENDEDPRICE*(1-L_DISCOUNT)) as REVENUE
+            FROM    lineitem
+            ORDER BY    REVENUE
         """
     elif qid == "join-1":
         exec_query = f"""
