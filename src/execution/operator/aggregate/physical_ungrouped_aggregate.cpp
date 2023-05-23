@@ -12,8 +12,12 @@
 #include "duckdb/parallel/base_pipeline_event.hpp"
 #include "duckdb/common/unordered_set.hpp"
 #include "duckdb/common/algorithm.hpp"
-#include <functional>
 #include "duckdb/execution/operator/aggregate/distinct_aggregate_data.hpp"
+#include <functional>
+
+#include "json.hpp"
+using json = nlohmann::json;
+#include <fstream>
 
 namespace duckdb {
 
@@ -507,32 +511,51 @@ SinkFinalizeType PhysicalUngroupedAggregate::FinalizeDistinct(Pipeline &pipeline
 
 SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
                                                       GlobalSinkState &gstate_p) const {
-	auto &gstate = (UngroupedAggregateGlobalState &)gstate_p;
+    std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
+    uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
+
+    auto &gstate = (UngroupedAggregateGlobalState &)gstate_p;
 
 	if (distinct_data) {
-        std::cout << "[PhysicalUngroupedAggregate::FinalizeDistinct]" << std::endl;
 		return FinalizeDistinct(pipeline, event, context, gstate_p);
-	} else {
-        std::cout << "[PhysicalUngroupedAggregate::Finalize]" << std::endl;
+	}
+    if (time_dur_ms > global_suspend_point_ms) {
+        std::cout << "[PhysicalUngroupedAggregate::Finalize] Suspend and Serialize Global State" << std::endl;
+
+        json jsonfile;
+
+        vector<idx_t> pipeline_ids;
+        vector<string> aggregate_values;
+
+        std::cout << "Pipeline ID: " << pipeline.GetPipelineId() << std::endl;
+        pipeline_ids.push_back(pipeline.GetPipelineId());
+        jsonfile["pipeline_ids"] = pipeline_ids;
+
+        DataChunk chunk;
+        chunk.Initialize(Allocator::DefaultAllocator(), this->GetTypes());
+
+        // initialize the result chunk with the aggregate values
+        chunk.SetCardinality(1);
+        for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
+            auto &aggregate = (BoundAggregateExpression &)*aggregates[aggr_idx];
+
+            Vector state_vector(Value::POINTER((uintptr_t)gstate.state.aggregates[aggr_idx].get()));
+            AggregateInputData aggr_input_data(aggregate.bind_info.get(), Allocator::DefaultAllocator());
+            aggregate.function.finalize(state_vector, aggr_input_data, chunk.data[aggr_idx], 1, 0);
+            std::cout << chunk.data[aggr_idx].GetValue(0).ToString() << std::endl;
+            aggregate_values.push_back(chunk.data[aggr_idx].GetValue(0).ToString());
+        }
+        jsonfile["aggregate_values"] = aggregate_values;
+
+        std::ofstream outputFile("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_suspend_file);
+        outputFile << jsonfile;
+
+        outputFile.close();
+        if (outputFile.fail()) {
+            std::cerr << "Error writing to file!" << std::endl;
+        }
+        exit(0);
     }
-    std::cout << "[PhysicalUngroupedAggregate::Finalize] Start to Serialize Global State" << std::endl;
-
-    // =============
-
-    DataChunk chunk;
-    chunk.Initialize(Allocator::DefaultAllocator(), this->GetTypes());
-
-    // initialize the result chunk with the aggregate values
-    chunk.SetCardinality(1);
-    for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
-        auto &aggregate = (BoundAggregateExpression &)*aggregates[aggr_idx];
-
-        Vector state_vector(Value::POINTER((uintptr_t)gstate.state.aggregates[aggr_idx].get()));
-        AggregateInputData aggr_input_data(aggregate.bind_info.get(), Allocator::DefaultAllocator());
-        aggregate.function.finalize(state_vector, aggr_input_data, chunk.data[aggr_idx], 1, 0);
-    }
-
-    // =============
 
     D_ASSERT(!gstate.finished);
 	gstate.finished = true;
@@ -567,7 +590,7 @@ void VerifyNullHandling(DataChunk &chunk, AggregateState &state, const vector<un
 	}
 #endif
 }
-/*
+
 void PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                          LocalSourceState &lstate) const {
     std::cout << "[PhysicalUngroupedAggregate::GetData]" << std::endl;
@@ -587,13 +610,11 @@ void PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &c
 		Vector state_vector(Value::POINTER((uintptr_t)gstate.state.aggregates[aggr_idx].get()));
 		AggregateInputData aggr_input_data(aggregate.bind_info.get(), Allocator::DefaultAllocator());
 		aggregate.function.finalize(state_vector, aggr_input_data, chunk.data[aggr_idx], 1, 0);
-
-        std::cout << chunk.data[aggr_idx].GetValue(0) << std::endl;
 	}
 	VerifyNullHandling(chunk, gstate.state, aggregates);
 	state.finished = true;
 }
-*/
+/*
 void PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                                LocalSourceState &lstate) const {
     std::cout << "[PhysicalUngroupedAggregate::GetDataResume]" << std::endl;
@@ -613,7 +634,7 @@ void PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &c
     VerifyNullHandling(chunk, gstate.state, aggregates);
     state.finished = true;
 }
-
+*/
 string PhysicalUngroupedAggregate::ParamsToString() const {
 	string result;
 	for (idx_t i = 0; i < aggregates.size(); i++) {
