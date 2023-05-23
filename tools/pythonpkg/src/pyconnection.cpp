@@ -440,6 +440,7 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteResume(const string &q
                                                                  const string &resume_file,
                                                                  py::object params, bool many) {
     global_resume_file = resume_file;
+    global_resume_start = true;
     std::cout << "## Query will resume using " << global_resume_file << std::endl;
     auto res = ExecuteInternal(query,  std::move(params), many);
     if (res) {
