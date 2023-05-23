@@ -27,11 +27,9 @@ public:
 
 	//! Fully execute a pipeline with a source and a sink until the source is completely exhausted
 	void Execute();
-    void ExecuteSuspend();
 	//! Execute a pipeline with a source and a sink until finished, or until max_chunks have been processed
 	//! Returns true if execution is finished, false if Execute should be called again
 	bool Execute(idx_t max_chunks);
-    bool ExecuteSuspend(idx_t max_chunks);
 
 	//! Push a single input DataChunk into the pipeline.
 	//! Returns either OperatorResultType::NEED_MORE_INPUT or OperatorResultType::FINISHED
@@ -40,7 +38,6 @@ public:
 	//! Called after depleting the source: finalizes the execution of this pipeline executor
 	//! This should only be called once per PipelineExecutor
 	void PushFinalize();
-    void PushFinalizeSuspend();
 
 	//! Initializes a chunk with the types that will flow out of ExecutePull
 	void InitializeChunk(DataChunk &chunk);

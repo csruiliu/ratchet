@@ -52,8 +52,7 @@ public:
 	bool GetTaskFromProducer(ProducerToken &token, unique_ptr<Task> &task);
 	//! Run tasks forever until "marker" is set to false, "marker" must remain valid until the thread is joined
 	void ExecuteForever(atomic<bool> *marker);
-    void ExecuteForeverSuspend(atomic<bool> *marker);
-    void ExecuteForeverResume(atomic<bool> *marker);
+
 	//! Run tasks until `marker` is set to false, `max_tasks` have been completed, or until there are no more tasks
 	//! available. Returns the number of tasks that were completed.
 	idx_t ExecuteTasks(atomic<bool> *marker, idx_t max_tasks);

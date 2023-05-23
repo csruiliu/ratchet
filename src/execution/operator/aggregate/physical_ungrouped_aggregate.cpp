@@ -417,20 +417,6 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
-    TaskExecutionResult ExecuteTaskSuspend(TaskExecutionMode mode) override {
-        std::cout << "[UngroupedDistinctAggregateFinalizeTask] ExecuteTaskSuspend" << std::endl;
-        AggregateDistinct();
-        event->FinishTask();
-        return TaskExecutionResult::TASK_FINISHED;
-    }
-
-    TaskExecutionResult ExecuteTaskResume(TaskExecutionMode mode) override {
-        std::cout << "[UngroupedDistinctAggregateFinalizeTask] ExecuteTaskResume" << std::endl;
-        AggregateDistinct();
-        event->FinishTask();
-        return TaskExecutionResult::TASK_FINISHED;
-    }
-
 private:
 	shared_ptr<Event> event;
 	UngroupedAggregateGlobalState &gstate;

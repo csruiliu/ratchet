@@ -29,8 +29,6 @@ public:
 	//! If mode is PROCESS_PARTIAL, Execute can return TASK_NOT_FINISHED, in which case Execute will be called again
 	//! In case of an error, TASK_ERROR is returned
 	virtual TaskExecutionResult Execute(TaskExecutionMode mode) = 0;
-    virtual TaskExecutionResult ExecuteSuspend(TaskExecutionMode mode) = 0;
-    virtual TaskExecutionResult ExecuteResume(TaskExecutionMode mode) = 0;
 };
 
 //! Execute a task within an executor, including exception handling
@@ -46,15 +44,10 @@ public:
 public:
 	virtual TaskExecutionResult ExecuteTask(TaskExecutionMode mode) = 0;
     //! ExecutorTask inherits Task
-    //! So ExecuteSuspend in [ExecutorTask] implements the ExecuteSuspend in [Task]
-    //! ExecuteTaskSuspend is invoked in [ExecutorTask::ExecuteSuspend]
-    //! ExecuteTaskSuspend is a pure virtual need to be implemented by various physical operators
-    virtual TaskExecutionResult ExecuteTaskSuspend(TaskExecutionMode mode) = 0;
-    virtual TaskExecutionResult ExecuteTaskResume(TaskExecutionMode mode) = 0;
-
+    //! So Execute in [ExecutorTask] implements the Execute in [Task]
+    //! ExecuteTask is invoked in [ExecutorTask::Execute]
+    //! ExecuteTask is a pure virtual need to be implemented by various physical operators
 	TaskExecutionResult Execute(TaskExecutionMode mode) override;
-    TaskExecutionResult ExecuteSuspend(TaskExecutionMode mode) override;
-    TaskExecutionResult ExecuteResume(TaskExecutionMode mode) override;
 };
 
 } // namespace duckdb

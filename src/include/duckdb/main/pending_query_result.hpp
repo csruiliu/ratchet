@@ -33,8 +33,6 @@ public:
 	//! If this returns EXECUTION_ERROR, an error occurred during execution.
 	//! The error message can be obtained by calling GetError() on the PendingQueryResult.
 	DUCKDB_API PendingExecutionResult ExecuteTask();
-    DUCKDB_API PendingExecutionResult ExecuteTaskSuspend();
-    DUCKDB_API PendingExecutionResult ExecuteTaskResume();
 
 	//! Returns the result of the query as an actual query result.
 	//! This returns (mostly) instantly if ExecuteTask has been called until RESULT_READY was returned.
@@ -50,9 +48,6 @@ private:
 	void CheckExecutableInternal(ClientContextLock &lock);
 
 	PendingExecutionResult ExecuteTaskInternal(ClientContextLock &lock);
-    PendingExecutionResult ExecuteTaskInternalSuspend(ClientContextLock &lock);
-    PendingExecutionResult ExecuteTaskInternalResume(ClientContextLock &lock);
-
     unique_ptr<QueryResult> ExecuteInternal(ClientContextLock &lock);
 	unique_ptr<ClientContextLock> LockContext();
 };

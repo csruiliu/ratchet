@@ -257,22 +257,6 @@ public:
 		return TaskExecutionResult::TASK_FINISHED;
 	}
 
-    TaskExecutionResult ExecuteTaskSuspend(TaskExecutionMode mode) override {
-        std::cout << "[HashJoinFinalizeTask] ExecuteTaskSuspend" << std::endl;
-        AllocatedData hash_map = sink.hash_table->FinalizeSuspend(block_idx_start, block_idx_end, parallel);
-        std::cout << hash_map.get() << std::endl;
-        event->FinishTask();
-        return TaskExecutionResult::TASK_FINISHED;
-    }
-
-    TaskExecutionResult ExecuteTaskResume(TaskExecutionMode mode) override {
-        std::cout << "[HashJoinFinalizeTask] ExecuteTaskResume" << std::endl;
-        AllocatedData hash_map = sink.hash_table->FinalizeSuspend(block_idx_start, block_idx_end, parallel);
-        std::cout << hash_map.get() << std::endl;
-        event->FinishTask();
-        return TaskExecutionResult::TASK_FINISHED;
-    }
-
 private:
 	shared_ptr<Event> event;
 	HashJoinGlobalSinkState &sink;
@@ -419,20 +403,6 @@ public:
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
 	}
-
-    TaskExecutionResult ExecuteTaskSuspend(TaskExecutionMode mode) override {
-        std::cout << "[HashJoinPartitionTask] ExecuteTaskSuspend" << std::endl;
-        local_ht.Partition(global_ht);
-        event->FinishTask();
-        return TaskExecutionResult::TASK_FINISHED;
-    }
-
-    TaskExecutionResult ExecuteTaskResume(TaskExecutionMode mode) override {
-        std::cout << "[HashJoinPartitionTask] ExecuteTaskResume" << std::endl;
-        local_ht.Partition(global_ht);
-        event->FinishTask();
-        return TaskExecutionResult::TASK_FINISHED;
-    }
 
 private:
 	shared_ptr<Event> event;

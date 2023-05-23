@@ -11,14 +11,11 @@
 #include <memory>
 #include <cstdint>
 #include <vector>
+#include <chrono>
 #include "duckdb/common/string.hpp"
 #include "duckdb/common/winapi.hpp"
 
 namespace duckdb {
-
-// Enable Ratchet Source Code
-#define RATCHET
-#define RATCHET_PRINT_PLAN
 
 // API versions
 // if no explicit API version is defined, the latest API version is used
@@ -101,9 +98,10 @@ extern bool global_suspend_start;
 extern uint16_t global_threads;
 extern string global_suspend_file;
 extern string global_resume_file;
+extern std::chrono::steady_clock::time_point global_start;
+extern uint64_t global_suspend_point_ms;
 extern std::atomic<uint16_t> global_stopped_threads;
 extern std::vector<idx_t> global_finalized_pipelines;
-// extern std::vector<string> global_finalized_sinks;
 
 struct DConstants {
 	//! The value used to signify an invalid index entry

@@ -329,10 +329,6 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 	profiler.EndPhase();
 
 	auto plan = std::move(planner.plan);
-#ifdef RATCHET_PRINT_PLAN
-    std::cout << "==== Logical Plan ====" << std::endl;
-    plan->Print();
-#endif
 	// extract the result column names from the plan
 	result->properties = planner.properties;
 	result->names = planner.names;
@@ -362,10 +358,8 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 	// now convert logical query plan into a physical query plan
 	PhysicalPlanGenerator physical_planner(*this);
 	auto physical_plan = physical_planner.CreatePlan(std::move(plan));
-#ifdef RATCHET_PRINT_PLAN
     std::cout << "==== Physical Plan ====" << std::endl;
     physical_plan->Print();
-#endif
     profiler.EndPhase();
 
 #ifdef DEBUG
@@ -465,58 +459,6 @@ PendingExecutionResult ClientContext::ExecuteTaskInternal(ClientContextLock &loc
 	} // LCOV_EXCL_STOP
 	EndQueryInternal(lock, false, true);
 	return PendingExecutionResult::EXECUTION_ERROR;
-}
-
-PendingExecutionResult ClientContext::ExecuteTaskInternalSuspend(ClientContextLock &lock, PendingQueryResult &result) {
-	D_ASSERT(active_query);
-	D_ASSERT(active_query->open_result == &result);
-	try {
-		auto result = active_query->executor->ExecuteTaskSuspend();
-		if (active_query->progress_bar) {
-			active_query->progress_bar->Update(result == PendingExecutionResult::RESULT_READY);
-			query_progress = active_query->progress_bar->GetCurrentPercentage();
-		}
-		return result;
-	} catch (FatalException &ex) {
-		// fatal exceptions invalidate the entire database
-		result.SetError(PreservedError(ex));
-		auto &db = DatabaseInstance::GetDatabase(*this);
-		ValidChecker::Invalidate(db, ex.what());
-	} catch (const Exception &ex) {
-		result.SetError(PreservedError(ex));
-	} catch (std::exception &ex) {
-		result.SetError(PreservedError(ex));
-	} catch (...) { // LCOV_EXCL_START
-		result.SetError(PreservedError("Unhandled exception in ExecuteTaskInternal"));
-	} // LCOV_EXCL_STOP
-	EndQueryInternal(lock, false, true);
-	return PendingExecutionResult::EXECUTION_ERROR;
-}
-
-PendingExecutionResult ClientContext::ExecuteTaskInternalResume(ClientContextLock &lock, PendingQueryResult &result) {
-    D_ASSERT(active_query);
-    D_ASSERT(active_query->open_result == &result);
-    try {
-        auto result = active_query->executor->ExecuteTaskResume();
-        if (active_query->progress_bar) {
-            active_query->progress_bar->Update(result == PendingExecutionResult::RESULT_READY);
-            query_progress = active_query->progress_bar->GetCurrentPercentage();
-        }
-        return result;
-    } catch (FatalException &ex) {
-        // fatal exceptions invalidate the entire database
-        result.SetError(PreservedError(ex));
-        auto &db = DatabaseInstance::GetDatabase(*this);
-        ValidChecker::Invalidate(db, ex.what());
-    } catch (const Exception &ex) {
-        result.SetError(PreservedError(ex));
-    } catch (std::exception &ex) {
-        result.SetError(PreservedError(ex));
-    } catch (...) { // LCOV_EXCL_START
-        result.SetError(PreservedError("Unhandled exception in ExecuteTaskInternal"));
-    } // LCOV_EXCL_STOP
-    EndQueryInternal(lock, false, true);
-    return PendingExecutionResult::EXECUTION_ERROR;
 }
 
 void ClientContext::InitialCleanup(ClientContextLock &lock) {

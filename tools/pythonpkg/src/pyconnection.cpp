@@ -273,62 +273,6 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteMany(const string &que
 	return shared_from_this();
 }
 
-unique_ptr<QueryResult> DuckDBPyConnection::CompletePendingQuerySuspend(PendingQueryResult &pending_query,
-                                                                        uint64_t suspend_point) {
-    PendingExecutionResult execution_result;
-    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-    do {
-        std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-        uint64_t time_dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
-        if (time_dur > suspend_point) {
-            global_suspend_start = true;
-            execution_result = pending_query.ExecuteTaskSuspend();
-            while(global_stopped_threads == global_threads - 1) {
-                PyErr_SetInterrupt();
-                if (PyErr_CheckSignals() != 0) {
-                    throw std::runtime_error("Query has been suspended");
-                }
-            }
-        }
-        else {
-            execution_result = pending_query.ExecuteTask();
-        }
-
-        {
-            py::gil_scoped_acquire gil;
-            if (PyErr_CheckSignals() != 0) {
-                throw std::runtime_error("Query interrupted");
-            }
-        }
-    } while (execution_result == PendingExecutionResult::RESULT_NOT_READY);
-
-    if (execution_result == PendingExecutionResult::EXECUTION_ERROR) {
-        pending_query.ThrowError();
-    }
-    std::cout << "Start to pull data for root pipeline" << std::endl;
-    return pending_query.Execute();
-}
-
-unique_ptr<QueryResult> DuckDBPyConnection::CompletePendingQueryResume(PendingQueryResult &pending_query) {
-    PendingExecutionResult execution_result;
-    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-    do {
-        execution_result = pending_query.ExecuteTaskResume();
-        {
-            py::gil_scoped_acquire gil;
-            if (PyErr_CheckSignals() != 0) {
-                throw std::runtime_error("Query interrupted");
-            }
-        }
-    } while (execution_result == PendingExecutionResult::RESULT_NOT_READY);
-
-    if (execution_result == PendingExecutionResult::EXECUTION_ERROR) {
-        pending_query.ThrowError();
-    }
-    std::cout << "Start to pull data for root pipeline" << std::endl;
-    return pending_query.Execute();
-}
-
 unique_ptr<QueryResult> DuckDBPyConnection::CompletePendingQuery(PendingQueryResult &pending_query) {
 	PendingExecutionResult execution_result;
 	do {
@@ -463,174 +407,6 @@ unique_ptr<QueryResult> DuckDBPyConnection::ExecuteInternal(const string &query,
 	return nullptr;
 }
 
-unique_ptr<QueryResult> DuckDBPyConnection::ExecuteInternalSuspend(const string &query,
-                                                                   uint64_t suspend_point,
-                                                                   py::object params, bool many) {
-    if (!connection) {
-        throw ConnectionException("Connection has already been closed");
-    }
-    if (params.is_none()) {
-        params = py::list();
-    }
-    result = nullptr;
-    unique_ptr<PreparedStatement> prep;
-    {
-        py::gil_scoped_release release;
-        unique_lock<std::mutex> lock(py_connection_lock);
-
-        auto statements = connection->ExtractStatements(query);
-        if (statements.empty()) {
-            // no statements to execute
-            return nullptr;
-        }
-        // if there are multiple statements, we directly execute the statements besides the last one
-        // we only return the result of the last statement to the user, unless one of the previous statements fails
-        for (idx_t i = 0; i + 1 < statements.size(); i++) {
-            auto pending_query = connection->PendingQuery(std::move(statements[i]));
-            auto res = CompletePendingQuery(*pending_query);
-
-            if (res->HasError()) {
-                res->ThrowError();
-            }
-        }
-
-        prep = connection->Prepare(std::move(statements.back()));
-        if (prep->HasError()) {
-            prep->error.Throw();
-        }
-    }
-
-    auto &named_param_map = prep->named_param_map;
-    if (py::isinstance<py::dict>(params)) {
-        if (named_param_map.empty()) {
-            throw InvalidInputException("Param is of type 'dict', but no named parameters were found in the query");
-        }
-        // Transform named parameters to regular positional parameters
-        params = TransformNamedParameters(named_param_map, params);
-        // Clear the map, we don't need it anymore
-        prep->named_param_map.clear();
-    } else if (!named_param_map.empty()) {
-        throw InvalidInputException("Named parameters found, but param is not of type 'dict'");
-    }
-
-    // this is a list of a list of parameters in executemany
-    py::list params_set;
-    if (!many) {
-        params_set = py::list(1);
-        params_set[0] = params;
-    } else {
-        params_set = params;
-    }
-
-    // For every entry of the argument list, execute the prepared statement with said arguments
-    for (pybind11::handle single_query_params : params_set) {
-        if (prep->n_param != py::len(single_query_params)) {
-            throw InvalidInputException("Prepared statement needs %d parameters, %d given", prep->n_param,
-                                        py::len(single_query_params));
-        }
-        auto args = DuckDBPyConnection::TransformPythonParamList(single_query_params);
-        unique_ptr<QueryResult> res;
-        {
-            py::gil_scoped_release release;
-            unique_lock<std::mutex> lock(py_connection_lock);
-            auto pending_query = prep->PendingQuery(args);
-            res = CompletePendingQuerySuspend(*pending_query, suspend_point);
-
-            if (res->HasError()) {
-                res->ThrowError();
-            }
-        }
-
-        if (!many) {
-            return res;
-        }
-    }
-    return nullptr;
-}
-
-unique_ptr<QueryResult> DuckDBPyConnection::ExecuteInternalResume(const string &query, py::object params, bool many) {
-    if (!connection) {
-        throw ConnectionException("Connection has already been closed");
-    }
-    if (params.is_none()) {
-        params = py::list();
-    }
-    result = nullptr;
-    unique_ptr<PreparedStatement> prep;
-    {
-        py::gil_scoped_release release;
-        unique_lock<std::mutex> lock(py_connection_lock);
-
-        auto statements = connection->ExtractStatements(query);
-        if (statements.empty()) {
-            // no statements to execute
-            return nullptr;
-        }
-        // if there are multiple statements, we directly execute the statements besides the last one
-        // we only return the result of the last statement to the user, unless one of the previous statements fails
-        for (idx_t i = 0; i + 1 < statements.size(); i++) {
-            auto pending_query = connection->PendingQuery(std::move(statements[i]));
-            auto res = CompletePendingQuery(*pending_query);
-
-            if (res->HasError()) {
-                res->ThrowError();
-            }
-        }
-
-        prep = connection->Prepare(std::move(statements.back()));
-        if (prep->HasError()) {
-            prep->error.Throw();
-        }
-    }
-
-    auto &named_param_map = prep->named_param_map;
-    if (py::isinstance<py::dict>(params)) {
-        if (named_param_map.empty()) {
-            throw InvalidInputException("Param is of type 'dict', but no named parameters were found in the query");
-        }
-        // Transform named parameters to regular positional parameters
-        params = TransformNamedParameters(named_param_map, params);
-        // Clear the map, we don't need it anymore
-        prep->named_param_map.clear();
-    } else if (!named_param_map.empty()) {
-        throw InvalidInputException("Named parameters found, but param is not of type 'dict'");
-    }
-
-    // this is a list of a list of parameters in executemany
-    py::list params_set;
-    if (!many) {
-        params_set = py::list(1);
-        params_set[0] = params;
-    } else {
-        params_set = params;
-    }
-
-    // For every entry of the argument list, execute the prepared statement with said arguments
-    for (pybind11::handle single_query_params : params_set) {
-        if (prep->n_param != py::len(single_query_params)) {
-            throw InvalidInputException("Prepared statement needs %d parameters, %d given", prep->n_param,
-                                        py::len(single_query_params));
-        }
-        auto args = DuckDBPyConnection::TransformPythonParamList(single_query_params);
-        unique_ptr<QueryResult> res;
-        {
-            py::gil_scoped_release release;
-            unique_lock<std::mutex> lock(py_connection_lock);
-            auto pending_query = prep->PendingQuery(args);
-            res = CompletePendingQueryResume(*pending_query);
-
-            if (res->HasError()) {
-                res->ThrowError();
-            }
-        }
-
-        if (!many) {
-            return res;
-        }
-    }
-    return nullptr;
-}
-
 shared_ptr<DuckDBPyConnection> DuckDBPyConnection::Execute(const string &query, py::object params, bool many) {
 	auto res = ExecuteInternal(query, std::move(params), many);
 	if (res) {
@@ -650,9 +426,9 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteSuspend(const string &
     auto suspend_start_time_ms = static_cast<uint64_t>(suspend_start_time * 1000);
     auto suspend_end_time_ms = static_cast<uint64_t>(suspend_end_time * 1000);
     std::uniform_int_distribution<uint64_t> distribution(suspend_start_time_ms, suspend_end_time_ms);
-    uint64_t suspend_point_ms = distribution(generator);
-    std::cout << "## Query will suspend after " << suspend_point_ms << "ms (" << global_suspend_file << ") ##" << std::endl;
-    auto res = ExecuteInternalSuspend(query, suspend_point_ms, std::move(params), many);
+    global_suspend_point_ms = distribution(generator);
+    std::cout << "## Query will suspend after " << global_suspend_point_ms << "ms (" << global_suspend_file << ") ##" << std::endl;
+    auto res = ExecuteInternal(query, std::move(params), many);
     if (res) {
         auto py_result = make_unique<DuckDBPyResult>(std::move(res));
         result = make_unique<DuckDBPyRelation>(std::move(py_result));
@@ -665,7 +441,7 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteResume(const string &q
                                                                  py::object params, bool many) {
     global_resume_file = resume_file;
     std::cout << "## Query will resume using " << global_resume_file << std::endl;
-    auto res = ExecuteInternalResume(query,  std::move(params), many);
+    auto res = ExecuteInternal(query,  std::move(params), many);
     if (res) {
         auto py_result = make_unique<DuckDBPyResult>(std::move(res));
         result = make_unique<DuckDBPyRelation>(std::move(py_result));
