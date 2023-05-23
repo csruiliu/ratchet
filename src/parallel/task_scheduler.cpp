@@ -143,50 +143,6 @@ void TaskScheduler::ExecuteForever(atomic<bool> *marker) {
 #endif
 }
 
-void TaskScheduler::ExecuteForeverSuspend(atomic<bool> *marker) {
-#ifndef DUCKDB_NO_THREADS
-    unique_ptr<Task> task;
-    // loop until the marker is set to false
-    while (*marker) {
-        // wait for a signal with a timeout
-        queue->semaphore.wait();
-        if (queue->q.try_dequeue(task)) {
-            if (global_suspend_start) {
-				std::cout << "task->ExecuteSuspend" << std::endl;
-                task->ExecuteSuspend(TaskExecutionMode::PROCESS_ALL);
-                task.reset();
-                global_stopped_threads++;
-                break;
-            }
-            else {
-                std::cout << "task->Execute" << std::endl;
-                task->Execute(TaskExecutionMode::PROCESS_ALL);
-                task.reset();
-            }
-        }
-    }
-#else
-    throw NotImplementedException("DuckDB was compiled without threads! Background thread loop is not allowed.");
-#endif
-}
-
-void TaskScheduler::ExecuteForeverResume(atomic<bool> *marker) {
-#ifndef DUCKDB_NO_THREADS
-    unique_ptr<Task> task;
-    // loop until the marker is set to false
-    while (*marker) {
-        // wait for a signal with a timeout
-        queue->semaphore.wait();
-        if (queue->q.try_dequeue(task)) {
-            task->ExecuteResume(TaskExecutionMode::PROCESS_ALL);
-            task.reset();
-        }
-    }
-#else
-    throw NotImplementedException("DuckDB was compiled without threads! Background thread loop is not allowed.");
-#endif
-}
-
 idx_t TaskScheduler::ExecuteTasks(atomic<bool> *marker, idx_t max_tasks) {
 #ifndef DUCKDB_NO_THREADS
 	idx_t completed_tasks = 0;
@@ -228,11 +184,7 @@ void TaskScheduler::ExecuteTasks(idx_t max_tasks) {
 
 #ifndef DUCKDB_NO_THREADS
 static void ThreadExecuteTasks(TaskScheduler *scheduler, atomic<bool> *marker) {
-#ifndef RATCHET
 	scheduler->ExecuteForever(marker);
-#else
-    scheduler->ExecuteForeverSuspend(marker);
-#endif
 }
 #endif
 

@@ -48,8 +48,6 @@ public:
 
 	void CancelTasks();
 	PendingExecutionResult ExecuteTask();
-	PendingExecutionResult ExecuteTaskSuspend();
-    PendingExecutionResult ExecuteTaskResume();
 
 	void Reset();
 

@@ -18,10 +18,11 @@ const transaction_t MAXIMUM_QUERY_ID = NumericLimits<transaction_t>::Maximum(); 
 bool global_suspend_start = false;
 string global_suspend_file = "suspend";
 string global_resume_file = "resume";
+std::chrono::steady_clock::time_point global_start = {};
+uint64_t global_suspend_point_ms = 0;
 uint16_t global_threads = 0;
 atomic<uint16_t> global_stopped_threads(0);
 vector<idx_t> global_finalized_pipelines;
-// vector<string> global_finalized_sinks;
 
 uint64_t NextPowerOfTwo(uint64_t v) {
 	v--;

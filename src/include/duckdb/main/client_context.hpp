@@ -241,8 +241,6 @@ private:
 	PreservedError EndQueryInternal(ClientContextLock &lock, bool success, bool invalidate_transaction);
 
 	PendingExecutionResult ExecuteTaskInternal(ClientContextLock &lock, PendingQueryResult &result);
-    PendingExecutionResult ExecuteTaskInternalSuspend(ClientContextLock &lock, PendingQueryResult &result);
-    PendingExecutionResult ExecuteTaskInternalResume(ClientContextLock &lock, PendingQueryResult &result);
 
 	unique_ptr<PendingQueryResult> PendingStatementOrPreparedStatementInternal(
 	    ClientContextLock &lock, const string &query, unique_ptr<SQLStatement> statement,

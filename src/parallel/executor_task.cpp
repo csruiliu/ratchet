@@ -25,30 +25,4 @@ TaskExecutionResult ExecutorTask::Execute(TaskExecutionMode mode) {
 	return TaskExecutionResult::TASK_ERROR;
 }
 
-TaskExecutionResult ExecutorTask::ExecuteSuspend(TaskExecutionMode mode) {
-    try {
-        return ExecuteTaskSuspend(mode);
-    } catch (Exception &ex) {
-        executor.PushError(PreservedError(ex));
-    } catch (std::exception &ex) {
-        executor.PushError(PreservedError(ex));
-    } catch (...) { // LCOV_EXCL_START
-        executor.PushError(PreservedError("Unknown exception in Finalize!"));
-    } // LCOV_EXCL_STOP
-    return TaskExecutionResult::TASK_ERROR;
-}
-
-TaskExecutionResult ExecutorTask::ExecuteResume(TaskExecutionMode mode) {
-    try {
-        return ExecuteTaskResume(mode);
-    } catch (Exception &ex) {
-        executor.PushError(PreservedError(ex));
-    } catch (std::exception &ex) {
-        executor.PushError(PreservedError(ex));
-    } catch (...) { // LCOV_EXCL_START
-        executor.PushError(PreservedError("Unknown exception in Finalize!"));
-    } // LCOV_EXCL_STOP
-    return TaskExecutionResult::TASK_ERROR;
-}
-
 } // namespace duckdb
