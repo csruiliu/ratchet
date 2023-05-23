@@ -12,6 +12,8 @@
 #include "duckdb/common/types/vector.hpp"
 #include "duckdb/common/vector_operations/vector_operations.hpp"
 
+#include <iostream>
+
 namespace duckdb {
 
 struct AggregateInputData;
@@ -309,6 +311,7 @@ public:
 
 	template <class STATE_TYPE, class OP>
 	static void Combine(Vector &source, Vector &target, AggregateInputData &aggr_input_data, idx_t count) {
+        std::cout << "[aggregate_executor] Combine" << std::endl;
 		D_ASSERT(source.GetType().id() == LogicalTypeId::POINTER && target.GetType().id() == LogicalTypeId::POINTER);
 		auto sdata = FlatVector::GetData<const STATE_TYPE *>(source);
 		auto tdata = FlatVector::GetData<STATE_TYPE *>(target);
@@ -321,6 +324,7 @@ public:
 	template <class STATE_TYPE, class RESULT_TYPE, class OP>
 	static void Finalize(Vector &states, AggregateInputData &aggr_input_data, Vector &result, idx_t count,
 	                     idx_t offset) {
+        std::cout << "[aggregate_executor] Finalize" << std::endl;
 		if (states.GetVectorType() == VectorType::CONSTANT_VECTOR) {
 			result.SetVectorType(VectorType::CONSTANT_VECTOR);
 
@@ -345,7 +349,6 @@ public:
 	static void UnaryWindow(Vector &input, const ValidityMask &ifilter, AggregateInputData &aggr_input_data,
 	                        data_ptr_t state, const FrameBounds &frame, const FrameBounds &prev, Vector &result,
 	                        idx_t rid, idx_t bias) {
-
 		auto idata = FlatVector::GetData<const INPUT_TYPE>(input) - bias;
 		const auto &ivalid = FlatVector::Validity(input);
 		OP::template Window<STATE, INPUT_TYPE, RESULT_TYPE>(idata, ifilter, ivalid, aggr_input_data, (STATE *)state,

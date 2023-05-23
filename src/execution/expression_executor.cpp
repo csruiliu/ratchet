@@ -4,6 +4,8 @@
 #include "duckdb/execution/execution_context.hpp"
 #include "duckdb/storage/statistics/base_statistics.hpp"
 
+#include <iostream>
+
 namespace duckdb {
 
 ExpressionExecutor::ExpressionExecutor(ClientContext &context) : context(&context) {
