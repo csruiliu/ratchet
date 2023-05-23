@@ -52,7 +52,7 @@ def main():
         """
     elif qid == "orderby-1":
         exec_query = f"""
-            SELECT  sum(L_EXTENDEDPRICE*(1-L_DISCOUNT)) as REVENUE
+            SELECT  sum(L_QUANTITY) as REVENUE
             FROM    lineitem
             ORDER BY    REVENUE
         """

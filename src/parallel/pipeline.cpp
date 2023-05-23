@@ -35,19 +35,27 @@ public:
 		if (!pipeline_executor) {
 			pipeline_executor = make_unique<PipelineExecutor>(pipeline.GetClientContext(), pipeline);
 		}
-		if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
-			std::cout << "[PipelineTask] ExecuteTask at PARTIAL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
-            bool finished = pipeline_executor->Execute(PARTIAL_CHUNK_COUNT);
-			if (!finished) {
-				return TaskExecutionResult::TASK_NOT_FINISHED;
-			}
-		} else {
-			std::cout << "[PipelineTask] ExecuteTask at ALL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
-            pipeline_executor->Execute();
-		}
-		event->FinishTask();
-		pipeline_executor.reset();
-		return TaskExecutionResult::TASK_FINISHED;
+        if (pipeline.GetPipelineId() == 3) {
+            event->FinishTask();
+            pipeline_executor.reset();
+            return TaskExecutionResult::TASK_FINISHED;
+        }
+        else {
+            if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
+                std::cout << "[PipelineTask] ExecuteTask at PARTIAL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
+                bool finished = pipeline_executor->Execute(PARTIAL_CHUNK_COUNT);
+                if (!finished) {
+                    return TaskExecutionResult::TASK_NOT_FINISHED;
+                }
+            } else {
+                std::cout << "[PipelineTask] ExecuteTask at ALL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
+                pipeline_executor->Execute();
+            }
+            event->FinishTask();
+            pipeline_executor.reset();
+            return TaskExecutionResult::TASK_FINISHED;
+        }
+
 	}
 
     TaskExecutionResult ExecuteTaskSuspend(TaskExecutionMode mode) override {

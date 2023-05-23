@@ -4,6 +4,8 @@
 #include "duckdb/function/function_binder.hpp"
 #include "duckdb/storage/buffer_manager.hpp"
 
+#include <iostream>
+
 namespace duckdb {
 
 struct SortedAggregateBindData : public FunctionData {
@@ -271,6 +273,7 @@ struct SortedAggregateFunction {
 
 	static void Finalize(Vector &states, AggregateInputData &aggr_input_data, Vector &result, idx_t count,
 	                     idx_t offset) {
+        std::cout << "Sorted_Aggregate_Function::Finalize" << std::endl;
 		const auto order_bind = (SortedAggregateBindData *)aggr_input_data.bind_data;
 		auto &buffer_manager = order_bind->buffer_manager;
 		auto &orders = order_bind->orders;

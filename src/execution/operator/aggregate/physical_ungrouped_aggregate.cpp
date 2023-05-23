@@ -227,7 +227,6 @@ SinkResultType PhysicalUngroupedAggregate::Sink(ExecutionContext &context, Globa
 	}
 
 	DataChunk &payload_chunk = sink.aggregate_input_chunk;
-
 	idx_t payload_idx = 0;
 	idx_t next_payload_idx = 0;
 
@@ -262,7 +261,7 @@ SinkResultType PhysicalUngroupedAggregate::Sink(ExecutionContext &context, Globa
 		for (idx_t i = 0; i < aggregate.children.size(); ++i) {
 			sink.child_executor.ExecuteExpression(payload_idx + payload_cnt,
 			                                      payload_chunk.data[payload_idx + payload_cnt]);
-			payload_cnt++;
+            payload_cnt++;
 		}
 
 		auto start_of_input = payload_cnt == 0 ? nullptr : &payload_chunk.data[payload_idx];
@@ -270,6 +269,7 @@ SinkResultType PhysicalUngroupedAggregate::Sink(ExecutionContext &context, Globa
 		aggregate.function.simple_update(start_of_input, aggr_input_data, payload_cnt,
 		                                 sink.state.aggregates[aggr_idx].get(), payload_chunk.size());
 	}
+
 	return SinkResultType::NEED_MORE_INPUT;
 }
 
@@ -341,6 +341,7 @@ public:
 	}
 
 	void AggregateDistinct() {
+        std::cout << "[physical_ungrouped_aggregate] AggregateDistinct" << std::endl;
 		D_ASSERT(gstate.distinct_state);
 		auto &aggregates = op.aggregates;
 		auto &distinct_state = *gstate.distinct_state;
@@ -523,10 +524,31 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
 	auto &gstate = (UngroupedAggregateGlobalState &)gstate_p;
 
 	if (distinct_data) {
+        std::cout << "[PhysicalUngroupedAggregate::FinalizeDistinct]" << std::endl;
 		return FinalizeDistinct(pipeline, event, context, gstate_p);
-	}
+	} else {
+        std::cout << "[PhysicalUngroupedAggregate::Finalize]" << std::endl;
+    }
+    std::cout << "[PhysicalUngroupedAggregate::Finalize] Start to Serialize Global State" << std::endl;
 
-	D_ASSERT(!gstate.finished);
+    // =============
+
+    DataChunk chunk;
+    chunk.Initialize(Allocator::DefaultAllocator(), this->GetTypes());
+
+    // initialize the result chunk with the aggregate values
+    chunk.SetCardinality(1);
+    for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
+        auto &aggregate = (BoundAggregateExpression &)*aggregates[aggr_idx];
+
+        Vector state_vector(Value::POINTER((uintptr_t)gstate.state.aggregates[aggr_idx].get()));
+        AggregateInputData aggr_input_data(aggregate.bind_info.get(), Allocator::DefaultAllocator());
+        aggregate.function.finalize(state_vector, aggr_input_data, chunk.data[aggr_idx], 1, 0);
+    }
+
+    // =============
+
+    D_ASSERT(!gstate.finished);
 	gstate.finished = true;
 	return SinkFinalizeType::READY;
 }
@@ -559,9 +581,11 @@ void VerifyNullHandling(DataChunk &chunk, AggregateState &state, const vector<un
 	}
 #endif
 }
-
+/*
 void PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                          LocalSourceState &lstate) const {
+    std::cout << "[PhysicalUngroupedAggregate::GetData]" << std::endl;
+
 	auto &gstate = (UngroupedAggregateGlobalState &)*sink_state;
 	auto &state = (UngroupedAggregateState &)gstate_p;
 	D_ASSERT(gstate.finished);
@@ -577,9 +601,31 @@ void PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &c
 		Vector state_vector(Value::POINTER((uintptr_t)gstate.state.aggregates[aggr_idx].get()));
 		AggregateInputData aggr_input_data(aggregate.bind_info.get(), Allocator::DefaultAllocator());
 		aggregate.function.finalize(state_vector, aggr_input_data, chunk.data[aggr_idx], 1, 0);
+
+        std::cout << chunk.data[aggr_idx].GetValue(0) << std::endl;
 	}
 	VerifyNullHandling(chunk, gstate.state, aggregates);
 	state.finished = true;
+}
+*/
+void PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
+                                               LocalSourceState &lstate) const {
+    std::cout << "[PhysicalUngroupedAggregate::GetDataResume]" << std::endl;
+
+    auto &gstate = (UngroupedAggregateGlobalState &)*sink_state;
+    auto &state = (UngroupedAggregateState &)gstate_p;
+    D_ASSERT(gstate.finished);
+    if (state.finished) {
+        return;
+    }
+
+    // initialize the result chunk with the aggregate values
+    chunk.SetCardinality(1);
+    for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
+        chunk.data[aggr_idx].SetValue(0, 11111);
+    }
+    VerifyNullHandling(chunk, gstate.state, aggregates);
+    state.finished = true;
 }
 
 string PhysicalUngroupedAggregate::ParamsToString() const {
