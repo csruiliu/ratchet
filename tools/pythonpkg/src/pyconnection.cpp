@@ -422,6 +422,7 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteSuspend(const string &
                                                                   float_t suspend_end_time,
                                                                   py::object params, bool many) {
     global_suspend_file = suspend_file;
+    global_suspend_start = true;
     std::default_random_engine generator;
     auto suspend_start_time_ms = static_cast<uint64_t>(suspend_start_time * 1000);
     auto suspend_end_time_ms = static_cast<uint64_t>(suspend_end_time * 1000);

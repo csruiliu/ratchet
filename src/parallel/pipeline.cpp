@@ -41,33 +41,33 @@ public:
 			pipeline_executor = make_unique<PipelineExecutor>(pipeline.GetClientContext(), pipeline);
 		}
 
-        std::ifstream f("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_resume_file);
-        json json_data = json::parse(f);
-        vector<idx_t> pipeline_ids = json_data.at("pipeline_ids");
+        if (global_resume_start) {
+            std::ifstream f("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_resume_file);
+            json json_data = json::parse(f);
+            vector<idx_t> pipeline_ids = json_data.at("pipeline_ids");
 
-        idx_t current_pipeline_id = pipeline.GetPipelineId();
-        auto it = std::find(pipeline_ids.begin(), pipeline_ids.end(), current_pipeline_id);
-
-        if (it != pipeline_ids.end()) {
-            event->FinishTask();
-            pipeline_executor.reset();
-            return TaskExecutionResult::TASK_FINISHED;
-        }
-        else {
-            if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
-                std::cout << "[PipelineTask] ExecuteTask at PARTIAL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
-                bool finished = pipeline_executor->Execute(PARTIAL_CHUNK_COUNT);
-                if (!finished) {
-                    return TaskExecutionResult::TASK_NOT_FINISHED;
-                }
-            } else {
-                std::cout << "[PipelineTask] ExecuteTask at ALL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
-                pipeline_executor->Execute();
+            idx_t current_pipeline_id = pipeline.GetPipelineId();
+            auto it = std::find(pipeline_ids.begin(), pipeline_ids.end(), current_pipeline_id);
+            if (it != pipeline_ids.end()) {
+                event->FinishTask();
+                pipeline_executor.reset();
+                return TaskExecutionResult::TASK_FINISHED;
             }
-            event->FinishTask();
-            pipeline_executor.reset();
-            return TaskExecutionResult::TASK_FINISHED;
         }
+
+        if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
+            std::cout << "[PipelineTask] ExecuteTask at PARTIAL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
+            bool finished = pipeline_executor->Execute(PARTIAL_CHUNK_COUNT);
+            if (!finished) {
+                return TaskExecutionResult::TASK_NOT_FINISHED;
+            }
+        } else {
+            std::cout << "[PipelineTask] ExecuteTask at ALL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
+            pipeline_executor->Execute();
+        }
+        event->FinishTask();
+        pipeline_executor.reset();
+        return TaskExecutionResult::TASK_FINISHED;
 	}
 };
 

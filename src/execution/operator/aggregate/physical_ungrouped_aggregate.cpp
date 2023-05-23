@@ -511,48 +511,51 @@ SinkFinalizeType PhysicalUngroupedAggregate::FinalizeDistinct(Pipeline &pipeline
 
 SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
                                                       GlobalSinkState &gstate_p) const {
-    std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
-    uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
-
     auto &gstate = (UngroupedAggregateGlobalState &)gstate_p;
 
 	if (distinct_data) {
 		return FinalizeDistinct(pipeline, event, context, gstate_p);
 	}
-    if (time_dur_ms > global_suspend_point_ms) {
-        std::cout << "[PhysicalUngroupedAggregate::Finalize] Suspend and Serialize Global State" << std::endl;
 
-        json jsonfile;
+    if (global_suspend_start) {
+        std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
+        uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
 
-        vector<idx_t> pipeline_ids;
-        vector<string> aggregate_values;
+        if (time_dur_ms > global_suspend_point_ms) {
+            std::cout << "[PhysicalUngroupedAggregate::Finalize] Suspend and Serialize Global State" << std::endl;
 
-        pipeline_ids.push_back(pipeline.GetPipelineId());
-        jsonfile["pipeline_ids"] = pipeline_ids;
+            json jsonfile;
 
-        DataChunk chunk;
-        chunk.Initialize(Allocator::DefaultAllocator(), this->GetTypes());
+            vector<idx_t> pipeline_ids;
+            vector<string> aggregate_values;
 
-        // initialize the result chunk with the aggregate values
-        chunk.SetCardinality(1);
-        for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
-            auto &aggregate = (BoundAggregateExpression &)*aggregates[aggr_idx];
+            pipeline_ids.push_back(pipeline.GetPipelineId());
+            jsonfile["pipeline_ids"] = pipeline_ids;
 
-            Vector state_vector(Value::POINTER((uintptr_t)gstate.state.aggregates[aggr_idx].get()));
-            AggregateInputData aggr_input_data(aggregate.bind_info.get(), Allocator::DefaultAllocator());
-            aggregate.function.finalize(state_vector, aggr_input_data, chunk.data[aggr_idx], 1, 0);
-            aggregate_values.push_back(chunk.data[aggr_idx].GetValue(0).ToString());
+            DataChunk chunk;
+            chunk.Initialize(Allocator::DefaultAllocator(), this->GetTypes());
+
+            // initialize the result chunk with the aggregate values
+            chunk.SetCardinality(1);
+            for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
+                auto &aggregate = (BoundAggregateExpression &)*aggregates[aggr_idx];
+
+                Vector state_vector(Value::POINTER((uintptr_t)gstate.state.aggregates[aggr_idx].get()));
+                AggregateInputData aggr_input_data(aggregate.bind_info.get(), Allocator::DefaultAllocator());
+                aggregate.function.finalize(state_vector, aggr_input_data, chunk.data[aggr_idx], 1, 0);
+                aggregate_values.push_back(chunk.data[aggr_idx].GetValue(0).ToString());
+            }
+            jsonfile["aggregate_values"] = aggregate_values;
+
+            std::ofstream outputFile("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_suspend_file);
+            outputFile << jsonfile;
+
+            outputFile.close();
+            if (outputFile.fail()) {
+                std::cerr << "Error writing to file!" << std::endl;
+            }
+            exit(0);
         }
-        jsonfile["aggregate_values"] = aggregate_values;
-
-        std::ofstream outputFile("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_suspend_file);
-        outputFile << jsonfile;
-
-        outputFile.close();
-        if (outputFile.fail()) {
-            std::cerr << "Error writing to file!" << std::endl;
-        }
-        exit(0);
     }
 
     D_ASSERT(!gstate.finished);
@@ -603,16 +606,16 @@ void PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &c
 	// initialize the result chunk with the aggregate values
 	chunk.SetCardinality(1);
 
-    std::ifstream f("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_resume_file);
-    json json_data = json::parse(f);
-    vector<idx_t> pipeline_ids = json_data.at("pipeline_ids");
-    vector<string> aggregate_values = json_data.at("aggregate_values");
-
-    // idx_t current_pipeline_id = context.pipeline->GetPipelineId();
-    // std::cout << "context.pipeline->GetPipelineId(): " << current_pipeline_id << std::endl;
-    // auto it = std::find(pipeline_ids.begin(), pipeline_ids.end(), current_pipeline_id);
-
 	if (global_resume_start) {
+        std::ifstream f("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_resume_file);
+        json json_data = json::parse(f);
+        vector<idx_t> pipeline_ids = json_data.at("pipeline_ids");
+        vector<string> aggregate_values = json_data.at("aggregate_values");
+
+        // idx_t current_pipeline_id = context.pipeline->GetPipelineId();
+        // std::cout << "context.pipeline->GetPipelineId(): " << current_pipeline_id << std::endl;
+        // auto it = std::find(pipeline_ids.begin(), pipeline_ids.end(), current_pipeline_id);
+
         for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
             chunk.data[aggr_idx].SetValue(0, std::stod(aggregate_values.at(0)));
         }
