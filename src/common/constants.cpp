@@ -16,6 +16,7 @@ const transaction_t NOT_DELETED_ID = NumericLimits<transaction_t>::Maximum() - 1
 const transaction_t MAXIMUM_QUERY_ID = NumericLimits<transaction_t>::Maximum();   // 2^64
 
 bool global_suspend_start = false;
+bool global_resume_start = false;
 string global_suspend_file = "suspend";
 string global_resume_file = "resume";
 std::chrono::steady_clock::time_point global_start = {};

@@ -17,6 +17,8 @@ def main():
                         help="indicate end time for suspension (second)")
     parser.add_argument("-u", "--update_table", action="store_true",
                         help="force to update table in database")
+    parser.add_argument("-r", "--resume_query", action="store_true",
+                        help="whether it is a resumed query")
     args = parser.parse_args()
 
     qid = args.query_name
@@ -25,6 +27,7 @@ def main():
     suspend_start_time = args.suspend_start_time
     suspend_end_time = args.suspend_end_time
     update_table = args.update_table
+    resume_query = args.resume_query
 
     # open and connect a database
     # db_conn = duckdb.connect(database=':memory:')
@@ -106,16 +109,15 @@ def main():
     else:
         raise ValueError("Query is not supported in demo")
 
-    # start the query execution and count the time
-    start = time.perf_counter()
-    if suspend_start_time is not None and suspend_end_time is not None:
-        results = db_conn.execute_suspend(exec_query, "demo.ratchet", suspend_start_time, suspend_end_time).fetchdf()
+    if resume_query:
+        results = db_conn.execute_resume(exec_query, "demo.ratchet").fetchdf()
     else:
-        results = db_conn.execute(exec_query).fetchdf()
+        if suspend_start_time is not None and suspend_end_time is not None:
+            results = db_conn.execute_suspend(exec_query, "demo.ratchet", suspend_start_time, suspend_end_time).fetchdf()
+        else:
+            results = db_conn.execute(exec_query).fetchdf()
+
     print(results)
-    end = time.perf_counter()
-    print("Total Runtime: {}".format(end - start))
-    # db_conn.execute_resume(exec_query, "demo.ratchet")
     db_conn.close()
 
 

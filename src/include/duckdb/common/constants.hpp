@@ -95,6 +95,7 @@ extern const double PI;
 
 //! global variable for Ratchet
 extern bool global_suspend_start;
+extern bool global_resume_start;
 extern uint16_t global_threads;
 extern string global_suspend_file;
 extern string global_resume_file;
