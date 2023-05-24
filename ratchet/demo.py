@@ -1,9 +1,12 @@
 import duckdb
 import argparse
 import time
+import pandas as pd
 
 
 def main():
+    pd.set_option('display.float_format', '{:.1f}'.format)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-q", "--query_name", type=str, action="store", required=True,
                         help="indicate the query id")
