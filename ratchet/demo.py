@@ -64,12 +64,19 @@ def main():
         """
     elif qid == "join-1":
         exec_query = f"""
+            SELECT  N_NAME, R_NAME
+            FROM  	nation,
+                    region
+            WHERE	N_REGIONKEY = R_REGIONKEY
+        """
+    elif qid == "join-2":
+        exec_query = f"""
             SELECT  C_CUSTKEY, C_NAME, O_ORDERKEY, O_ORDERSTATUS
             FROM  	customer,
                     orders
             WHERE	C_CUSTKEY = O_CUSTKEY
         """
-    elif qid == "join-2":
+    elif qid == "join-3":
         exec_query = f"""
             SELECT  P_NAME, PS_AVAILQTY, S_ACCTBAL
             FROM  	partsupp,
@@ -78,7 +85,7 @@ def main():
             WHERE	PS_PARTKEY = P_PARTKEY
                     AND	PS_SUPPKEY = S_SUPPKEY
         """
-    elif qid == "join-3":
+    elif qid == "join-4":
         exec_query = f"""
             SELECT  C_CUSTKEY, O_ORDERKEY, L_LINENUMBER, L_QUANTITY, C_ACCTBAL, O_TOTALPRICE
             FROM  	customer,
