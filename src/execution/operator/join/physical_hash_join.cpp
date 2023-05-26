@@ -483,7 +483,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
 	}
     // global_finalized_sinks.emplace_back("PhysicalHashJoin");
     global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
-    sink.SerializeGlobalState();
+    // sink.SerializeGlobalState();
 	return SinkFinalizeType::READY;
 }
 
@@ -533,6 +533,7 @@ unique_ptr<OperatorState> PhysicalHashJoin::GetOperatorState(ExecutionContext &c
 
 OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, DataChunk &input, DataChunk &chunk,
                                                      GlobalOperatorState &gstate, OperatorState &state_p) const {
+    std::cout << "[PhysicalHashJoin::ExecuteInternal]" << std::endl;
 	auto &state = (HashJoinOperatorState &)state_p;
 	auto &sink = (HashJoinGlobalSinkState &)*sink_state;
 	D_ASSERT(sink.finalized);
@@ -550,6 +551,11 @@ OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, 
 	if (sink.hash_table->Count() == 0 && EmptyResultIfRHSIsEmpty()) {
 		return OperatorResultType::FINISHED;
 	}
+
+    std::cout << "=== INPUT ===" << std::endl;
+    input.Print();
+    std::cout << "=== RESULT ===" << std::endl;
+    chunk.Print();
 
 	if (sink.perfect_join_executor) {
 		D_ASSERT(!sink.external);

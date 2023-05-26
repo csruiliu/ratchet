@@ -243,6 +243,7 @@ CachingPhysicalOperator::CachingPhysicalOperator(PhysicalOperatorType type, vect
 
 OperatorResultType CachingPhysicalOperator::Execute(ExecutionContext &context, DataChunk &input, DataChunk &chunk,
                                                     GlobalOperatorState &gstate, OperatorState &state_p) const {
+    std::cout << "[CachingPhysicalOperator::Execute]" << std::endl;
 	auto &state = (CachingOperatorState &)state_p;
 
 	// Execute child operator

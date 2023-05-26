@@ -181,6 +181,7 @@ void ExpressionExecutor::Execute(const Expression &expr, ExpressionState *state,
 	if (count == 0) {
 		return;
 	}
+    // std::cout << "expr.expression_class: " << ExpressionClassToString(expr.expression_class) << std::endl;
 	switch (expr.expression_class) {
 	case ExpressionClass::BOUND_BETWEEN:
 		Execute((const BoundBetweenExpression &)expr, state, sel, count, result);
