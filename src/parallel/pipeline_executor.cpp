@@ -173,6 +173,7 @@ void PipelineExecutor::PushFinalize() {
 }
 
 void PipelineExecutor::ExecutePull(DataChunk &result) {
+    std::cout << "[PipelineExecutor::ExecutePull]" << std::endl;
 	if (IsFinished()) {
 		return;
 	}
@@ -235,6 +236,7 @@ void PipelineExecutor::GoToSource(idx_t &current_idx, idx_t initial_idx) {
 }
 
 OperatorResultType PipelineExecutor::Execute(DataChunk &input, DataChunk &result, idx_t initial_idx) {
+    std::cout << "[PipelineExecutor::Execute]" << std::endl;
 	if (input.size() == 0) { // LCOV_EXCL_START
 		return OperatorResultType::NEED_MORE_INPUT;
 	} // LCOV_EXCL_STOP
@@ -272,6 +274,7 @@ OperatorResultType PipelineExecutor::Execute(DataChunk &input, DataChunk &result
 			// if current_idx > source_idx, we pass the previous' operators output through the Execute of the current
 			// operator
 			StartOperator(current_operator);
+            // std::cout << "Operator Name: " << current_operator->GetName() << std::endl;
 			auto result = current_operator->Execute(context, prev_chunk, current_chunk, *current_operator->op_state,
 			                                        *intermediate_states[current_intermediate - 1]);
 			EndOperator(current_operator, &current_chunk);

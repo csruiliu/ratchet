@@ -469,6 +469,7 @@ unique_ptr<ScanStructure> JoinHashTable::InitializeScanStructure(DataChunk &keys
 }
 
 unique_ptr<ScanStructure> JoinHashTable::Probe(DataChunk &keys, Vector *precomputed_hashes) {
+    std::cout << "JoinHashTable::Prob" << std::endl;
 	const SelectionVector *current_sel;
 	auto ss = InitializeScanStructure(keys, current_sel);
 	if (ss->count == 0) {

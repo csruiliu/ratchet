@@ -153,9 +153,15 @@ unique_ptr<OperatorState> PerfectHashJoinExecutor::GetOperatorState(ExecutionCon
 
 OperatorResultType PerfectHashJoinExecutor::ProbePerfectHashTable(ExecutionContext &context, DataChunk &input,
                                                                   DataChunk &result, OperatorState &state_p) {
+    std::cout << "[PerfectHashJoinExecutor::ProbePerfectHashTable]" << std::endl;
 	auto &state = (PerfectHashJoinState &)state_p;
 	// keeps track of how many probe keys have a match
 	idx_t probe_sel_count = 0;
+
+    std::cout << "=== INPUT ===" << std::endl;
+    input.Print();
+    std::cout << "=== RESUKT ===" << std::endl;
+    result.Print();
 
 	// fetch the join keys from the chunk
 	state.join_keys.Reset();
@@ -163,17 +169,27 @@ OperatorResultType PerfectHashJoinExecutor::ProbePerfectHashTable(ExecutionConte
 	// select the keys that are in the min-max range
 	auto &keys_vec = state.join_keys.data[0];
 	auto keys_count = state.join_keys.size();
-	// todo: add check for fast pass when probe is part of build domain
+	std::cout << "keys_count: " << keys_count << std::endl;
+    // todo: add check for fast pass when probe is part of build domain
 	FillSelectionVectorSwitchProbe(keys_vec, state.build_sel_vec, state.probe_sel_vec, keys_count, probe_sel_count);
+
+    std::cout << "=== INPUT ===" << std::endl;
+    input.Print();
+    std::cout << "=== RESUKT ===" << std::endl;
+    result.Print();
 
 	// If build is dense and probe is in build's domain, just reference probe
 	if (perfect_join_statistics.is_build_dense && keys_count == probe_sel_count) {
+        std::cout << "== If build is dense and probe is in build's domain, just reference probe ==" << std::endl;
 		result.Reference(input);
 	} else {
+        std::cout << "== otherwise, filter it out the values that do not match ==" << std::endl;
 		// otherwise, filter it out the values that do not match
 		result.Slice(input, state.probe_sel_vec, probe_sel_count, 0);
 	}
+
 	// on the build side, we need to fetch the data and build dictionary vectors with the sel_vec
+    std::cout << "ht.build_types.size(); " << ht.build_types.size() << std::endl;
 	for (idx_t i = 0; i < ht.build_types.size(); i++) {
 		auto &result_vector = result.data[input.ColumnCount() + i];
 		D_ASSERT(result_vector.GetType() == ht.build_types[i]);
@@ -181,6 +197,9 @@ OperatorResultType PerfectHashJoinExecutor::ProbePerfectHashTable(ExecutionConte
 		result_vector.Reference(build_vec);
 		result_vector.Slice(state.build_sel_vec, probe_sel_count);
 	}
+    std::cout << "=== T ===" << std::endl;
+    result.Print();
+
 	return OperatorResultType::NEED_MORE_INPUT;
 }
 
@@ -221,6 +240,7 @@ template <typename T>
 void PerfectHashJoinExecutor::TemplatedFillSelectionVectorProbe(Vector &source, SelectionVector &build_sel_vec,
                                                                 SelectionVector &probe_sel_vec, idx_t count,
                                                                 idx_t &probe_sel_count) {
+    std::cout << "[PerfectHashJoinExecutor::TemplatedFillSelectionVectorProbe]" << std::endl;
 	auto min_value = perfect_join_statistics.build_min.GetValueUnsafe<T>();
 	auto max_value = perfect_join_statistics.build_max.GetValueUnsafe<T>();
 
