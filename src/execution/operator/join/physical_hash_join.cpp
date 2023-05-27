@@ -539,6 +539,9 @@ OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, 
 	D_ASSERT(sink.finalized);
 	D_ASSERT(!sink.scanned_data);
 
+    std::cout << "Input in [PhysicalHashJoin::ExecuteInternal]" << std::endl;
+    input.Print();
+
 	// some initialization for external hash join
 	if (sink.external && !state.initialized) {
 		if (!sink.probe_spill) {
@@ -551,11 +554,6 @@ OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, 
 	if (sink.hash_table->Count() == 0 && EmptyResultIfRHSIsEmpty()) {
 		return OperatorResultType::FINISHED;
 	}
-
-    std::cout << "=== INPUT ===" << std::endl;
-    input.Print();
-    std::cout << "=== RESULT ===" << std::endl;
-    chunk.Print();
 
 	if (sink.perfect_join_executor) {
 		D_ASSERT(!sink.external);
@@ -934,6 +932,7 @@ void HashJoinLocalSourceState::ScanFullOuter(HashJoinGlobalSinkState &sink, Hash
 
 void PhysicalHashJoin::GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                LocalSourceState &lstate_p) const {
+    std::cout << "[PhysicalHashJoin::GetData]" << std::endl;
 	auto &sink = (HashJoinGlobalSinkState &)*sink_state;
 	auto &gstate = (HashJoinGlobalSourceState &)gstate_p;
 	auto &lstate = (HashJoinLocalSourceState &)lstate_p;

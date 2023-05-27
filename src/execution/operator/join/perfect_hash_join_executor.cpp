@@ -158,11 +158,6 @@ OperatorResultType PerfectHashJoinExecutor::ProbePerfectHashTable(ExecutionConte
 	// keeps track of how many probe keys have a match
 	idx_t probe_sel_count = 0;
 
-    std::cout << "=== INPUT ===" << std::endl;
-    input.Print();
-    std::cout << "=== RESUKT ===" << std::endl;
-    result.Print();
-
 	// fetch the join keys from the chunk
 	state.join_keys.Reset();
 	state.probe_executor.Execute(input, state.join_keys);
@@ -172,11 +167,6 @@ OperatorResultType PerfectHashJoinExecutor::ProbePerfectHashTable(ExecutionConte
 	std::cout << "keys_count: " << keys_count << std::endl;
     // todo: add check for fast pass when probe is part of build domain
 	FillSelectionVectorSwitchProbe(keys_vec, state.build_sel_vec, state.probe_sel_vec, keys_count, probe_sel_count);
-
-    std::cout << "=== INPUT ===" << std::endl;
-    input.Print();
-    std::cout << "=== RESUKT ===" << std::endl;
-    result.Print();
 
 	// If build is dense and probe is in build's domain, just reference probe
 	if (perfect_join_statistics.is_build_dense && keys_count == probe_sel_count) {
@@ -189,15 +179,16 @@ OperatorResultType PerfectHashJoinExecutor::ProbePerfectHashTable(ExecutionConte
 	}
 
 	// on the build side, we need to fetch the data and build dictionary vectors with the sel_vec
-    std::cout << "ht.build_types.size(); " << ht.build_types.size() << std::endl;
+    std::cout << "ht.build_types.size(): " << ht.build_types.size() << std::endl;
 	for (idx_t i = 0; i < ht.build_types.size(); i++) {
 		auto &result_vector = result.data[input.ColumnCount() + i];
 		D_ASSERT(result_vector.GetType() == ht.build_types[i]);
 		auto &build_vec = perfect_hash_table[i];
+        build_vec.GetValue(1).Print();
 		result_vector.Reference(build_vec);
 		result_vector.Slice(state.build_sel_vec, probe_sel_count);
 	}
-    std::cout << "=== T ===" << std::endl;
+    std::cout << "=== RESULT ===" << std::endl;
     result.Print();
 
 	return OperatorResultType::NEED_MORE_INPUT;
