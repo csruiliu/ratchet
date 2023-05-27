@@ -11,6 +11,8 @@
 #include "duckdb/parallel/thread_context.hpp"
 #include "duckdb/storage/buffer_manager.hpp"
 
+#include <iostream>
+
 namespace duckdb {
 
 string PhysicalOperator::GetName() const {

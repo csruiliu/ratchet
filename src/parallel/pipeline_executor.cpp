@@ -181,6 +181,10 @@ void PipelineExecutor::ExecutePull(DataChunk &result) {
 	try {
 		D_ASSERT(!pipeline.sink);
 		auto &source_chunk = pipeline.operators.empty() ? result : *intermediate_chunks[0];
+        if (pipeline.GetPipelineId() == 1) {
+            std::cout << "Source Chunk" << std::endl;
+            source_chunk.Print();
+        }
 		while (result.size() == 0) {
 			if (in_process_operators.empty()) {
 				source_chunk.Reset();
@@ -237,6 +241,8 @@ void PipelineExecutor::GoToSource(idx_t &current_idx, idx_t initial_idx) {
 
 OperatorResultType PipelineExecutor::Execute(DataChunk &input, DataChunk &result, idx_t initial_idx) {
     std::cout << "[PipelineExecutor::Execute]" << std::endl;
+    std::cout << "Input in [PipelineExecutor::Execute]" << std::endl;
+    input.Print();
 	if (input.size() == 0) { // LCOV_EXCL_START
 		return OperatorResultType::NEED_MORE_INPUT;
 	} // LCOV_EXCL_STOP
@@ -315,12 +321,21 @@ OperatorResultType PipelineExecutor::Execute(DataChunk &input, DataChunk &result
 }
 
 void PipelineExecutor::FetchFromSource(DataChunk &result) {
-	StartOperator(pipeline.source);
+	std::cout << "[PipelineExecutor::FetchFromSource]" << std::endl;
+    if (pipeline.GetPipelineId() == 1) {
+        std::cout << "Result in [PipelineExecutor::FetchFromSource] for " << pipeline.GetPipelineId() << std::endl;
+        result.Print();
+    }
+    StartOperator(pipeline.source);
 	pipeline.source->GetData(context, result, *pipeline.source_state, *local_source_state);
+    if (pipeline.GetPipelineId() == 1) {
+        std::cout << "Result in [PipelineExecutor::FetchFromSource] for " << pipeline.GetPipelineId() << std::endl;
+        result.Print();
+    }
 	if (result.size() != 0 && requires_batch_index) {
 		auto next_batch_index =
 		    pipeline.source->GetBatchIndex(context, result, *pipeline.source_state, *local_source_state);
-		next_batch_index += pipeline.base_batch_index;
+        next_batch_index += pipeline.base_batch_index;
 		D_ASSERT(local_sink_state->batch_index <= next_batch_index ||
 		         local_sink_state->batch_index == DConstants::INVALID_INDEX);
 		local_sink_state->batch_index = next_batch_index;
