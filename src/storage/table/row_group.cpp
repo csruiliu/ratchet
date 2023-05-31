@@ -322,6 +322,7 @@ bool RowGroup::CheckZonemapSegments(RowGroupScanState &state) {
 
 template <TableScanType TYPE>
 void RowGroup::TemplatedScan(TransactionData transaction, RowGroupScanState &state, DataChunk &result) {
+    std::cout << "[RowGroup::TemplatedScan]" << std::endl;
 	const bool ALLOW_UPDATES = TYPE != TableScanType::TABLE_SCAN_COMMITTED_ROWS_DISALLOW_UPDATES &&
 	                           TYPE != TableScanType::TABLE_SCAN_COMMITTED_ROWS_OMIT_PERMANENTLY_DELETED;
 	auto table_filters = state.GetFilters();
@@ -343,6 +344,7 @@ void RowGroup::TemplatedScan(TransactionData transaction, RowGroupScanState &sta
 		idx_t count;
 		SelectionVector valid_sel(STANDARD_VECTOR_SIZE);
 		if (TYPE == TableScanType::TABLE_SCAN_REGULAR) {
+			std::cout << "TableScanType::TABLE_SCAN_REGULAR" << std::endl;
 			count = state.row_group->GetSelVector(transaction, state.vector_index, valid_sel, max_count);
 			if (count == 0) {
 				// nothing to scan for this vector, skip the entire vector
@@ -350,6 +352,7 @@ void RowGroup::TemplatedScan(TransactionData transaction, RowGroupScanState &sta
 				continue;
 			}
 		} else if (TYPE == TableScanType::TABLE_SCAN_COMMITTED_ROWS_OMIT_PERMANENTLY_DELETED) {
+			std::cout << "TableScanType::TABLE_SCAN_COMMITTED_ROWS_OMIT_PERMANENTLY_DELETED" << std::endl;
 			count = state.row_group->GetCommittedSelVector(transaction.start_time, transaction.transaction_id,
 			                                               state.vector_index, valid_sel, max_count);
 			if (count == 0) {
@@ -361,6 +364,7 @@ void RowGroup::TemplatedScan(TransactionData transaction, RowGroupScanState &sta
 			count = max_count;
 		}
 		if (count == max_count && !table_filters) {
+			std::cout << "Scan All Vectors" << std::endl;
 			// scan all vectors completely: full scan without deletions or table filters
 			for (idx_t i = 0; i < column_ids.size(); i++) {
 				auto column = column_ids[i];
@@ -378,6 +382,7 @@ void RowGroup::TemplatedScan(TransactionData transaction, RowGroupScanState &sta
 				}
 			}
 		} else {
+			std::cout << "Partial Scan Vectors" << std::endl;
 			// partial scan: we have deletions or table filters
 			idx_t approved_tuple_count = count;
 			SelectionVector sel;

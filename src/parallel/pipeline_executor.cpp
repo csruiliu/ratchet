@@ -323,13 +323,13 @@ OperatorResultType PipelineExecutor::Execute(DataChunk &input, DataChunk &result
 void PipelineExecutor::FetchFromSource(DataChunk &result) {
 	std::cout << "[PipelineExecutor::FetchFromSource]" << std::endl;
     if (pipeline.GetPipelineId() == 1) {
-        std::cout << "Result in [PipelineExecutor::FetchFromSource] for " << pipeline.GetPipelineId() << std::endl;
+        std::cout << "Result in [PipelineExecutor::FetchFromSource] for pl" << pipeline.GetPipelineId() << std::endl;
         result.Print();
     }
     StartOperator(pipeline.source);
 	pipeline.source->GetData(context, result, *pipeline.source_state, *local_source_state);
     if (pipeline.GetPipelineId() == 1) {
-        std::cout << "Result in [PipelineExecutor::FetchFromSource] for " << pipeline.GetPipelineId() << std::endl;
+        std::cout << "Result in [PipelineExecutor::FetchFromSource] for pl " << pipeline.GetPipelineId() << std::endl;
         result.Print();
     }
 	if (result.size() != 0 && requires_batch_index) {
