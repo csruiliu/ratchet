@@ -136,7 +136,7 @@ static void TableScanFunc(ClientContext &context, TableFunctionInput &data_p, Da
             std::cout << "storage.Scan()" << std::endl;
 			storage.Scan(transaction, output, state.scan_state);
 		}
-        std::cout << "output in [TableScanFunc]" << std::endl;
+        std::cout << "output in [TableScanFunc] in the loop" << std::endl;
         output.Print();
 		if (output.size() > 0) {
 			gstate.row_count += output.size();

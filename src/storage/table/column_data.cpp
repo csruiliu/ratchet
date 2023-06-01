@@ -93,6 +93,7 @@ void ColumnData::InitializeScanWithOffset(ColumnScanState &state, idx_t row_idx)
 }
 
 idx_t ColumnData::ScanVector(ColumnScanState &state, Vector &result, idx_t remaining) {
+    std::cout << "[ColumnData::ScanVector]" << std::endl;
 	state.previous_states.clear();
 	if (state.version != version) {
 		InitializeScanWithOffset(state, state.row_index);

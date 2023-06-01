@@ -14,15 +14,20 @@ PipelineExecutor::PipelineExecutor(ClientContext &context_p, Pipeline &pipeline_
 		local_sink_state = pipeline.sink->GetLocalSinkState(context);
 		requires_batch_index = pipeline.sink->RequiresBatchIndex() && pipeline.source->SupportsBatchIndex();
 	}
-
 	intermediate_chunks.reserve(pipeline.operators.size());
 	intermediate_states.reserve(pipeline.operators.size());
+    for (auto optr : pipeline.operators) {
+        std::cout << "Current Operator in pipeline " << pipeline_p.GetPipelineId() << std::endl;
+        optr->Print();
+    }
 	for (idx_t i = 0; i < pipeline.operators.size(); i++) {
 		auto prev_operator = i == 0 ? pipeline.source : pipeline.operators[i - 1];
 		auto current_operator = pipeline.operators[i];
 
 		auto chunk = make_unique<DataChunk>();
 		chunk->Initialize(Allocator::Get(context.client), prev_operator->GetTypes());
+        std::cout << "Chunk After Initialization" << std::endl;
+        chunk->Print();
 		intermediate_chunks.push_back(std::move(chunk));
 
 		auto op_state = current_operator->GetOperatorState(context);
@@ -180,7 +185,12 @@ void PipelineExecutor::ExecutePull(DataChunk &result) {
 	auto &executor = pipeline.executor;
 	try {
 		D_ASSERT(!pipeline.sink);
-		auto &source_chunk = pipeline.operators.empty() ? result : *intermediate_chunks[0];
+		if (pipeline.operators.empty()) {
+            std::cout << "pipeline.operators.empty() is empty" << std::endl;
+        } else {
+            std::cout << "pipeline.operators.empty() is not empty" << std::endl;
+        }
+        auto &source_chunk = pipeline.operators.empty() ? result : *intermediate_chunks[0];
         if (pipeline.GetPipelineId() == 1) {
             std::cout << "Source Chunk" << std::endl;
             source_chunk.Print();

@@ -237,8 +237,12 @@ bool DataTable::NextParallelScan(ClientContext &context, ParallelTableScanState 
 
 void DataTable::Scan(DuckTransaction &transaction, DataChunk &result, TableScanState &state) {
 	// scan the persistent segments
+    std::cout << "== DataTable::Scan Result ==" << std::endl;
+    result.Print();
 	if (state.table_state.Scan(transaction, result)) {
 		std::cout << "state.table_state.Scan()" << std::endl;
+        std::cout << "== state.table_state.Scan(): Result ==" << std::endl;
+        result.Print();
 		D_ASSERT(result.size() > 0);
 		return;
 	}
