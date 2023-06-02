@@ -75,14 +75,12 @@ unique_ptr<GlobalSourceState> PhysicalTableScan::GetGlobalSourceState(ClientCont
 
 void PhysicalTableScan::GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                 LocalSourceState &lstate) const {
-	std::cout << "[PhysicalTableScan::GetData]" << std::endl;
     D_ASSERT(!column_ids.empty());
 	auto &gstate = (TableScanGlobalSourceState &)gstate_p;
 	auto &state = (TableScanLocalSourceState &)lstate;
 
 	TableFunctionInput data(bind_data.get(), state.local_state.get(), gstate.global_state.get());
 	function.function(context.client, data, chunk);
-    std::cout << "=== function.name: " << function.name << std::endl;
 }
 
 double PhysicalTableScan::GetProgress(ClientContext &context, GlobalSourceState &gstate_p) const {

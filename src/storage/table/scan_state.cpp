@@ -85,8 +85,6 @@ AdaptiveFilter *CollectionScanState::GetAdaptiveFilter() {
 }
 
 bool CollectionScanState::Scan(DuckTransaction &transaction, DataChunk &result) {
-    std::cout << "[CollectionScanState::Scan] Result" << std::endl;
-    result.Print();
 	auto current_row_group = row_group_state.row_group;
 	while (current_row_group) {
 		current_row_group->Scan(transaction, row_group_state, result);

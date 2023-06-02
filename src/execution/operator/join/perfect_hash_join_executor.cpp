@@ -18,6 +18,7 @@ bool PerfectHashJoinExecutor::CanDoPerfectHashJoin() {
 // Build
 //===--------------------------------------------------------------------===//
 bool PerfectHashJoinExecutor::BuildPerfectHashTable(LogicalType &key_type) {
+    std::cout << "[PerfectHashJoinExecutor::BuildPerfectHashTable]" << std::endl;
 	// First, allocate memory for each build column
 	auto build_size = perfect_join_statistics.build_range + 1;
 	for (const auto &type : ht.build_types) {
@@ -179,17 +180,13 @@ OperatorResultType PerfectHashJoinExecutor::ProbePerfectHashTable(ExecutionConte
 	}
 
 	// on the build side, we need to fetch the data and build dictionary vectors with the sel_vec
-    std::cout << "ht.build_types.size(): " << ht.build_types.size() << std::endl;
 	for (idx_t i = 0; i < ht.build_types.size(); i++) {
 		auto &result_vector = result.data[input.ColumnCount() + i];
 		D_ASSERT(result_vector.GetType() == ht.build_types[i]);
 		auto &build_vec = perfect_hash_table[i];
-        build_vec.GetValue(1).Print();
 		result_vector.Reference(build_vec);
 		result_vector.Slice(state.build_sel_vec, probe_sel_count);
 	}
-    std::cout << "=== RESULT ===" << std::endl;
-    result.Print();
 
 	return OperatorResultType::NEED_MORE_INPUT;
 }
@@ -276,6 +273,27 @@ void PerfectHashJoinExecutor::TemplatedFillSelectionVectorProbe(Vector &source, 
 			}
 		}
 	}
+}
+
+//===--------------------------------------------------------------------===//
+// Serialization
+//===--------------------------------------------------------------------===//
+void PerfectHashJoinExecutor::SerializePerfectHashTable() {
+    std::cout << "== Serialize PerfectHashTable" << std::endl;
+    json jsonfile;
+
+    for (idx_t i = 0; i < ht.build_types.size(); i++) {
+        auto &build_vec = perfect_hash_table[i];
+        for (idx_t j = 0; j < 25; j++) {
+
+            std::cout << build_vec.GetValue(j).ToString() << std::endl;
+        }
+    }
+
+    // jsonfile["finalized_sinks"] = global_finalized_sinks;
+    // jsonfile["finalized_pipeline"] = global_finalized_pipelines;
+    // std::ofstream file("/home/ruiliu/Develop/ratchet-duckdb/ratchet/test-td" + std::to_string(global_threads) + ".json");
+    // file << jsonfile;
 }
 
 } // namespace duckdb
