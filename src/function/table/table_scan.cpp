@@ -114,30 +114,22 @@ static unique_ptr<BaseStatistics> TableScanStatistics(ClientContext &context, co
 }
 
 static void TableScanFunc(ClientContext &context, TableFunctionInput &data_p, DataChunk &output) {
-    std::cout << "[TableScanFunc]" << std::endl;
 	auto &bind_data = (TableScanBindData &)*data_p.bind_data;
 	auto &gstate = (TableScanGlobalState &)*data_p.global_state;
 	auto &state = (TableScanLocalState &)*data_p.local_state;
 	auto &transaction = DuckTransaction::Get(context, *bind_data.table->catalog);
 	auto &storage = bind_data.table->GetStorage();
-    std::cout << "output in [TableScanFunc]" << std::endl;
-    output.Print();
 	do {
 		if (bind_data.is_create_index) {
-            std::cout << "storage.CreateIndexScan()" << std::endl;
 			storage.CreateIndexScan(state.scan_state, output,
 			                        TableScanType::TABLE_SCAN_COMMITTED_ROWS_OMIT_PERMANENTLY_DELETED);
 		} else if (gstate.CanRemoveFilterColumns()) {
-            std::cout << "gstate.CanRemoveFilterColumns()" << std::endl;
 			state.all_columns.Reset();
 			storage.Scan(transaction, state.all_columns, state.scan_state);
 			output.ReferenceColumns(state.all_columns, gstate.projection_ids);
 		} else {
-            std::cout << "storage.Scan()" << std::endl;
 			storage.Scan(transaction, output, state.scan_state);
 		}
-        std::cout << "output in [TableScanFunc] in the loop" << std::endl;
-        output.Print();
 		if (output.size() > 0) {
 			gstate.row_count += output.size();
 			return;

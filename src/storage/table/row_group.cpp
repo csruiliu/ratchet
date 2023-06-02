@@ -322,9 +322,6 @@ bool RowGroup::CheckZonemapSegments(RowGroupScanState &state) {
 
 template <TableScanType TYPE>
 void RowGroup::TemplatedScan(TransactionData transaction, RowGroupScanState &state, DataChunk &result) {
-    std::cout << "[RowGroup::TemplatedScan]" << std::endl;
-    std::cout << "[RowGroup::TemplatedScan] Result" << std::endl;
-    result.Print();
 	const bool ALLOW_UPDATES = TYPE != TableScanType::TABLE_SCAN_COMMITTED_ROWS_DISALLOW_UPDATES &&
 	                           TYPE != TableScanType::TABLE_SCAN_COMMITTED_ROWS_OMIT_PERMANENTLY_DELETED;
 	auto table_filters = state.GetFilters();
@@ -346,7 +343,6 @@ void RowGroup::TemplatedScan(TransactionData transaction, RowGroupScanState &sta
 		idx_t count;
 		SelectionVector valid_sel(STANDARD_VECTOR_SIZE);
 		if (TYPE == TableScanType::TABLE_SCAN_REGULAR) {
-			std::cout << "TableScanType::TABLE_SCAN_REGULAR" << std::endl;
 			count = state.row_group->GetSelVector(transaction, state.vector_index, valid_sel, max_count);
 			if (count == 0) {
 				// nothing to scan for this vector, skip the entire vector
@@ -354,7 +350,6 @@ void RowGroup::TemplatedScan(TransactionData transaction, RowGroupScanState &sta
 				continue;
 			}
 		} else if (TYPE == TableScanType::TABLE_SCAN_COMMITTED_ROWS_OMIT_PERMANENTLY_DELETED) {
-			std::cout << "TableScanType::TABLE_SCAN_COMMITTED_ROWS_OMIT_PERMANENTLY_DELETED" << std::endl;
 			count = state.row_group->GetCommittedSelVector(transaction.start_time, transaction.transaction_id,
 			                                               state.vector_index, valid_sel, max_count);
 			if (count == 0) {
@@ -366,11 +361,9 @@ void RowGroup::TemplatedScan(TransactionData transaction, RowGroupScanState &sta
 			count = max_count;
 		}
 		if (count == max_count && !table_filters) {
-			std::cout << "Scan All Vectors" << std::endl;
 			// scan all vectors completely: full scan without deletions or table filters
 			for (idx_t i = 0; i < column_ids.size(); i++) {
 				auto column = column_ids[i];
-                std::cout << "= to_string(column): " << to_string(column) << std::endl;
 				if (column == COLUMN_IDENTIFIER_ROW_ID) {
 					// scan row id
 					D_ASSERT(result.data[i].GetType().InternalType() == ROW_TYPE);
@@ -384,10 +377,7 @@ void RowGroup::TemplatedScan(TransactionData transaction, RowGroupScanState &sta
 					}
 				}
 			}
-            std::cout << "Results after Scan All Vectors 1" << std::endl;
-            result.Print();
 		} else {
-			std::cout << "Partial Scan Vectors" << std::endl;
 			// partial scan: we have deletions or table filters
 			idx_t approved_tuple_count = count;
 			SelectionVector sel;
@@ -460,12 +450,8 @@ void RowGroup::TemplatedScan(TransactionData transaction, RowGroupScanState &sta
 			D_ASSERT(approved_tuple_count > 0);
 			count = approved_tuple_count;
 		}
-        std::cout << "Results after Scan All Vectors 2" << std::endl;
-        result.Print();
 		result.SetCardinality(count);
 		state.vector_index++;
-        std::cout << "Results after Scan All Vectors 3" << std::endl;
-        result.Print();
         break;
 	}
 }

@@ -16,18 +16,12 @@ PipelineExecutor::PipelineExecutor(ClientContext &context_p, Pipeline &pipeline_
 	}
 	intermediate_chunks.reserve(pipeline.operators.size());
 	intermediate_states.reserve(pipeline.operators.size());
-    for (auto optr : pipeline.operators) {
-        std::cout << "Current Operator in pipeline " << pipeline_p.GetPipelineId() << std::endl;
-        optr->Print();
-    }
 	for (idx_t i = 0; i < pipeline.operators.size(); i++) {
 		auto prev_operator = i == 0 ? pipeline.source : pipeline.operators[i - 1];
 		auto current_operator = pipeline.operators[i];
 
 		auto chunk = make_unique<DataChunk>();
 		chunk->Initialize(Allocator::Get(context.client), prev_operator->GetTypes());
-        std::cout << "Chunk After Initialization" << std::endl;
-        chunk->Print();
 		intermediate_chunks.push_back(std::move(chunk));
 
 		auto op_state = current_operator->GetOperatorState(context);
@@ -178,23 +172,13 @@ void PipelineExecutor::PushFinalize() {
 }
 
 void PipelineExecutor::ExecutePull(DataChunk &result) {
-    std::cout << "[PipelineExecutor::ExecutePull]" << std::endl;
 	if (IsFinished()) {
 		return;
 	}
 	auto &executor = pipeline.executor;
 	try {
 		D_ASSERT(!pipeline.sink);
-		if (pipeline.operators.empty()) {
-            std::cout << "pipeline.operators.empty() is empty" << std::endl;
-        } else {
-            std::cout << "pipeline.operators.empty() is not empty" << std::endl;
-        }
         auto &source_chunk = pipeline.operators.empty() ? result : *intermediate_chunks[0];
-        if (pipeline.GetPipelineId() == 1) {
-            std::cout << "Source Chunk" << std::endl;
-            source_chunk.Print();
-        }
 		while (result.size() == 0) {
 			if (in_process_operators.empty()) {
 				source_chunk.Reset();
@@ -331,17 +315,8 @@ OperatorResultType PipelineExecutor::Execute(DataChunk &input, DataChunk &result
 }
 
 void PipelineExecutor::FetchFromSource(DataChunk &result) {
-	std::cout << "[PipelineExecutor::FetchFromSource]" << std::endl;
-    if (pipeline.GetPipelineId() == 1) {
-        std::cout << "Result in [PipelineExecutor::FetchFromSource] for pl" << pipeline.GetPipelineId() << std::endl;
-        result.Print();
-    }
     StartOperator(pipeline.source);
 	pipeline.source->GetData(context, result, *pipeline.source_state, *local_source_state);
-    if (pipeline.GetPipelineId() == 1) {
-        std::cout << "Result in [PipelineExecutor::FetchFromSource] for pl " << pipeline.GetPipelineId() << std::endl;
-        result.Print();
-    }
 	if (result.size() != 0 && requires_batch_index) {
 		auto next_batch_index =
 		    pipeline.source->GetBatchIndex(context, result, *pipeline.source_state, *local_source_state);
