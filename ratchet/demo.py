@@ -10,31 +10,53 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-q", "--query_name", type=str, action="store", required=True,
                         help="indicate the query id")
-    parser.add_argument("-d", "--data_folder", type=str, action="store", required=True,
+    parser.add_argument("-d", "--database", type=str, action="store", required=True, default="memory",
+                        help="indicate the database location, memory or other location")
+    parser.add_argument("-df", "--data_folder", type=str, action="store", required=True,
                         help="indicate the data source folder for conversion such as <tpch/dataset/parquet/sf1>")
+    parser.add_argument("-ut", "--update_table", action="store_true",
+                        help="force to update table in database")
     parser.add_argument("-td", "--thread", type=int, action="store", default=1,
                         help="indicate the number of threads in DuckDB")
+
+    parser.add_argument("-s", "--suspend_query", action="store_true", default=False,
+                        help="whether it is a suspend query")
     parser.add_argument("-st", "--suspend_start_time", type=float, action="store",
                         help="indicate start time for suspension (second)")
     parser.add_argument("-se", "--suspend_end_time", type=float, action="store",
                         help="indicate end time for suspension (second)")
-    parser.add_argument("-u", "--update_table", action="store_true",
-                        help="force to update table in database")
-    parser.add_argument("-r", "--resume_query", action="store_true",
+    parser.add_argument("-sf", "--suspend_file", type=str, action="store",
+                        help="indicate the file for suspending query")
+
+    parser.add_argument("-r", "--resume_query", action="store_true", default=False,
                         help="whether it is a resumed query")
+    parser.add_argument("-rf", "--resume_file", type=str, action="store",
+                        help="indicate the file for resuming query")
+
     args = parser.parse_args()
 
     qid = args.query_name
+    database = args.database
     data_folder = args.data_folder
     thread = args.thread
-    suspend_start_time = args.suspend_start_time
-    suspend_end_time = args.suspend_end_time
-    update_table = args.update_table
+    suspend_query = args.suspend_query
     resume_query = args.resume_query
+    update_table = args.update_table
+
+    if suspend_query:
+        suspend_start_time = args.suspend_start_time
+        suspend_end_time = args.suspend_end_time
+        suspend_file = args.suspend_file
+
+    if resume_query:
+        resume_file = args.resume_file
 
     # open and connect a database
-    # db_conn = duckdb.connect(database=':memory:')
-    db_conn = duckdb.connect(database='demo.db')
+    if database == "memory":
+        db_conn = duckdb.connect(database=':memory:')
+    else:
+        db_conn = duckdb.connect(database=database)
+
     db_conn.execute(f"PRAGMA threads={thread}")
 
     tpch_table_names = ["part", "supplier", "partsupp", "customer", "orders", "lineitem", "nation", "region"]
@@ -119,13 +141,12 @@ def main():
     else:
         raise ValueError("Query is not supported in demo")
 
-    if resume_query:
-        results = db_conn.execute_resume(exec_query, "demo.ratchet").fetchdf()
+    if suspend_query:
+        results = db_conn.execute_suspend(exec_query, suspend_file, suspend_start_time, suspend_end_time).fetchdf()
+    elif resume_query:
+        results = db_conn.execute_resume(exec_query, resume_file).fetchdf()
     else:
-        if suspend_start_time is not None and suspend_end_time is not None:
-            results = db_conn.execute_suspend(exec_query, "demo.ratchet", suspend_start_time, suspend_end_time).fetchdf()
-        else:
-            results = db_conn.execute(exec_query).fetchdf()
+        results = db_conn.execute(exec_query).fetchdf()
 
     print(results)
     db_conn.close()
