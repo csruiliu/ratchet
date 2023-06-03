@@ -384,52 +384,54 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                                             GlobalSinkState &gstate) const {
     std::cout << "[PhysicalHashJoin::Finalize]" << std::endl;
 	auto &sink = (HashJoinGlobalSinkState &)gstate;
+    if (global_resume_start) {
+        sink.finalized = true;
+    } else {
+        if (sink.external) {
+            std::cout << "== External Hash ==" << std::endl;
+            D_ASSERT(can_go_external);
+            // External join - partition HT
+            sink.perfect_join_executor.reset();
+            sink.hash_table->ComputePartitionSizes(context.config, sink.local_hash_tables, sink.max_ht_size);
+            auto new_event = make_shared<HashJoinPartitionEvent>(pipeline, sink, sink.local_hash_tables);
+            event.InsertEvent(std::move(new_event));
+            sink.finalized = true;
+            return SinkFinalizeType::READY;
+        } else {
+            std::cout << "== No External Hash ==" << std::endl;
+            for (auto &local_ht : sink.local_hash_tables) {
+                sink.hash_table->Merge(*local_ht);
+            }
+            sink.local_hash_tables.clear();
+        }
 
-	if (sink.external) {
-        std::cout << "== External Hash ==" << std::endl;
-		D_ASSERT(can_go_external);
-		// External join - partition HT
-		sink.perfect_join_executor.reset();
-		sink.hash_table->ComputePartitionSizes(context.config, sink.local_hash_tables, sink.max_ht_size);
-		auto new_event = make_shared<HashJoinPartitionEvent>(pipeline, sink, sink.local_hash_tables);
-		event.InsertEvent(std::move(new_event));
-		sink.finalized = true;
-		return SinkFinalizeType::READY;
-	} else {
-        std::cout << "== No External Hash ==" << std::endl;
-		for (auto &local_ht : sink.local_hash_tables) {
-			sink.hash_table->Merge(*local_ht);
-		}
-		sink.local_hash_tables.clear();
-	}
+        // check for possible perfect hash table
+        auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
+        if (use_perfect_hash) {
+            std::cout << "== Use Perfect Hash ==" << std::endl;
+            D_ASSERT(sink.hash_table->equality_types.size() == 1);
+            auto key_type = sink.hash_table->equality_types[0];
+            use_perfect_hash = sink.perfect_join_executor->BuildPerfectHashTable(key_type);
+        }
+        // In case of a large build side or duplicates, use regular hash join
+        if (!use_perfect_hash) {
+            std::cout << "== No Perfect Hash ==" << std::endl;
+            sink.perfect_join_executor.reset();
+            sink.ScheduleFinalize(pipeline, event);
+        }
+        sink.finalized = true;
+        if (sink.hash_table->Count() == 0 && EmptyResultIfRHSIsEmpty()) {
+            return SinkFinalizeType::NO_OUTPUT_POSSIBLE;
+        }
 
-	// check for possible perfect hash table
-	auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
-	if (use_perfect_hash) {
-        std::cout << "== Use Perfect Hash ==" << std::endl;
-		D_ASSERT(sink.hash_table->equality_types.size() == 1);
-		auto key_type = sink.hash_table->equality_types[0];
-		use_perfect_hash = sink.perfect_join_executor->BuildPerfectHashTable(key_type);
-	}
-	// In case of a large build side or duplicates, use regular hash join
-	if (!use_perfect_hash) {
-        std::cout << "== No Perfect Hash ==" << std::endl;
-		sink.perfect_join_executor.reset();
-		sink.ScheduleFinalize(pipeline, event);
-	}
-	sink.finalized = true;
-	if (sink.hash_table->Count() == 0 && EmptyResultIfRHSIsEmpty()) {
-		return SinkFinalizeType::NO_OUTPUT_POSSIBLE;
-	}
-    // global_finalized_sinks.emplace_back("PhysicalHashJoin");
-    global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
-
-    // Serialize PerfectHashTable to Disk
-    if (use_perfect_hash) {
-        sink.perfect_join_executor->SerializePerfectHashTable();
+        global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
+        std::cout << "sink.hash_table->Count(): " << sink.hash_table->Count() << std::endl;
+        // Serialize PerfectHashTable to Disk
+        if (global_suspend_start && use_perfect_hash) {
+            sink.perfect_join_executor->SerializePerfectHashTable();
+        }
     }
 
-    // sink.SerializeGlobalState();
 	return SinkFinalizeType::READY;
 }
 
@@ -479,10 +481,15 @@ unique_ptr<OperatorState> PhysicalHashJoin::GetOperatorState(ExecutionContext &c
 
 OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, DataChunk &input, DataChunk &chunk,
                                                      GlobalOperatorState &gstate, OperatorState &state_p) const {
+    std::cout << "[PhysicalHashJoin::ExecuteInternal]" << std::endl;
 	auto &state = (HashJoinOperatorState &)state_p;
 	auto &sink = (HashJoinGlobalSinkState &)*sink_state;
 	D_ASSERT(sink.finalized);
 	D_ASSERT(!sink.scanned_data);
+
+    if (global_resume_start && context.pipeline->GetPipelineId() != 3) {
+        sink.hash_table->SetCount(sink.perfect_join_executor->GetBuildSize());
+    }
 
 	// some initialization for external hash join
 	if (sink.external && !state.initialized) {
@@ -493,9 +500,9 @@ OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, 
 		state.initialized = true;
 	}
 
-	if (sink.hash_table->Count() == 0 && EmptyResultIfRHSIsEmpty()) {
-		return OperatorResultType::FINISHED;
-	}
+    if (sink.hash_table->Count() == 0 && EmptyResultIfRHSIsEmpty()) {
+        return OperatorResultType::FINISHED;
+    }
 
 	if (sink.perfect_join_executor) {
 		D_ASSERT(!sink.external);
@@ -512,11 +519,11 @@ OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, 
 		return OperatorResultType::NEED_MORE_INPUT;
 	}
 
-	// probe the HT
-	if (sink.hash_table->Count() == 0) {
-		ConstructEmptyJoinResult(sink.hash_table->join_type, sink.hash_table->has_null, input, chunk);
-		return OperatorResultType::NEED_MORE_INPUT;
-	}
+    // probe the HT
+    if (sink.hash_table->Count() == 0) {
+        ConstructEmptyJoinResult(sink.hash_table->join_type, sink.hash_table->has_null, input, chunk);
+        return OperatorResultType::NEED_MORE_INPUT;
+    }
 
 	// resolve the join keys for the left chunk
 	state.join_keys.Reset();
@@ -530,7 +537,7 @@ OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, 
 		state.scan_structure = sink.hash_table->Probe(state.join_keys);
 	}
 	state.scan_structure->Next(state.join_keys, input, chunk);
-	return OperatorResultType::HAVE_MORE_OUTPUT;
+    return OperatorResultType::HAVE_MORE_OUTPUT;
 }
 
 //===--------------------------------------------------------------------===//

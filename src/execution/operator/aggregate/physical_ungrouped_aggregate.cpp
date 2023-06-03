@@ -526,11 +526,10 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
 
             json jsonfile;
 
-            vector<idx_t> pipeline_ids;
             vector<string> aggregate_values;
 
-            pipeline_ids.push_back(pipeline.GetPipelineId());
-            jsonfile["pipeline_ids"] = pipeline_ids;
+            global_finalized_pipelines.push_back(pipeline.GetPipelineId());
+            jsonfile["pipeline_ids"] = global_finalized_pipelines;
 
             DataChunk chunk;
             chunk.Initialize(Allocator::DefaultAllocator(), this->GetTypes());
