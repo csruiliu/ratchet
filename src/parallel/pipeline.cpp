@@ -45,10 +45,13 @@ public:
             std::ifstream f("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_resume_file);
             json json_data = json::parse(f);
             vector<idx_t> pipeline_ids = json_data.at("pipeline_ids");
+            for (auto pl_id : pipeline_ids) {
+                global_finalized_pipelines.push_back(pl_id);
+            }
 
-            idx_t current_pipeline_id = pipeline.GetPipelineId();
-            auto it = std::find(pipeline_ids.begin(), pipeline_ids.end(), current_pipeline_id);
-            if (it != pipeline_ids.end()) {
+            idx_t current_id = pipeline.GetPipelineId();
+            auto it = std::find(global_finalized_pipelines.begin(),global_finalized_pipelines.end(),current_id);
+            if (it != global_finalized_pipelines.end()) {
                 event->FinishTask();
                 pipeline_executor.reset();
                 return TaskExecutionResult::TASK_FINISHED;

@@ -156,6 +156,10 @@ public:
 		return block_collection->count;
 	}
 
+	void SetCount(idx_t count) const {
+		block_collection->count = count;
+	}
+
 	const RowDataCollection &GetBlockCollection() const {
 		return *block_collection;
 	}
