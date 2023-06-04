@@ -354,8 +354,8 @@ void Executor::InitializeInternal(PhysicalOperator *plan) {
 		// finally, verify and schedule
 		VerifyPipelines();
         AssignPipelineIds();
-        PrintPipelines();
-        PrintRootPipelines();
+        // PrintPipelines();
+        // PrintRootPipelines();
 		ScheduleEvents(to_schedule);
 	}
 }

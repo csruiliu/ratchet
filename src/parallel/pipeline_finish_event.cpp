@@ -10,7 +10,6 @@ void PipelineFinishEvent::Schedule() {
 }
 
 void PipelineFinishEvent::FinishEvent() {
-    std::cout << "[PipelineFinishEvent::FinishEvent]" << std::endl;
 	pipeline->Finalize(*this);
 }
 

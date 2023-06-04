@@ -234,9 +234,7 @@ void PipelineExecutor::GoToSource(idx_t &current_idx, idx_t initial_idx) {
 }
 
 OperatorResultType PipelineExecutor::Execute(DataChunk &input, DataChunk &result, idx_t initial_idx) {
-    std::cout << "[PipelineExecutor::Execute]" << std::endl;
-    std::cout << "Input in [PipelineExecutor::Execute]" << std::endl;
-    input.Print();
+    std::cout << "[PipelineExecutor::Execute] for pipeline " << pipeline.GetPipelineId() << std::endl;
 	if (input.size() == 0) { // LCOV_EXCL_START
 		return OperatorResultType::NEED_MORE_INPUT;
 	} // LCOV_EXCL_STOP

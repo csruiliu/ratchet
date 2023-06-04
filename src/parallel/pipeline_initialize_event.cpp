@@ -19,8 +19,7 @@ public:
 
 public:
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-        std::cout << "[PipelineInitializeTask] ExecuteTask for " << std::endl;
-        pipeline.Print();
+        std::cout << "[PipelineInitializeTask] ExecuteTask for pipeline " << pipeline.GetPipelineId() << std::endl;
 		pipeline.ResetSink();
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
