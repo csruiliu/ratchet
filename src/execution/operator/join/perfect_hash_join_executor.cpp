@@ -276,28 +276,31 @@ void PerfectHashJoinExecutor::TemplatedFillSelectionVectorProbe(Vector &source, 
 //===--------------------------------------------------------------------===//
 void PerfectHashJoinExecutor::SerializePerfectHashTable() {
     std::cout << "== Serialize PerfectHashTable" << std::endl;
+
     json json_data;
 
-    json_data["pipeline_ids"] = global_finalized_pipelines;
-
     auto build_size = perfect_join_statistics.build_range + 1;
-
     for (idx_t i = 0; i < ht.build_types.size(); i++) {
         if (ht.build_types[i] == LogicalType::VARCHAR) {
             vector<string> str_vector;
+            vector<idx_t> key_vector;
             auto &build_vec = perfect_hash_table[i];
             for (idx_t j = 0; j < build_size; j++) {
                 str_vector.push_back(build_vec.GetValue(j).ToString());
+                key_vector.push_back(j);
             }
-            json_data["build_vector_" + to_string(i)] = str_vector;
+            json_data["build_chunk_" + to_string(i)]["type"] = LogicalType::VARCHAR;
+            json_data["build_chunk_" + to_string(i)]["data"] = str_vector;
+            json_data["join_key_" + to_string(i)]["type"] = LogicalType::INTEGER;
+            json_data["join_key_" + to_string(i)]["data"] = key_vector;
         }
     }
 
+    json_data["pipeline_ids"] = global_finalized_pipelines;
     json_data["build_size"] = build_size;
 
     std::ofstream outputFile("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_suspend_file);
     outputFile << json_data;
-
     outputFile.close();
     if (outputFile.fail()) {
         std::cerr << "Error writing to file!" << std::endl;

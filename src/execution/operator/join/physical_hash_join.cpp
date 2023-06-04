@@ -199,14 +199,10 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
 	// resolve the join keys for the right chunk
 	lstate.join_keys.Reset();
 	lstate.build_executor.Execute(input, lstate.join_keys);
-    std::cout << "lstate before" << std::endl;
-    lstate.build_chunk.Print();
-    lstate.join_keys.Print();
 
 	// build the HT
 	auto &ht = *lstate.hash_table;
 	if (!right_projection_map.empty()) {
-        std::cout << "!right_projection_map.empty()" << std::endl;
 		// there is a projection map: fill the build chunk with the projected columns
 		lstate.build_chunk.Reset();
 		lstate.build_chunk.SetCardinality(input);
@@ -215,19 +211,13 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
 		}
 		ht.Build(lstate.join_keys, lstate.build_chunk);
 	} else if (!build_types.empty()) {
-        std::cout << "!build_types.empty()" << std::endl;
 		// there is not a projected map: place the entire right chunk in the HT
 		ht.Build(lstate.join_keys, input);
 	} else {
-        std::cout << "else" << std::endl;
 		// there are only keys: place an empty chunk in the payload
 		lstate.build_chunk.SetCardinality(input.size());
 		ht.Build(lstate.join_keys, lstate.build_chunk);
 	}
-
-    std::cout << "lstate.build_chunk after" << std::endl;
-    lstate.build_chunk.Print();
-    lstate.join_keys.Print();
 
 	// swizzle if we reach memory limit
 	auto approx_ptr_table_size = ht.Count() * 3 * sizeof(data_ptr_t);
@@ -404,28 +394,33 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
             std::ifstream f("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_resume_file);
             json json_data = json::parse(f);
 
+            // idx_t build_size = build_vector_str.size();
+            auto build_size = (idx_t)json_data["build_size"];
+
             unique_ptr<JoinHashTable> hash_table;
             hash_table = this->InitializeHashTable(context);
-
             for (idx_t i = 0; i < build_types.size(); i++) {
-                vector<string> build_vector_str = json_data.at("build_vector_" + to_string(i));
-                idx_t build_size = build_vector_str.size();
-
+                vector<string> build_vector_data = json_data["build_chunk_" + to_string(i)]["data"];
+                LogicalType build_type = LogicalType((LogicalTypeId)json_data["build_chunk_" + to_string(i)]["type"]);
                 DataChunk build_chunk;
                 build_chunk.SetCardinality(build_size);
-                Vector build_vector = Vector(LogicalType::VARCHAR, true, false, build_size);
+                Vector build_chunk_vector = Vector(build_type, true, false, build_size);
                 for (idx_t j = 0; j < build_size; j++) {
-                    build_vector.SetValue(j, Value(build_vector_str[j]));
+                    build_chunk_vector.SetValue(j, Value(build_vector_data[j]));
                 }
-                build_chunk.data.emplace_back(build_vector);
+                build_chunk.data.emplace_back(build_chunk_vector);
 
+                vector<int64_t> join_key_data = json_data["join_key_" + to_string(i)]["data"];
+                LogicalType key_type = LogicalType((LogicalTypeId)json_data["join_key_" + to_string(i)]["type"]);
                 DataChunk join_keys;
                 join_keys.SetCardinality(build_size);
-                Vector join_keys_vector = Vector(LogicalType::INTEGER, true, true, build_size);
+                Vector join_keys_vector = Vector(key_type, true, true, build_size);
                 for (idx_t j = 0; j < build_size; j++) {
-                    join_keys_vector.SetValue(j, Value((int64_t)j));
+                    join_keys_vector.SetValue(j, Value(join_key_data[j]));
                 }
                 join_keys.data.emplace_back(join_keys_vector);
+
+                // build hash table using join_keys and build_chunk
                 hash_table->Build(join_keys, build_chunk);
                 sink.hash_table->Merge(*hash_table);
             }
