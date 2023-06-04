@@ -192,15 +192,21 @@ unique_ptr<LocalSinkState> PhysicalHashJoin::GetLocalSinkState(ExecutionContext 
 
 SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState &gstate_p, LocalSinkState &lstate_p,
                                       DataChunk &input) const {
+    std::cout << "[PhysicalHashJoin::Sink] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
 	auto &gstate = (HashJoinGlobalSinkState &)gstate_p;
 	auto &lstate = (HashJoinLocalSinkState &)lstate_p;
 
 	// resolve the join keys for the right chunk
 	lstate.join_keys.Reset();
 	lstate.build_executor.Execute(input, lstate.join_keys);
+    std::cout << "lstate before" << std::endl;
+    lstate.build_chunk.Print();
+    lstate.join_keys.Print();
+
 	// build the HT
 	auto &ht = *lstate.hash_table;
 	if (!right_projection_map.empty()) {
+        std::cout << "!right_projection_map.empty()" << std::endl;
 		// there is a projection map: fill the build chunk with the projected columns
 		lstate.build_chunk.Reset();
 		lstate.build_chunk.SetCardinality(input);
@@ -209,13 +215,19 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
 		}
 		ht.Build(lstate.join_keys, lstate.build_chunk);
 	} else if (!build_types.empty()) {
+        std::cout << "!build_types.empty()" << std::endl;
 		// there is not a projected map: place the entire right chunk in the HT
 		ht.Build(lstate.join_keys, input);
 	} else {
+        std::cout << "else" << std::endl;
 		// there are only keys: place an empty chunk in the payload
 		lstate.build_chunk.SetCardinality(input.size());
 		ht.Build(lstate.join_keys, lstate.build_chunk);
 	}
+
+    std::cout << "lstate.build_chunk after" << std::endl;
+    lstate.build_chunk.Print();
+    lstate.join_keys.Print();
 
 	// swizzle if we reach memory limit
 	auto approx_ptr_table_size = ht.Count() * 3 * sizeof(data_ptr_t);
@@ -251,7 +263,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-        std::cout << "[HashJoinFinalizeTask] ExecuteTask start " << block_idx_start << ", " << block_idx_end << std::endl;
+        std::cout << "[HashJoinFinalizeTask] ExecuteTask start " << block_idx_start << "," << block_idx_end << std::endl;
         sink.hash_table->Finalize(block_idx_start, block_idx_end, parallel);
         event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
@@ -382,10 +394,45 @@ public:
 
 SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
                                             GlobalSinkState &gstate) const {
-    std::cout << "[PhysicalHashJoin::Finalize]" << std::endl;
+    std::cout << "[PhysicalHashJoin::Finalize] for pipeline " << pipeline.GetPipelineId() << std::endl;
 	auto &sink = (HashJoinGlobalSinkState &)gstate;
-    if (global_resume_start) {
+    if (global_resume_start && pipeline.GetPipelineId() == 3) {
+        if (!sink.external) {
+            std::cout << "== Resume Perfect Hash Join ==" << std::endl;
+            sink.hash_table->Reset();
+
+            std::ifstream f("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_resume_file);
+            json json_data = json::parse(f);
+
+            unique_ptr<JoinHashTable> hash_table;
+            hash_table = this->InitializeHashTable(context);
+
+            for (idx_t i = 0; i < build_types.size(); i++) {
+                vector<string> build_vector_str = json_data.at("build_vector_" + to_string(i));
+                idx_t build_size = build_vector_str.size();
+
+                DataChunk build_chunk;
+                build_chunk.SetCardinality(build_size);
+                Vector build_vector = Vector(LogicalType::VARCHAR, true, false, build_size);
+                for (idx_t j = 0; j < build_size; j++) {
+                    build_vector.SetValue(j, Value(build_vector_str[j]));
+                }
+                build_chunk.data.emplace_back(build_vector);
+
+                DataChunk join_keys;
+                join_keys.SetCardinality(build_size);
+                Vector join_keys_vector = Vector(LogicalType::INTEGER, true, true, build_size);
+                for (idx_t j = 0; j < build_size; j++) {
+                    join_keys_vector.SetValue(j, Value((int64_t)j));
+                }
+                join_keys.data.emplace_back(join_keys_vector);
+                hash_table->Build(join_keys, build_chunk);
+                sink.hash_table->Merge(*hash_table);
+            }
+        }
         sink.finalized = true;
+        auto key_type = sink.hash_table->equality_types[0];
+        sink.perfect_join_executor->BuildPerfectHashTable(key_type);
     } else {
         if (sink.external) {
             std::cout << "== External Hash ==" << std::endl;
@@ -425,10 +472,10 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
         }
 
         global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
-        std::cout << "sink.hash_table->Count(): " << sink.hash_table->Count() << std::endl;
         // Serialize PerfectHashTable to Disk
         if (global_suspend_start && use_perfect_hash) {
             sink.perfect_join_executor->SerializePerfectHashTable();
+            exit(0);
         }
     }
 
@@ -481,15 +528,11 @@ unique_ptr<OperatorState> PhysicalHashJoin::GetOperatorState(ExecutionContext &c
 
 OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, DataChunk &input, DataChunk &chunk,
                                                      GlobalOperatorState &gstate, OperatorState &state_p) const {
-    std::cout << "[PhysicalHashJoin::ExecuteInternal]" << std::endl;
+    std::cout << "[PhysicalHashJoin::ExecuteInternal] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
 	auto &state = (HashJoinOperatorState &)state_p;
 	auto &sink = (HashJoinGlobalSinkState &)*sink_state;
 	D_ASSERT(sink.finalized);
 	D_ASSERT(!sink.scanned_data);
-
-    if (global_resume_start && context.pipeline->GetPipelineId() != 3) {
-        sink.hash_table->SetCount(sink.perfect_join_executor->GetBuildSize());
-    }
 
 	// some initialization for external hash join
 	if (sink.external && !state.initialized) {
@@ -501,6 +544,7 @@ OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, 
 	}
 
     if (sink.hash_table->Count() == 0 && EmptyResultIfRHSIsEmpty()) {
+        std::cout << "HERE++" << std::endl;
         return OperatorResultType::FINISHED;
     }
 
@@ -881,7 +925,7 @@ void HashJoinLocalSourceState::ScanFullOuter(HashJoinGlobalSinkState &sink, Hash
 
 void PhysicalHashJoin::GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                LocalSourceState &lstate_p) const {
-    std::cout << "[PhysicalHashJoin::GetData]" << std::endl;
+    std::cout << "[PhysicalHashJoin::GetData] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
 	auto &sink = (HashJoinGlobalSinkState &)*sink_state;
 	auto &gstate = (HashJoinGlobalSourceState &)gstate_p;
 	auto &lstate = (HashJoinLocalSourceState &)lstate_p;

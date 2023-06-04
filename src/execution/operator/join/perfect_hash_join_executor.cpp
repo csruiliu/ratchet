@@ -18,7 +18,6 @@ bool PerfectHashJoinExecutor::CanDoPerfectHashJoin() {
 // Build
 //===--------------------------------------------------------------------===//
 bool PerfectHashJoinExecutor::BuildPerfectHashTable(LogicalType &key_type) {
-    std::cout << "[PerfectHashJoinExecutor::BuildPerfectHashTable]" << std::endl;
 	// First, allocate memory for each build column
 	auto build_size = perfect_join_statistics.build_range + 1;
 	for (const auto &type : ht.build_types) {
@@ -154,7 +153,7 @@ unique_ptr<OperatorState> PerfectHashJoinExecutor::GetOperatorState(ExecutionCon
 
 OperatorResultType PerfectHashJoinExecutor::ProbePerfectHashTable(ExecutionContext &context, DataChunk &input,
                                                                   DataChunk &result, OperatorState &state_p) {
-    std::cout << "[PerfectHashJoinExecutor::ProbePerfectHashTable]" << std::endl;
+    std::cout << "[PerfectHashJoinExecutor::ProbePerfectHashTable] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
 	auto &state = (PerfectHashJoinState &)state_p;
 	// keeps track of how many probe keys have a match
 	idx_t probe_sel_count = 0;
@@ -165,54 +164,27 @@ OperatorResultType PerfectHashJoinExecutor::ProbePerfectHashTable(ExecutionConte
 	// select the keys that are in the min-max range
 	auto &keys_vec = state.join_keys.data[0];
 	auto keys_count = state.join_keys.size();
-	std::cout << "keys_count: " << keys_count << std::endl;
 
-    if (global_resume_start) {
-        vector<Vector> perfect_hash_table_resume;
-        std::ifstream f("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_resume_file);
-        json json_data = json::parse(f);
+    // todo: add check for fast pass when probe is part of build domain
+    FillSelectionVectorSwitchProbe(keys_vec, state.build_sel_vec, state.probe_sel_vec, keys_count, probe_sel_count);
 
-        probe_sel_count = keys_count;
-        auto build_size = perfect_join_statistics.build_range + 1;
+    // If build is dense and probe is in build's domain, just reference probe
+    if (perfect_join_statistics.is_build_dense && keys_count == probe_sel_count) {
         result.Reference(input);
-        for (idx_t i = 0; i < ht.build_types.size(); i++) {
-            auto &result_vector = result.data[input.ColumnCount() + i];
-            D_ASSERT(result_vector.GetType() == ht.build_types[i]);
-            if (ht.build_types[i] == LogicalType::VARCHAR) {
-                vector<string> build_vector_str = json_data.at("build_vector_" + to_string(i));
-                Vector build_vec(LogicalType::VARCHAR, true, true, build_size);
-                for (idx_t j = 0; j < build_size; j++) {
-                    build_vec.SetValue(j, Value(build_vector_str[j]));
-                }
-                result_vector.Reference(build_vec);
-                result_vector.Slice(state.build_sel_vec, probe_sel_count);
-            }
-        }
+    } else {
+        // otherwise, filter it out the values that do not match
+        result.Slice(input, state.probe_sel_vec, probe_sel_count, 0);
     }
-    else {
-        // todo: add check for fast pass when probe is part of build domain
-        FillSelectionVectorSwitchProbe(keys_vec, state.build_sel_vec, state.probe_sel_vec, keys_count, probe_sel_count);
 
-        // If build is dense and probe is in build's domain, just reference probe
-        if (perfect_join_statistics.is_build_dense && keys_count == probe_sel_count) {
-            std::cout << "== If build is dense and probe is in build's domain, just reference probe ==" << std::endl;
-            result.Reference(input);
-        } else {
-            std::cout << "== otherwise, filter it out the values that do not match ==" << std::endl;
-            // otherwise, filter it out the values that do not match
-            result.Slice(input, state.probe_sel_vec, probe_sel_count, 0);
-        }
-
-        // on the build side, we need to fetch the data and build dictionary vectors with the sel_vec
-        for (idx_t i = 0; i < ht.build_types.size(); i++) {
-            auto &result_vector = result.data[input.ColumnCount() + i];
-            D_ASSERT(result_vector.GetType() == ht.build_types[i]);
-            auto &build_vec = perfect_hash_table[i];
-            result_vector.Reference(build_vec);
-            std::cout << "probe_sel_count: " << probe_sel_count << std::endl;
-            result_vector.Slice(state.build_sel_vec, probe_sel_count);
-        }
+    // on the build side, we need to fetch the data and build dictionary vectors with the sel_vec
+    for (idx_t i = 0; i < ht.build_types.size(); i++) {
+        auto &result_vector = result.data[input.ColumnCount() + i];
+        D_ASSERT(result_vector.GetType() == ht.build_types[i]);
+        auto &build_vec = perfect_hash_table[i];
+        result_vector.Reference(build_vec);
+        result_vector.Slice(state.build_sel_vec, probe_sel_count);
     }
+
 	return OperatorResultType::NEED_MORE_INPUT;
 }
 
@@ -321,6 +293,8 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
         }
     }
 
+    json_data["build_size"] = build_size;
+
     std::ofstream outputFile("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_suspend_file);
     outputFile << json_data;
 
@@ -328,11 +302,6 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
     if (outputFile.fail()) {
         std::cerr << "Error writing to file!" << std::endl;
     }
-    exit(0);
-}
-
-idx_t PerfectHashJoinExecutor::GetBuildSize() {
-    return perfect_join_statistics.build_range + 1;
 }
 
 } // namespace duckdb

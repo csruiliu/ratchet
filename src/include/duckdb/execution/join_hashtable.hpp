@@ -131,6 +131,7 @@ public:
 
 	//! Add the given data to the HT
 	void Build(DataChunk &keys, DataChunk &input);
+
 	//! Merge another HT into this one
 	void Merge(JoinHashTable &other);
 	//! Initialize the pointer table for the probe
@@ -139,7 +140,6 @@ public:
 	//! Finalize must be called before any call to Probe, and after Finalize is called Build should no longer be
 	//! ever called.
 	void Finalize(idx_t block_idx_start, idx_t block_idx_end, bool parallel);
-    AllocatedData FinalizeSuspend(idx_t block_idx_start, idx_t block_idx_end, bool parallel);
 	//! Probe the HT with the given input chunk, resulting in the given result
 	unique_ptr<ScanStructure> Probe(DataChunk &keys, Vector *precomputed_hashes = nullptr);
 	//! Scan the HT to find the rows for the full outer join and return the number of found entries
@@ -154,10 +154,6 @@ public:
 
 	idx_t Count() const {
 		return block_collection->count;
-	}
-
-	void SetCount(idx_t count) const {
-		block_collection->count = count;
 	}
 
 	const RowDataCollection &GetBlockCollection() const {

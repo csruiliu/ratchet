@@ -47,9 +47,7 @@ public:
 	bool BuildPerfectHashTable(LogicalType &type);
 
     void SerializePerfectHashTable();
-
-    idx_t GetBuildSize();
-
+    
 private:
 	void FillSelectionVectorSwitchProbe(Vector &source, SelectionVector &build_sel_vec, SelectionVector &probe_sel_vec,
 	                                    idx_t count, idx_t &probe_sel_count);
