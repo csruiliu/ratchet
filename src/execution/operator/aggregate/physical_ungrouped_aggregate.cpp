@@ -605,15 +605,15 @@ void PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &c
 	// initialize the result chunk with the aggregate values
 	chunk.SetCardinality(1);
 
-	if (global_resume_start) {
+    // idx_t current_pl_id = context.pipeline->GetPipelineId();
+    // auto it = std::find(global_finalized_pipelines.begin(),global_finalized_pipelines.end(),current_pl_id);
+
+	// if (global_resume_start && it != global_finalized_pipelines.end()) {
+    if (global_resume_start) {
         std::ifstream f("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_resume_file);
         json json_data = json::parse(f);
         vector<idx_t> pipeline_ids = json_data.at("pipeline_ids");
         vector<string> aggregate_values = json_data.at("aggregate_values");
-
-        // idx_t current_pipeline_id = context.pipeline->GetPipelineId();
-        // std::cout << "context.pipeline->GetPipelineId(): " << current_pipeline_id << std::endl;
-        // auto it = std::find(pipeline_ids.begin(), pipeline_ids.end(), current_pipeline_id);
 
         for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
             chunk.data[aggr_idx].SetValue(0, std::stod(aggregate_values.at(0)));
