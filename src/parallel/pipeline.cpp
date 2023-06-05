@@ -45,6 +45,7 @@ public:
             std::ifstream f("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_resume_file);
             json json_data = json::parse(f);
             vector<idx_t> pipeline_ids = json_data.at("pipeline_ids");
+
             for (auto pl_id : pipeline_ids) {
                 global_finalized_pipelines.push_back(pl_id);
             }

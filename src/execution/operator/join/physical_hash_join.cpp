@@ -386,7 +386,11 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                                             GlobalSinkState &gstate) const {
     std::cout << "[PhysicalHashJoin::Finalize] for pipeline " << pipeline.GetPipelineId() << std::endl;
 	auto &sink = (HashJoinGlobalSinkState &)gstate;
-    if (global_resume_start && pipeline.GetPipelineId() == 3) {
+
+    idx_t current_id = pipeline.GetPipelineId();
+    auto it = std::find(global_finalized_pipelines.begin(),global_finalized_pipelines.end(),current_id);
+
+    if (global_resume_start && it != global_finalized_pipelines.end()) {
         if (!sink.external) {
             std::cout << "== Resume Perfect Hash Join ==" << std::endl;
             sink.hash_table->Reset();
@@ -466,11 +470,20 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
             return SinkFinalizeType::NO_OUTPUT_POSSIBLE;
         }
 
-        global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
-        // Serialize PerfectHashTable to Disk
-        if (global_suspend_start && use_perfect_hash) {
-            sink.perfect_join_executor->SerializePerfectHashTable();
-            exit(0);
+        // Ratchet Suspend
+        if (global_suspend_start) {
+            std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
+            uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    suspend_check - global_start).count();
+
+            if (time_dur_ms > global_suspend_point_ms) {
+                global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
+                // Serialize PerfectHashTable to Disk
+                if (global_suspend_start && use_perfect_hash) {
+                    sink.perfect_join_executor->SerializePerfectHashTable();
+                    exit(0);
+                }
+            }
         }
     }
 
@@ -539,7 +552,6 @@ OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, 
 	}
 
     if (sink.hash_table->Count() == 0 && EmptyResultIfRHSIsEmpty()) {
-        std::cout << "HERE++" << std::endl;
         return OperatorResultType::FINISHED;
     }
 
