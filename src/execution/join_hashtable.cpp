@@ -342,7 +342,7 @@ void JoinHashTable::InitializePointerTable() {
 }
 
 void JoinHashTable::Finalize(idx_t block_idx_start, idx_t block_idx_end, bool parallel) {
-    std::cout << "[JoinHashTable::Finalize]" << std::endl;
+    // std::cout << "[JoinHashTable::Finalize]" << std::endl;
 	// Pointer table should be allocated
 	D_ASSERT(hash_map.get());
 
@@ -414,7 +414,7 @@ unique_ptr<ScanStructure> JoinHashTable::InitializeScanStructure(DataChunk &keys
 }
 
 unique_ptr<ScanStructure> JoinHashTable::Probe(DataChunk &keys, Vector *precomputed_hashes) {
-    std::cout << "JoinHashTable::Prob" << std::endl;
+    // std::cout << "JoinHashTable::Prob" << std::endl;
 	const SelectionVector *current_sel;
 	auto ss = InitializeScanStructure(keys, current_sel);
 	if (ss->count == 0) {
