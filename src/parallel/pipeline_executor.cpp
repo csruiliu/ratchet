@@ -49,7 +49,7 @@ bool PipelineExecutor::Execute(idx_t max_chunks) {
 		FetchFromSource(source_chunk);
 		if (source_chunk.size() == 0) {
 			exhausted_source = true;
-            std::cout << "PipelineExecutor::Execute, exhausted_source is true" << std::endl;
+            // std::cout << "PipelineExecutor::Execute, exhausted_source is true" << std::endl;
 			break;
 		}
 		auto result = ExecutePushInternal(source_chunk);
@@ -234,7 +234,7 @@ void PipelineExecutor::GoToSource(idx_t &current_idx, idx_t initial_idx) {
 }
 
 OperatorResultType PipelineExecutor::Execute(DataChunk &input, DataChunk &result, idx_t initial_idx) {
-    std::cout << "[PipelineExecutor::Execute] for pipeline " << pipeline.GetPipelineId() << std::endl;
+    // std::cout << "[PipelineExecutor::Execute] for pipeline " << pipeline.GetPipelineId() << std::endl;
 	if (input.size() == 0) { // LCOV_EXCL_START
 		return OperatorResultType::NEED_MORE_INPUT;
 	} // LCOV_EXCL_STOP

@@ -192,7 +192,7 @@ unique_ptr<LocalSinkState> PhysicalHashJoin::GetLocalSinkState(ExecutionContext 
 
 SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState &gstate_p, LocalSinkState &lstate_p,
                                       DataChunk &input) const {
-    std::cout << "[PhysicalHashJoin::Sink] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
+    // std::cout << "[PhysicalHashJoin::Sink] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
 	auto &gstate = (HashJoinGlobalSinkState &)gstate_p;
 	auto &lstate = (HashJoinLocalSinkState &)lstate_p;
 
@@ -253,7 +253,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-        std::cout << "[HashJoinFinalizeTask] ExecuteTask start " << block_idx_start << "," << block_idx_end << std::endl;
+        // std::cout << "[HashJoinFinalizeTask] ExecuteTask start " << block_idx_start << "," << block_idx_end << std::endl;
         sink.hash_table->Finalize(block_idx_start, block_idx_end, parallel);
         event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
@@ -384,7 +384,7 @@ public:
 
 SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
                                             GlobalSinkState &gstate) const {
-    std::cout << "[PhysicalHashJoin::Finalize] for pipeline " << pipeline.GetPipelineId() << std::endl;
+    // std::cout << "[PhysicalHashJoin::Finalize] for pipeline " << pipeline.GetPipelineId() << std::endl;
 	auto &sink = (HashJoinGlobalSinkState &)gstate;
 
     idx_t current_id = pipeline.GetPipelineId();
@@ -434,7 +434,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
         sink.perfect_join_executor->BuildPerfectHashTable(key_type);
     } else {
         if (sink.external) {
-            std::cout << "== External Hash ==" << std::endl;
+            // std::cout << "== External Hash ==" << std::endl;
             D_ASSERT(can_go_external);
             // External join - partition HT
             sink.perfect_join_executor.reset();
@@ -444,7 +444,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
             sink.finalized = true;
             return SinkFinalizeType::READY;
         } else {
-            std::cout << "== No External Hash ==" << std::endl;
+            // std::cout << "== No External Hash ==" << std::endl;
             for (auto &local_ht : sink.local_hash_tables) {
                 sink.hash_table->Merge(*local_ht);
             }
@@ -461,7 +461,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
         }
         // In case of a large build side or duplicates, use regular hash join
         if (!use_perfect_hash) {
-            std::cout << "== No Perfect Hash ==" << std::endl;
+            // std::cout << "== No Perfect Hash ==" << std::endl;
             sink.perfect_join_executor.reset();
             sink.ScheduleFinalize(pipeline, event);
         }
@@ -536,7 +536,7 @@ unique_ptr<OperatorState> PhysicalHashJoin::GetOperatorState(ExecutionContext &c
 
 OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, DataChunk &input, DataChunk &chunk,
                                                      GlobalOperatorState &gstate, OperatorState &state_p) const {
-    std::cout << "[PhysicalHashJoin::ExecuteInternal] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
+    // std::cout << "[PhysicalHashJoin::ExecuteInternal] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
 	auto &state = (HashJoinOperatorState &)state_p;
 	auto &sink = (HashJoinGlobalSinkState &)*sink_state;
 	D_ASSERT(sink.finalized);
@@ -932,7 +932,7 @@ void HashJoinLocalSourceState::ScanFullOuter(HashJoinGlobalSinkState &sink, Hash
 
 void PhysicalHashJoin::GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                LocalSourceState &lstate_p) const {
-    std::cout << "[PhysicalHashJoin::GetData] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
+    // std::cout << "[PhysicalHashJoin::GetData] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
 	auto &sink = (HashJoinGlobalSinkState &)*sink_state;
 	auto &gstate = (HashJoinGlobalSourceState &)gstate_p;
 	auto &lstate = (HashJoinLocalSourceState &)lstate_p;
