@@ -66,7 +66,7 @@ do
         mkdir "$ckpt_path/ckpt_${PID}_${i}"
       fi
 
-      sudo "$criu_cmd" dump -D "$ckpt_path/ckpt_${PID}_${i}" -t "$PID" --shell-job
+      sudo "$criu_cmd" dump -D "$ckpt_path/ckpt_${PID}_${i}" -t "$PID" --file-locks --shell-job
       echo "Dumping to $ckpt_path/ckpt_${PID}_${i}"
 
       # force data sync between buffer and disk
