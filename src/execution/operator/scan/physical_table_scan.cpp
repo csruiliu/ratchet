@@ -94,7 +94,7 @@ double PhysicalTableScan::GetProgress(ClientContext &context, GlobalSourceState 
 
 idx_t PhysicalTableScan::GetBatchIndex(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                        LocalSourceState &lstate) const {
-    std::cout << "[PhysicalTableScan::GetBatchIndex]" << std::endl;
+    // std::cout << "[PhysicalTableScan::GetBatchIndex]" << std::endl;
 	D_ASSERT(SupportsBatchIndex());
 	D_ASSERT(function.get_batch_index);
 	auto &gstate = (TableScanGlobalSourceState &)gstate_p;
