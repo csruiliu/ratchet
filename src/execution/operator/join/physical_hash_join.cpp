@@ -79,7 +79,6 @@ public:
 
 	void ScheduleFinalize(Pipeline &pipeline, Event &event);
 	void InitializeProbeSpill(ClientContext &context);
-    void SerializeGlobalState();
 
 public:
 	//! Global HT used by the join

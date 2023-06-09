@@ -1120,6 +1120,7 @@ bool JoinHashTable::PrepareExternalFinalize() {
 }
 
 static void CreateSpillChunk(DataChunk &spill_chunk, DataChunk &keys, DataChunk &payload, Vector &hashes) {
+    std::cout << "[CreateSpillChunk]" << std::endl;
 	spill_chunk.Reset();
 	idx_t spill_col_idx = 0;
 	for (idx_t col_idx = 0; col_idx < keys.ColumnCount(); col_idx++) {
@@ -1136,6 +1137,7 @@ static void CreateSpillChunk(DataChunk &spill_chunk, DataChunk &keys, DataChunk 
 unique_ptr<ScanStructure> JoinHashTable::ProbeAndSpill(DataChunk &keys, DataChunk &payload, ProbeSpill &probe_spill,
                                                        ProbeSpillLocalAppendState &spill_state,
                                                        DataChunk &spill_chunk) {
+    std::cout << "[JoinHashTable::ProbeAndSpill]" << std::endl;
 	// hash all the keys
 	Vector hashes(LogicalType::HASH);
 	Hash(keys, *FlatVector::IncrementalSelectionVector(), keys.size(), hashes);
@@ -1178,6 +1180,7 @@ unique_ptr<ScanStructure> JoinHashTable::ProbeAndSpill(DataChunk &keys, DataChun
 
 ProbeSpill::ProbeSpill(JoinHashTable &ht, ClientContext &context, const vector<LogicalType> &probe_types)
     : ht(ht), context(context), probe_types(probe_types) {
+    std::cout << "[ProbeSpill::ProbeSpill]" << std::endl;
 	if (ht.total_count - ht.Count() <= ht.tuples_per_round) {
 		// No need to partition as we will only have one more probe round
 		partitioned = false;
