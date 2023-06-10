@@ -67,6 +67,8 @@ private:
 	JoinHashTable &ht;
 	//! Columnar perfect hash table
 	PerfectHashTable perfect_hash_table;
+    //! Join Keys of `perfect_hash_table`
+    PerfectHashTable join_keys_perfect_hash_table;
 	//! Build and probe statistics
 	PerfectHashJoinStats perfect_join_statistics;
 	//! Stores the occurences of each value in the build side
