@@ -1004,6 +1004,7 @@ void JoinHashTable::SwizzleBlocks() {
 
 void JoinHashTable::ComputePartitionSizes(ClientConfig &config, vector<unique_ptr<JoinHashTable>> &local_hts,
                                           idx_t max_ht_size) {
+    std::cout << "[JoinHashTable::ComputePartitionSizes]" << std::endl;
 	external = true;
 
 	// First set the number of tuples in the HT per partitioned round

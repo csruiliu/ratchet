@@ -20,9 +20,14 @@ bool PerfectHashJoinExecutor::CanDoPerfectHashJoin() {
 bool PerfectHashJoinExecutor::BuildPerfectHashTable(LogicalType &key_type) {
 	// First, allocate memory for each build column
 	auto build_size = perfect_join_statistics.build_range + 1;
-	for (const auto &type : ht.build_types) {
-		perfect_hash_table.emplace_back(type, build_size);
+	for (const auto &build_type : ht.build_types) {
+		perfect_hash_table.emplace_back(build_type, build_size);
 	}
+
+    for (const auto &condition_type : ht.condition_types) {
+        join_keys_perfect_hash_table.emplace_back(condition_type, build_size);
+    }
+
 	// and for duplicate_checking
 	bitmap_build_idx = unique_ptr<bool[]>(new bool[build_size]);
 	memset(bitmap_build_idx.get(), 0, sizeof(bool) * build_size); // set false
@@ -66,6 +71,15 @@ bool PerfectHashJoinExecutor::FullScanHashTable(JoinHTScanState &state, LogicalT
 		RowOperations::Gather(tuples_addresses, sel_tuples, vector, sel_build, keys_count, ht.layout, col_no,
 		                      build_size);
 	}
+    //
+    for (idx_t i = 0; i < ht.condition_types.size(); i++) {
+        auto build_size = perfect_join_statistics.build_range + 1;
+        auto &join_keys_vector = join_keys_perfect_hash_table[i];
+        D_ASSERT(join_keys_vector.GetType() == ht.condition_types[i]);
+        const auto col_no = i;
+        RowOperations::Gather(tuples_addresses, sel_tuples, join_keys_vector, sel_build, keys_count, ht.layout, col_no,
+                              build_size);
+    }
 	return true;
 }
 
@@ -153,7 +167,7 @@ unique_ptr<OperatorState> PerfectHashJoinExecutor::GetOperatorState(ExecutionCon
 
 OperatorResultType PerfectHashJoinExecutor::ProbePerfectHashTable(ExecutionContext &context, DataChunk &input,
                                                                   DataChunk &result, OperatorState &state_p) {
-    std::cout << "[PerfectHashJoinExecutor::ProbePerfectHashTable] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
+    // std::cout << "[PerfectHashJoinExecutor::ProbePerfectHashTable] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
 	auto &state = (PerfectHashJoinState &)state_p;
 	// keeps track of how many probe keys have a match
 	idx_t probe_sel_count = 0;
@@ -283,14 +297,22 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
     for (idx_t i = 0; i < ht.build_types.size(); i++) {
         if (ht.build_types[i] == LogicalType::VARCHAR) {
             vector<string> str_vector;
-            vector<idx_t> key_vector;
             auto &build_vec = perfect_hash_table[i];
             for (idx_t j = 0; j < build_size; j++) {
                 str_vector.push_back(build_vec.GetValue(j).ToString());
-                key_vector.push_back(j);
             }
             json_data["build_chunk_" + to_string(i)]["type"] = LogicalType::VARCHAR;
             json_data["build_chunk_" + to_string(i)]["data"] = str_vector;
+        }
+    }
+
+    for (idx_t i = 0; i < ht.condition_types.size(); i++) {
+        if (ht.condition_types[i] == LogicalType::INTEGER) {
+            vector<idx_t> key_vector;
+            auto &key_vec = join_keys_perfect_hash_table[i];
+            for (idx_t j = 0; j < build_size; j++) {
+                key_vector.emplace_back(std::stoi(key_vec.GetValue(j).ToString()));
+            }
             json_data["join_key_" + to_string(i)]["type"] = LogicalType::INTEGER;
             json_data["join_key_" + to_string(i)]["data"] = key_vector;
         }
