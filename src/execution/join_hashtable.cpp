@@ -1068,7 +1068,9 @@ void JoinHashTable::Reset() {
 }
 
 bool JoinHashTable::PrepareExternalFinalize() {
+    std::cout << "[JoinHashTable::PrepareExternalFinalize]" << std::endl;
 	idx_t num_partitions = RadixPartitioning::NumberOfPartitions(radix_bits);
+    std::cout << "num_partitions: " << num_partitions << " radix_bits: " << radix_bits << std::endl;
 	if (partition_block_collections.empty() || partition_end == num_partitions) {
 		return false;
 	}

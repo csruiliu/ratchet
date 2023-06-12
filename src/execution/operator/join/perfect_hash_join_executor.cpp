@@ -24,6 +24,7 @@ bool PerfectHashJoinExecutor::BuildPerfectHashTable(LogicalType &key_type) {
 		perfect_hash_table.emplace_back(build_type, build_size);
 	}
 
+    // allocate memory for each join key column
     for (const auto &condition_type : ht.condition_types) {
         join_keys_perfect_hash_table.emplace_back(condition_type, build_size);
     }
@@ -71,7 +72,7 @@ bool PerfectHashJoinExecutor::FullScanHashTable(JoinHTScanState &state, LogicalT
 		RowOperations::Gather(tuples_addresses, sel_tuples, vector, sel_build, keys_count, ht.layout, col_no,
 		                      build_size);
 	}
-    //
+    // Fill the join key column
     for (idx_t i = 0; i < ht.condition_types.size(); i++) {
         auto build_size = perfect_join_statistics.build_range + 1;
         auto &join_keys_vector = join_keys_perfect_hash_table[i];
