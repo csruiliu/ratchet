@@ -383,7 +383,7 @@ public:
 
 SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
                                             GlobalSinkState &gstate) const {
-    // std::cout << "[PhysicalHashJoin::Finalize] for pipeline " << pipeline.GetPipelineId() << std::endl;
+    std::cout << "[PhysicalHashJoin::Finalize] for pipeline " << pipeline.GetPipelineId() << std::endl;
 	auto &sink = (HashJoinGlobalSinkState &)gstate;
 
     idx_t current_id = pipeline.GetPipelineId();
@@ -583,7 +583,6 @@ OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, 
 	if (sink.external) {
 		state.scan_structure = sink.hash_table->ProbeAndSpill(state.join_keys, input, *sink.probe_spill,
 		                                                      state.spill_state, state.spill_chunk);
-        std::cout << "[Spill Chunk]" << std::endl;
         state.spill_chunk.Print();
 	} else {
 		state.scan_structure = sink.hash_table->Probe(state.join_keys);

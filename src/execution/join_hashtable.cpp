@@ -342,7 +342,7 @@ void JoinHashTable::InitializePointerTable() {
 }
 
 void JoinHashTable::Finalize(idx_t block_idx_start, idx_t block_idx_end, bool parallel) {
-    // std::cout << "[JoinHashTable::Finalize]" << std::endl;
+    std::cout << "[JoinHashTable::Finalize]" << std::endl;
 	// Pointer table should be allocated
 	D_ASSERT(hash_map.get());
 
@@ -1043,6 +1043,7 @@ void JoinHashTable::ComputePartitionSizes(ClientConfig &config, vector<unique_pt
 }
 
 void JoinHashTable::Partition(JoinHashTable &global_ht) {
+    std::cout << "[JoinHashTable::Partition]" << std::endl;
 #ifdef DEBUG
 	D_ASSERT(layout.ColumnCount() == global_ht.layout.ColumnCount());
 	for (idx_t col_idx = 0; col_idx < layout.ColumnCount(); col_idx++) {
@@ -1055,6 +1056,17 @@ void JoinHashTable::Partition(JoinHashTable &global_ht) {
 	RadixPartitioning::PartitionRowData(global_ht.buffer_manager, global_ht.layout, global_ht.pointer_offset,
 	                                    *swizzled_block_collection, *swizzled_string_heap, partition_block_collections,
 	                                    partition_string_heaps, global_ht.radix_bits);
+    /*
+    std::cout << "partition_block_collections: " << partition_block_collections.size() << std::endl;
+    for (auto &block_collection_item : partition_block_collections) {
+        std::cout << "block collection count: " << block_collection_item->count << std::endl;
+        if (block_collection_item->count > 0) {
+            for (auto &block : block_collection_item->blocks) {
+                std::cout << "block count: " << block->count << std::endl;
+            }
+        }
+    }
+    */
 
 	// Add to global HT
 	global_ht.Merge(*this);
@@ -1070,7 +1082,6 @@ void JoinHashTable::Reset() {
 bool JoinHashTable::PrepareExternalFinalize() {
     std::cout << "[JoinHashTable::PrepareExternalFinalize]" << std::endl;
 	idx_t num_partitions = RadixPartitioning::NumberOfPartitions(radix_bits);
-    std::cout << "num_partitions: " << num_partitions << " radix_bits: " << radix_bits << std::endl;
 	if (partition_block_collections.empty() || partition_end == num_partitions) {
 		return false;
 	}
@@ -1123,7 +1134,6 @@ bool JoinHashTable::PrepareExternalFinalize() {
 }
 
 static void CreateSpillChunk(DataChunk &spill_chunk, DataChunk &keys, DataChunk &payload, Vector &hashes) {
-    std::cout << "[CreateSpillChunk]" << std::endl;
 	spill_chunk.Reset();
 	idx_t spill_col_idx = 0;
 	for (idx_t col_idx = 0; col_idx < keys.ColumnCount(); col_idx++) {
@@ -1140,7 +1150,6 @@ static void CreateSpillChunk(DataChunk &spill_chunk, DataChunk &keys, DataChunk 
 unique_ptr<ScanStructure> JoinHashTable::ProbeAndSpill(DataChunk &keys, DataChunk &payload, ProbeSpill &probe_spill,
                                                        ProbeSpillLocalAppendState &spill_state,
                                                        DataChunk &spill_chunk) {
-    std::cout << "[JoinHashTable::ProbeAndSpill]" << std::endl;
 	// hash all the keys
 	Vector hashes(LogicalType::HASH);
 	Hash(keys, *FlatVector::IncrementalSelectionVector(), keys.size(), hashes);
@@ -1230,6 +1239,7 @@ void ProbeSpill::Append(DataChunk &chunk, ProbeSpillLocalAppendState &local_stat
 }
 
 void ProbeSpill::Finalize() {
+    std::cout << "[ProbeSpill::Finalize]" << std::endl;
 	if (partitioned) {
 		D_ASSERT(local_partitions.size() == local_partition_append_states.size());
 		for (idx_t i = 0; i < local_partition_append_states.size(); i++) {
