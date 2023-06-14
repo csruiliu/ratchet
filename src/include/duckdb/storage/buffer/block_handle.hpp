@@ -90,7 +90,7 @@ public:
 	}
 
 private:
-	static BufferHandle Load(shared_ptr<BlockHandle> &handle, unique_ptr<FileBuffer> buffer = nullptr);
+    static BufferHandle Load(shared_ptr<BlockHandle> &handle, unique_ptr<FileBuffer> buffer = nullptr);
 	unique_ptr<FileBuffer> UnloadAndTakeBlock();
 	void Unload();
 	bool CanUnload();
@@ -105,7 +105,9 @@ private:
 	const block_id_t block_id;
 	//! Pointer to loaded data (if any)
 	unique_ptr<FileBuffer> buffer;
-	//! Internal eviction timestamp
+
+private:
+    //! Internal eviction timestamp
 	atomic<idx_t> eviction_timestamp;
 	//! Whether or not the buffer can be destroyed (only used for temporary buffers)
 	bool can_destroy;
