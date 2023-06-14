@@ -57,6 +57,8 @@ def main():
     else:
         db_conn = duckdb.connect(database=database)
 
+    duck_tmp = "/home/ruiliu/Develop/ratchet-duckdb/ratchet/tmp"
+    db_conn.execute(f"PRAGMA temp_directory='{duck_tmp}'")
     db_conn.execute(f"PRAGMA threads={thread}")
 
     tpch_table_names = ["part", "supplier", "partsupp", "customer", "orders", "lineitem", "nation", "region"]
