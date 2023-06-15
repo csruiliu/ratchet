@@ -47,6 +47,7 @@ static void TemplatedGatherLoop(Vector &rows, const SelectionVector &row_sel, Ve
 static void GatherVarchar(Vector &rows, const SelectionVector &row_sel, Vector &col, const SelectionVector &col_sel,
                           idx_t count, const RowLayout &layout, idx_t col_no, idx_t build_size,
                           data_ptr_t base_heap_ptr) {
+    std::cout << "[GatherVarchar]" << std::endl;
 	// Precompute mask indexes
 	const auto &offsets = layout.GetOffsets();
 	const auto col_offset = offsets[col_no];
