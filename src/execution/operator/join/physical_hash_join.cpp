@@ -252,7 +252,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-        // std::cout << "[HashJoinFinalizeTask] ExecuteTask start " << block_idx_start << "," << block_idx_end << std::endl;
+        std::cout << "[HashJoinFinalizeTask] ExecuteTask start " << block_idx_start << "," << block_idx_end << std::endl;
         sink.hash_table->Finalize(block_idx_start, block_idx_end, parallel);
         event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
@@ -433,7 +433,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
         sink.perfect_join_executor->BuildPerfectHashTable(key_type);
     } else {
         if (sink.external) {
-            // std::cout << "== External Hash ==" << std::endl;
+            std::cout << "== External Hash ==" << std::endl;
             D_ASSERT(can_go_external);
             // External join - partition HT
             sink.perfect_join_executor.reset();
@@ -443,7 +443,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
             sink.finalized = true;
             return SinkFinalizeType::READY;
         } else {
-            // std::cout << "== No External Hash ==" << std::endl;
+            std::cout << "== No External Hash ==" << std::endl;
             for (auto &local_ht : sink.local_hash_tables) {
                 sink.hash_table->Merge(*local_ht);
             }
@@ -460,7 +460,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
         }
         // In case of a large build side or duplicates, use regular hash join
         if (!use_perfect_hash) {
-            // std::cout << "== No Perfect Hash ==" << std::endl;
+            std::cout << "== No Perfect Hash ==" << std::endl;
             sink.perfect_join_executor.reset();
             sink.ScheduleFinalize(pipeline, event);
         }
@@ -535,7 +535,7 @@ unique_ptr<OperatorState> PhysicalHashJoin::GetOperatorState(ExecutionContext &c
 
 OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, DataChunk &input, DataChunk &chunk,
                                                      GlobalOperatorState &gstate, OperatorState &state_p) const {
-    // std::cout << "[PhysicalHashJoin::ExecuteInternal] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
+    std::cout << "[PhysicalHashJoin::ExecuteInternal] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
 	auto &state = (HashJoinOperatorState &)state_p;
 	auto &sink = (HashJoinGlobalSinkState &)*sink_state;
 	D_ASSERT(sink.finalized);
@@ -579,15 +579,25 @@ OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, 
 	state.join_keys.Reset();
 	state.probe_executor.Execute(input, state.join_keys);
 
+    std::cout << "state.join_keys" << std::endl;
+    state.join_keys.Print();
+
+    std::cout << "input" << std::endl;
+    input.Print();
+
 	// perform the actual probe
 	if (sink.external) {
+        // split the original input to input + state.spill_chunk
 		state.scan_structure = sink.hash_table->ProbeAndSpill(state.join_keys, input, *sink.probe_spill,
 		                                                      state.spill_state, state.spill_chunk);
+        std::cout << "== Spill Chunk ==" << std::endl;
         state.spill_chunk.Print();
+        std::cout << "== input ==" << std::endl;
+        input.Print();
 	} else {
 		state.scan_structure = sink.hash_table->Probe(state.join_keys);
 	}
-	state.scan_structure->Next(state.join_keys, input, chunk);
+    state.scan_structure->Next(state.join_keys, input, chunk);
     return OperatorResultType::HAVE_MORE_OUTPUT;
 }
 
