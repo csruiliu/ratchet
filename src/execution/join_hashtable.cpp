@@ -396,6 +396,8 @@ void JoinHashTable::Finalize(idx_t block_idx_start, idx_t block_idx_end, bool pa
 	}
 }
 
+
+
 unique_ptr<ScanStructure> JoinHashTable::InitializeScanStructure(DataChunk &keys, const SelectionVector *&current_sel) {
 	D_ASSERT(Count() > 0); // should be handled before
 	D_ASSERT(finalized);
@@ -1057,9 +1059,9 @@ void JoinHashTable::Partition(JoinHashTable &global_ht) {
 	RadixPartitioning::PartitionRowData(global_ht.buffer_manager, global_ht.layout, global_ht.pointer_offset,
 	                                    *swizzled_block_collection, *swizzled_string_heap, partition_block_collections,
 	                                    partition_string_heaps, global_ht.radix_bits);
-    /*
-    std::cout << "partition_block_collections: " << partition_block_collections.size() << std::endl;
-    for (auto &block_collection_item : partition_block_collections) {
+
+    std::cout << "partition_block_collections: " << this->partition_block_collections.size() << std::endl;
+    for (auto &block_collection_item : this->partition_block_collections) {
         std::cout << "block collection count: " << block_collection_item->count << std::endl;
         if (block_collection_item->count > 0) {
             for (auto &block : block_collection_item->blocks) {
@@ -1067,8 +1069,7 @@ void JoinHashTable::Partition(JoinHashTable &global_ht) {
             }
         }
     }
-    */
-
+    
 	// Add to global HT
 	global_ht.Merge(*this);
 }
@@ -1166,7 +1167,7 @@ unique_ptr<ScanStructure> JoinHashTable::ProbeAndSpill(DataChunk &keys, DataChun
 
 	CreateSpillChunk(spill_chunk, keys, payload, hashes);
 
-	// can't probe these values right now, append to spill
+    // can't probe these values right now, append to spill
 	spill_chunk.Slice(false_sel, false_count);
 	spill_chunk.Verify();
 	probe_spill.Append(spill_chunk, spill_state);
