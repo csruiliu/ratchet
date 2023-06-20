@@ -60,13 +60,13 @@ public:
         }
 
         if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
-            // std::cout << "[PipelineTask] ExecuteTask at PARTIAL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
+            std::cout << "[PipelineTask] ExecuteTask at PARTIAL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
             bool finished = pipeline_executor->Execute(PARTIAL_CHUNK_COUNT);
             if (!finished) {
                 return TaskExecutionResult::TASK_NOT_FINISHED;
             }
         } else {
-            // std::cout << "[PipelineTask] ExecuteTask at ALL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
+            std::cout << "[PipelineTask] ExecuteTask at ALL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
             pipeline_executor->Execute();
         }
         event->FinishTask();

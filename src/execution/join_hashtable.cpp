@@ -21,6 +21,8 @@ JoinHashTable::JoinHashTable(BufferManager &buffer_manager, const vector<JoinCon
     : buffer_manager(buffer_manager), conditions(conditions), build_types(std::move(btypes)), entry_size(0),
       tuple_size(0), vfound(Value::BOOLEAN(false)), join_type(type), finalized(false), has_null(false), external(false),
       radix_bits(4), tuples_per_round(0), partition_start(0), partition_end(0) {
+
+    std::cout << "[JoinHashTable] Construction" << std::endl;
 	for (auto &condition : conditions) {
 		D_ASSERT(condition.left->return_type == condition.right->return_type);
 		auto type = condition.left->return_type;
@@ -1015,6 +1017,7 @@ void JoinHashTable::ComputePartitionSizes(ClientConfig &config, vector<unique_pt
 	// First set the number of tuples in the HT per partitioned round
 	total_count = 0;
 	idx_t total_size = 0;
+
 	for (auto &ht : local_hts) {
 		// TODO: SizeInBytes / SwizzledSize overestimates size by a lot because we make extra references of heap blocks
 		//  Need to compute this more accurately

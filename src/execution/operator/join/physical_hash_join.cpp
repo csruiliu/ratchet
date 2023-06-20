@@ -18,6 +18,9 @@
 #include "json.hpp"
 using json = nlohmann::json;
 #include <fstream>
+#include <dirent.h>
+#include <regex>
+
 
 namespace duckdb {
 
@@ -58,6 +61,7 @@ class HashJoinGlobalSinkState : public GlobalSinkState {
 public:
 	HashJoinGlobalSinkState(const PhysicalHashJoin &op, ClientContext &context)
 	    : finalized(false), scanned_data(false) {
+        std::cout << "[HashJoinGlobalSinkState] Construction" << std::endl;
 		hash_table = op.InitializeHashTable(context);
 
 		// for perfect hash join
@@ -495,11 +499,66 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
             }
             sink.finalized = true;
         } else {
-            //TODO
-
             D_ASSERT(can_go_external);
+            std::cout << "== Resume External Hash Join ==" << std::endl;
+            sink.hash_table->Reset();
+
+            DIR *dir;
+            struct dirent *ent;
+
+            std::regex fileNameRegex("^demo.ratchet-part-[0-9]");
+
+            string folderPath = "/home/ruiliu/Develop/ratchet-duckdb/ratchet";
+
+            if ((dir = opendir(folderPath.c_str())) != nullptr) {
+                while ((ent = readdir(dir)) != nullptr) {
+                    std::string fileName = ent->d_name;
+                    
+                    if (std::regex_match(fileName, fileNameRegex)) {
+                        std::ifstream f("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + fileName);
+                        json json_data = json::parse(f);
+
+                        // idx_t build_size = build_vector_str.size();
+                        auto build_size = (idx_t)json_data["build_size"];
+
+                        unique_ptr<JoinHashTable> hash_table;
+                        hash_table = this->InitializeHashTable(context);
+                        for (idx_t i = 0; i < build_types.size(); i++) {
+                            vector<string> build_vector_data = json_data["build_chunk_" + to_string(i)]["data"];
+                            LogicalType build_type = LogicalType((LogicalTypeId)json_data["build_chunk_" + to_string(i)]["type"]);
+                            DataChunk build_chunk;
+                            build_chunk.SetCardinality(build_size);
+                            Vector build_chunk_vector = Vector(build_type, true, false, build_size);
+                            for (idx_t j = 0; j < build_size; j++) {
+                                build_chunk_vector.SetValue(j, Value(build_vector_data[j]));
+                            }
+                            build_chunk.data.emplace_back(build_chunk_vector);
+
+                            vector<int64_t> join_key_data = json_data["join_key_" + to_string(i)]["data"];
+                            LogicalType key_type = LogicalType((LogicalTypeId)json_data["join_key_" + to_string(i)]["type"]);
+                            DataChunk join_keys;
+                            join_keys.SetCardinality(build_size);
+                            Vector join_keys_vector = Vector(key_type, true, true, build_size);
+                            for (idx_t j = 0; j < build_size; j++) {
+                                join_keys_vector.SetValue(j, Value(join_key_data[j]));
+                            }
+                            join_keys.data.emplace_back(join_keys_vector);
+
+                            // build hash table using join_keys and build_chunk
+                            hash_table->Build(join_keys, build_chunk);
+                            // sink.hash_table->Merge(*hash_table);
+                        }
+                        sink.local_hash_tables.push_back(std::move(hash_table));
+                    }
+                }
+                closedir(dir);
+            } else {
+                std::cout << "Failed to open the folder." << std::endl;
+            }
+
             // External join - partition HT
             sink.perfect_join_executor.reset();
+
             sink.hash_table->ComputePartitionSizes(context.config, sink.local_hash_tables, sink.max_ht_size);
             auto new_event = make_shared<HashJoinPartitionEvent>(pipeline, sink, sink.local_hash_tables);
             event.InsertEvent(std::move(new_event));
