@@ -30,7 +30,7 @@ public:
 
 	Allocator &allocator;
 	//! The type of the buffer
-	FileBufferType type;
+    FileBufferType type;
 	//! The buffer that users can write to
 	data_ptr_t buffer;
 	//! The size of the portion that users can write to, this is equivalent to internal_size - BLOCK_HEADER_SIZE

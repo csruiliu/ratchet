@@ -147,6 +147,7 @@ void PipelineExecutor::FlushCachingOperatorsPush() {
 }
 
 void PipelineExecutor::PushFinalize() {
+    std::cout << "[PipelineExecutor::PushFinalize] for pipeline " << pipeline.GetPipelineId() << std::endl;
 	if (finalized) {
 		throw InternalException("Calling PushFinalize on a pipeline that has been finalized already");
 	}
