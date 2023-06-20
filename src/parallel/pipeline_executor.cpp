@@ -83,6 +83,7 @@ bool PipelineExecutor::IsFinished() {
 }
 
 OperatorResultType PipelineExecutor::ExecutePushInternal(DataChunk &input, idx_t initial_idx) {
+    std::cout << "PipelineExecutor::ExecutePushInternal for pipeline " << pipeline.GetPipelineId() << std::endl;
 	D_ASSERT(pipeline.sink);
 	if (input.size() == 0) { // LCOV_EXCL_START
 		return OperatorResultType::NEED_MORE_INPUT;
