@@ -103,6 +103,7 @@ extern std::chrono::steady_clock::time_point global_start;
 extern uint64_t global_suspend_point_ms;
 extern std::atomic<uint16_t> global_stopped_threads;
 extern std::vector<idx_t> global_finalized_pipelines;
+extern std::atomic<uint16_t> global_ht_partition;
 
 struct DConstants {
 	//! The value used to signify an invalid index entry

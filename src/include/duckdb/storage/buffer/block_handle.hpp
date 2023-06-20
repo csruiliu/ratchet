@@ -89,6 +89,8 @@ public:
 		return memory_usage;
 	}
 
+    void ShowBufferInBlock();
+
 private:
     static BufferHandle Load(shared_ptr<BlockHandle> &handle, unique_ptr<FileBuffer> buffer = nullptr);
 	unique_ptr<FileBuffer> UnloadAndTakeBlock();

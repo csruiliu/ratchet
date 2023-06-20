@@ -191,7 +191,7 @@ unique_ptr<LocalSinkState> PhysicalHashJoin::GetLocalSinkState(ExecutionContext 
 
 SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState &gstate_p, LocalSinkState &lstate_p,
                                       DataChunk &input) const {
-    // std::cout << "[PhysicalHashJoin::Sink] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
+    std::cout << "[PhysicalHashJoin::Sink] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
 	auto &gstate = (HashJoinGlobalSinkState &)gstate_p;
 	auto &lstate = (HashJoinLocalSinkState &)lstate_p;
 
@@ -218,6 +218,57 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
 		ht.Build(lstate.join_keys, lstate.build_chunk);
 	}
 
+    // Serialization for external hash join
+    if (global_suspend_start && gstate.external) {
+        std::cout << "== Serialization for external hash join ==" << std::endl;
+        D_ASSERT(lstate.join_keys.size() == lstate.build_chunk.size());
+
+        std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
+        uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                suspend_check - global_start).count();
+
+        if (time_dur_ms > global_suspend_point_ms) {
+            json json_data;
+
+            global_finalized_pipelines.emplace_back(context.pipeline->GetPipelineId());
+            idx_t build_size = lstate.join_keys.size();
+
+            for (idx_t i = 0; i < lstate.join_keys.GetTypes().size(); i++) {
+                if (lstate.join_keys.GetTypes()[i] == LogicalType::INTEGER) {
+                    vector<idx_t> key_vector;
+                    for (idx_t j = 0; j < build_size; j++) {
+                        key_vector.emplace_back(std::stoi(lstate.join_keys.data[i].GetValue(j).ToString()));
+                    }
+                    json_data["join_key_" + to_string(i)]["type"] = LogicalType::INTEGER;
+                    json_data["join_key_" + to_string(i)]["data"] = key_vector;
+                }
+            }
+
+            for (idx_t i = 0; i < lstate.build_chunk.GetTypes().size(); i++) {
+                if (lstate.build_chunk.GetTypes()[i] == LogicalType::VARCHAR) {
+                    vector<string> str_vector;
+                    for (idx_t j = 0; j < build_size; j++) {
+                        str_vector.emplace_back(lstate.build_chunk.data[i].GetValue(j).ToString());
+                    }
+                    json_data["build_chunk_" + to_string(i)]["type"] = LogicalType::VARCHAR;
+                    json_data["build_chunk_" + to_string(i)]["data"] = str_vector;
+                }
+            }
+
+            json_data["pipeline_ids"] = global_finalized_pipelines;
+            json_data["build_size"] = build_size;
+
+            std::ofstream outputFile("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_suspend_file + "-part-" +
+                                     to_string(global_ht_partition));
+            global_ht_partition++;
+            outputFile << json_data;
+            outputFile.close();
+            if (outputFile.fail()) {
+                std::cerr << "Error writing to file!" << std::endl;
+            }
+        }
+    }
+
 	// swizzle if we reach memory limit
 	auto approx_ptr_table_size = ht.Count() * 3 * sizeof(data_ptr_t);
 	if (can_go_external && ht.SizeInBytes() + approx_ptr_table_size >= gstate.sink_memory_per_thread) {
@@ -229,6 +280,7 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
 }
 
 void PhysicalHashJoin::Combine(ExecutionContext &context, GlobalSinkState &gstate_p, LocalSinkState &lstate_p) const {
+    std::cout << "[PhysicalHashJoin::Combine] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
 	auto &gstate = (HashJoinGlobalSinkState &)gstate_p;
 	auto &lstate = (HashJoinLocalSinkState &)lstate_p;
 	if (lstate.hash_table) {
@@ -435,6 +487,17 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
         if (sink.external) {
             std::cout << "== External Hash ==" << std::endl;
             D_ASSERT(can_go_external);
+
+            // Suspension for perfect hash join
+            if (global_suspend_start) {
+                std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
+                uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        suspend_check - global_start).count();
+                if (time_dur_ms > global_suspend_point_ms) {
+                    exit(0);
+                }
+            }
+
             // External join - partition HT
             sink.perfect_join_executor.reset();
             sink.hash_table->ComputePartitionSizes(context.config, sink.local_hash_tables, sink.max_ht_size);
@@ -469,8 +532,8 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
             return SinkFinalizeType::NO_OUTPUT_POSSIBLE;
         }
 
-        // Ratchet Suspend
-        if (global_suspend_start) {
+        // Suspension for perfect hash join
+        if (global_suspend_start && use_perfect_hash) {
             std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
             uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                     suspend_check - global_start).count();
@@ -478,10 +541,8 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
             if (time_dur_ms > global_suspend_point_ms) {
                 global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
                 // Serialize PerfectHashTable to Disk
-                if (global_suspend_start && use_perfect_hash) {
-                    sink.perfect_join_executor->SerializePerfectHashTable();
-                    exit(0);
-                }
+                sink.perfect_join_executor->SerializePerfectHashTable();
+                exit(0);
             }
         }
     }
@@ -579,21 +640,17 @@ OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, 
 	state.join_keys.Reset();
 	state.probe_executor.Execute(input, state.join_keys);
 
-    std::cout << "state.join_keys" << std::endl;
-    state.join_keys.Print();
-
-    std::cout << "input" << std::endl;
-    input.Print();
+    // state.join_keys.Print();
+    // input.Print();
 
 	// perform the actual probe
 	if (sink.external) {
         // split the original input to input + state.spill_chunk
 		state.scan_structure = sink.hash_table->ProbeAndSpill(state.join_keys, input, *sink.probe_spill,
 		                                                      state.spill_state, state.spill_chunk);
-        std::cout << "== Spill Chunk ==" << std::endl;
-        state.spill_chunk.Print();
-        std::cout << "== input ==" << std::endl;
-        input.Print();
+
+        // state.spill_chunk.Print();
+        // std::cout << "== input ==" << std::endl;
 	} else {
 		state.scan_structure = sink.hash_table->Probe(state.join_keys);
 	}

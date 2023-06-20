@@ -195,6 +195,7 @@ idx_t JoinHashTable::PrepareKeys(DataChunk &keys, unique_ptr<UnifiedVectorFormat
 }
 
 void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
+    std::cout << "[JoinHashTable::Build]" << std::endl;
     D_ASSERT(!finalized);
 	D_ASSERT(keys.size() == payload.size());
 	if (keys.size() == 0) {
@@ -316,10 +317,11 @@ void JoinHashTable::InsertHashes(Vector &hashes, idx_t count, data_ptr_t key_loc
 
 	auto pointers = (atomic<data_ptr_t> *)hash_map.get();
 	auto indices = FlatVector::GetData<hash_t>(hashes);
-
 	if (parallel) {
+        std::cout << "parallel in InsertHashes" << std::endl;
 		InsertHashesLoop<true>(pointers, indices, count, key_locations, pointer_offset);
 	} else {
+        std::cout << "not parallel in InsertHashes" << std::endl;
 		InsertHashesLoop<false>(pointers, indices, count, key_locations, pointer_offset);
 	}
 }
@@ -367,12 +369,13 @@ void JoinHashTable::Finalize(idx_t block_idx_start, idx_t block_idx_end, bool pa
 			heap_ptr = heap_handle.Ptr();
 			local_pinned_handles.push_back(std::move(heap_handle));
 		}
-
 		idx_t entry = 0;
 		while (entry < block->count) {
 			idx_t next = MinValue<idx_t>(STANDARD_VECTOR_SIZE, block->count - entry);
+            std::cout << "block_idx: " << block_idx << ", entry: " << entry << ", block->count: " << block->count << ", next: " << next << std::endl;
 
 			if (unswizzle) {
+                std::cout << "RowOperations::UnswizzlePointers" << std::endl;
 				RowOperations::UnswizzlePointers(layout, dataptr, heap_ptr, next);
 			}
 
@@ -380,7 +383,7 @@ void JoinHashTable::Finalize(idx_t block_idx_start, idx_t block_idx_end, bool pa
 			for (idx_t i = 0; i < next; i++) {
 				hash_data[i] = Load<hash_t>((data_ptr_t)(dataptr + pointer_offset));
 				key_locations[i] = dataptr;
-				dataptr += entry_size;
+                dataptr += entry_size;
 			}
 			// now insert into the hash table
 			InsertHashes(hashes, next, key_locations, parallel);
@@ -392,10 +395,9 @@ void JoinHashTable::Finalize(idx_t block_idx_start, idx_t block_idx_end, bool pa
 
 	lock_guard<mutex> lock(pinned_handles_lock);
 	for (auto &local_pinned_handle : local_pinned_handles) {
-		pinned_handles.push_back(std::move(local_pinned_handle));
+        pinned_handles.push_back(std::move(local_pinned_handle));
 	}
 }
-
 
 
 unique_ptr<ScanStructure> JoinHashTable::InitializeScanStructure(DataChunk &keys, const SelectionVector *&current_sel) {
@@ -1059,17 +1061,6 @@ void JoinHashTable::Partition(JoinHashTable &global_ht) {
 	RadixPartitioning::PartitionRowData(global_ht.buffer_manager, global_ht.layout, global_ht.pointer_offset,
 	                                    *swizzled_block_collection, *swizzled_string_heap, partition_block_collections,
 	                                    partition_string_heaps, global_ht.radix_bits);
-
-    std::cout << "partition_block_collections: " << this->partition_block_collections.size() << std::endl;
-    for (auto &block_collection_item : this->partition_block_collections) {
-        std::cout << "block collection count: " << block_collection_item->count << std::endl;
-        if (block_collection_item->count > 0) {
-            for (auto &block : block_collection_item->blocks) {
-                std::cout << "block count: " << block->count << std::endl;
-            }
-        }
-    }
-    
 	// Add to global HT
 	global_ht.Merge(*this);
 }
@@ -1084,6 +1075,7 @@ void JoinHashTable::Reset() {
 bool JoinHashTable::PrepareExternalFinalize() {
     std::cout << "[JoinHashTable::PrepareExternalFinalize]" << std::endl;
 	idx_t num_partitions = RadixPartitioning::NumberOfPartitions(radix_bits);
+    std::cout << "Number of Partitions in PrepareExternalFinalize: " << num_partitions << std::endl;
 	if (partition_block_collections.empty() || partition_end == num_partitions) {
 		return false;
 	}

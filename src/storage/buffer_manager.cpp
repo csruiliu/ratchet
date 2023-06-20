@@ -178,6 +178,10 @@ bool BlockHandle::CanUnload() {
 	return true;
 }
 
+void BlockHandle::ShowBufferInBlock() {
+    std::cout << to_string(*(this->buffer->InternalBuffer())) << std::endl;
+}
+
 struct BufferEvictionNode {
 	BufferEvictionNode() {
 	}
