@@ -438,9 +438,12 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
     std::cout << "[PhysicalHashJoin::Finalize] for pipeline " << pipeline.GetPipelineId() << std::endl;
 	auto &sink = (HashJoinGlobalSinkState &)gstate;
 
+    auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
+
     idx_t current_id = pipeline.GetPipelineId();
     auto it = std::find(global_finalized_pipelines.begin(),global_finalized_pipelines.end(),current_id);
 
+    // Check if we should resume
     if (global_resume_start && it != global_finalized_pipelines.end()) {
         if (!sink.external) {
             std::cout << "== Resume Perfect Hash Join ==" << std::endl;
@@ -479,25 +482,22 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                 hash_table->Build(join_keys, build_chunk);
                 sink.hash_table->Merge(*hash_table);
             }
-        }
-        sink.finalized = true;
-        auto key_type = sink.hash_table->equality_types[0];
-        sink.perfect_join_executor->BuildPerfectHashTable(key_type);
-    } else {
-        if (sink.external) {
-            std::cout << "== External Hash ==" << std::endl;
-            D_ASSERT(can_go_external);
 
-            // Suspension for perfect hash join
-            if (global_suspend_start) {
-                std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
-                uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                        suspend_check - global_start).count();
-                if (time_dur_ms > global_suspend_point_ms) {
-                    exit(0);
-                }
+            // auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
+            if (use_perfect_hash) {
+                // D_ASSERT(sink.hash_table->equality_types.size() == 1);
+                auto key_type = sink.hash_table->equality_types[0];
+                use_perfect_hash = sink.perfect_join_executor->BuildPerfectHashTable(key_type);
             }
+            if (!use_perfect_hash) {
+                sink.perfect_join_executor.reset();
+                sink.ScheduleFinalize(pipeline, event);
+            }
+            sink.finalized = true;
+        } else {
+            //TODO
 
+            D_ASSERT(can_go_external);
             // External join - partition HT
             sink.perfect_join_executor.reset();
             sink.hash_table->ComputePartitionSizes(context.config, sink.local_hash_tables, sink.max_ht_size);
@@ -505,40 +505,19 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
             event.InsertEvent(std::move(new_event));
             sink.finalized = true;
             return SinkFinalizeType::READY;
-        } else {
-            std::cout << "== No External Hash ==" << std::endl;
-            for (auto &local_ht : sink.local_hash_tables) {
-                sink.hash_table->Merge(*local_ht);
+        }
+    }
+
+    // Check if we should suspend
+    if (global_suspend_start) {
+        std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
+        uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                suspend_check - global_start).count();
+        if (time_dur_ms > global_suspend_point_ms) {
+            if (sink.external) {
+                exit(0);
             }
-            sink.local_hash_tables.clear();
-        }
-
-        // check for possible perfect hash table
-        auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
-        if (use_perfect_hash) {
-            std::cout << "== Use Perfect Hash ==" << std::endl;
-            D_ASSERT(sink.hash_table->equality_types.size() == 1);
-            auto key_type = sink.hash_table->equality_types[0];
-            use_perfect_hash = sink.perfect_join_executor->BuildPerfectHashTable(key_type);
-        }
-        // In case of a large build side or duplicates, use regular hash join
-        if (!use_perfect_hash) {
-            std::cout << "== No Perfect Hash ==" << std::endl;
-            sink.perfect_join_executor.reset();
-            sink.ScheduleFinalize(pipeline, event);
-        }
-        sink.finalized = true;
-        if (sink.hash_table->Count() == 0 && EmptyResultIfRHSIsEmpty()) {
-            return SinkFinalizeType::NO_OUTPUT_POSSIBLE;
-        }
-
-        // Suspension for perfect hash join
-        if (global_suspend_start && use_perfect_hash) {
-            std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
-            uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    suspend_check - global_start).count();
-
-            if (time_dur_ms > global_suspend_point_ms) {
+            if (use_perfect_hash) {
                 global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
                 // Serialize PerfectHashTable to Disk
                 sink.perfect_join_executor->SerializePerfectHashTable();
@@ -547,7 +526,40 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
         }
     }
 
-	return SinkFinalizeType::READY;
+    // Do regular Finalize
+    if (sink.external) {
+        D_ASSERT(can_go_external);
+        // External join - partition HT
+        sink.perfect_join_executor.reset();
+        sink.hash_table->ComputePartitionSizes(context.config, sink.local_hash_tables, sink.max_ht_size);
+        auto new_event = make_shared<HashJoinPartitionEvent>(pipeline, sink, sink.local_hash_tables);
+        event.InsertEvent(std::move(new_event));
+        sink.finalized = true;
+        return SinkFinalizeType::READY;
+    } else {
+        for (auto &local_ht : sink.local_hash_tables) {
+            sink.hash_table->Merge(*local_ht);
+        }
+        sink.local_hash_tables.clear();
+    }
+
+    // check for possible perfect hash table
+    // auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
+    if (use_perfect_hash) {
+        D_ASSERT(sink.hash_table->equality_types.size() == 1);
+        auto key_type = sink.hash_table->equality_types[0];
+        use_perfect_hash = sink.perfect_join_executor->BuildPerfectHashTable(key_type);
+    }
+    // In case of a large build side or duplicates, use regular hash join
+    if (!use_perfect_hash) {
+        sink.perfect_join_executor.reset();
+        sink.ScheduleFinalize(pipeline, event);
+    }
+    sink.finalized = true;
+    if (sink.hash_table->Count() == 0 && EmptyResultIfRHSIsEmpty()) {
+        return SinkFinalizeType::NO_OUTPUT_POSSIBLE;
+    }
+    return SinkFinalizeType::READY;
 }
 
 //===--------------------------------------------------------------------===//
