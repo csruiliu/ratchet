@@ -6,12 +6,12 @@ FROM	(
 			SELECT	N_NAME AS NATION,
    					EXTRACT(YEAR FROM CAST(O_ORDERDATE AS DATE)) AS O_YEAR,
 					L_EXTENDEDPRICE * (1 - L_DISCOUNT) - PS_SUPPLYCOST * L_QUANTITY AS AMOUNT
-    		FROM	'TPCH_DATAPATH/part.parquet',
-      				'TPCH_DATAPATH/supplier.parquet',
-					'TPCH_DATAPATH/lineitem.parquet',
-					'TPCH_DATAPATH/partsupp.parquet',
-					'TPCH_DATAPATH/orders.parquet',
-					'TPCH_DATAPATH/nation.parquet'
+    		FROM	part,
+      				supplier,
+					lineitem,
+					partsupp,
+					orders,
+					nation
 			WHERE	S_SUPPKEY = L_SUPPKEY
 					AND PS_SUPPKEY = L_SUPPKEY
 					AND PS_PARTKEY = L_PARTKEY

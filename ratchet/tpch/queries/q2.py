@@ -7,11 +7,11 @@ SELECT  S_ACCTBAL
         S_ADDRESS,
         S_PHONE,
         S_COMMENT
-FROM    'TPCH_DATAPATH/part.parquet',
-        'TPCH_DATAPATH/supplier.parquet',
-        'TPCH_DATAPATH/partsupp.parquet',
-        'TPCH_DATAPATH/nation.parquet',
-        'TPCH_DATAPATH/region.parquet'
+FROM    part,
+        supplier,
+        partsupp,
+        nation,
+        region
 WHERE   P_PARTKEY = PS_PARTKEY
         AND S_SUPPKEY = PS_SUPPKEY
         AND P_SIZE = 15
@@ -21,10 +21,10 @@ WHERE   P_PARTKEY = PS_PARTKEY
         AND R_NAME = 'EUROPE'
         AND PS_SUPPLYCOST = (
                 SELECT  min(PS_SUPPLYCOST)
-                FROM    'TPCH_DATAPATH/partsupp.parquet',
-                        'TPCH_DATAPATH/supplier.parquet',
-                        'TPCH_DATAPATH/nation.parquet',
-                        'TPCH_DATAPATH/region.parquet'
+                FROM    partsupp,
+                        supplier,
+                        nation,
+                        region
                 WHERE   P_PARTKEY = PS_PARTKEY
                         AND S_SUPPKEY = PS_SUPPKEY
                         AND S_NATIONKEY = N_NATIONKEY

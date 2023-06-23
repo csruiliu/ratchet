@@ -1,18 +1,18 @@
 query = """
 SELECT	PS_PARTKEY,
 		sum(PS_SUPPLYCOST * PS_AVAILQTY) AS VALUE
-FROM	'TPCH_DATAPATH/partsupp.parquet',
-		'TPCH_DATAPATH/supplier.parquet',
-		'TPCH_DATAPATH/nation.parquet'
+FROM	partsupp,
+		supplier,
+		nation
 WHERE	PS_SUPPKEY = S_SUPPKEY
 		AND S_NATIONKEY = N_NATIONKEY
 		AND N_NAME = 'GERMANY'
 GROUP BY	PS_PARTKEY HAVING
 			sum(PS_SUPPLYCOST * PS_AVAILQTY) > (
     			SELECT	sum(PS_SUPPLYCOST * PS_AVAILQTY) * 0.0001
-    			FROM	'TPCH_DATAPATH/partsupp.parquet',
-						'TPCH_DATAPATH/supplier.parquet',
-						'TPCH_DATAPATH/nation.parquet'
+    			FROM	partsupp,
+						supplier,
+						nation
     			WHERE	PS_SUPPKEY = S_SUPPKEY
 						AND S_NATIONKEY = N_NATIONKEY
 						AND N_NAME = 'GERMANY'
