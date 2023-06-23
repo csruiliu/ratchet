@@ -6,7 +6,7 @@
 # Datasets and files to be ignored in ratchet folder.
 #==============================================================================#
 
-/ratchet/tpch/dataset
+/ratchet/dataset
 /ratchet/criu/criu-ckpt
 *.wal
 *.ratchet

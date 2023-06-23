@@ -9,6 +9,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-q", "--query_name", type=str, action="store", required=True,
+                        choices=['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9'],
                         help="indicate the query id")
     parser.add_argument("-d", "--database", type=str, action="store", required=True, default="memory",
                         help="indicate the database location, memory or other location")
@@ -43,6 +44,8 @@ def main():
     resume_query = args.resume_query
     update_table = args.update_table
 
+    exec_query = globals()[qid].query
+
     if suspend_query:
         suspend_start_time = args.suspend_start_time
         suspend_end_time = args.suspend_end_time
@@ -70,79 +73,6 @@ def main():
         db_conn.execute(f"CREATE TABLE IF NOT EXISTS {t} AS SELECT * FROM read_parquet('{data_folder}/{t}.parquet');")
 
     # start the query execution
-    if qid == "sum-1":
-        exec_query = f"""
-            SELECT  sum(L_QUANTITY) as SUM_QTY
-            FROM    lineitem
-        """
-    elif qid == "avg-1":
-        exec_query = f"""
-            SELECT  avg(L_DISCOUNT) as AVG_DISC
-            FROM    lineitem
-        """
-    elif qid == "orderby-1":
-        exec_query = f"""
-            SELECT  sum(L_QUANTITY) as REVENUE
-            FROM    lineitem
-            ORDER BY    REVENUE
-        """
-    elif qid == "join-1":
-        exec_query = f"""
-            SELECT  N_NAME, R_NAME
-            FROM  	nation,
-                    region
-            WHERE	N_REGIONKEY = R_REGIONKEY
-        """
-    elif qid == "join-2":
-        exec_query = f"""
-            SELECT  C_CUSTKEY, C_NAME, O_ORDERKEY, O_ORDERSTATUS
-            FROM  	customer,
-                    orders
-            WHERE	C_CUSTKEY = O_CUSTKEY
-        """
-    elif qid == "join-3":
-        exec_query = f"""
-            SELECT  P_NAME, PS_AVAILQTY, S_ACCTBAL
-            FROM  	partsupp,
-                    part,
-                    supplier
-            WHERE	PS_PARTKEY = P_PARTKEY
-                    AND	PS_SUPPKEY = S_SUPPKEY
-        """
-    elif qid == "join-4":
-        exec_query = f"""
-            SELECT  C_CUSTKEY, O_ORDERKEY, L_LINENUMBER, L_QUANTITY, C_ACCTBAL, O_TOTALPRICE
-            FROM  	customer,
-                    orders,
-                    lineitem
-            WHERE	C_CUSTKEY = O_CUSTKEY
-                    AND	L_ORDERKEY = O_ORDERKEY
-                    AND CAST(O_ORDERDATE AS DATE) >= '1994-01-01'
-                    AND C_ACCTBAL > 100
-                    AND L_QUANTITY > 5
-        """
-    elif qid == "join-groupby-orderby-1":
-        exec_query = f"""
-            SELECT  L_ORDERKEY, sum(L_EXTENDEDPRICE*(1-L_DISCOUNT)) as REVENUE, O_ORDERDATE, O_SHIPPRIORITY
-            FROM    orders,
-                    lineitem
-            WHERE	L_ORDERKEY = O_ORDERKEY
-                    AND CAST(O_ORDERDATE AS DATE) >= '1994-01-01'
-            GROUP BY    L_ORDERKEY,
-                        O_ORDERDATE,
-                        O_SHIPPRIORITY
-            ORDER BY    O_ORDERDATE
-        """
-    elif qid == "groupby-orderby-1":
-        exec_query = f"""
-            SELECT  L_ORDERKEY, sum(L_EXTENDEDPRICE*(1-L_DISCOUNT)) as REVENUE
-            FROM    lineitem
-            GROUP BY    L_ORDERKEY
-            ORDER BY    REVENUE
-        """
-    else:
-        raise ValueError("Query is not supported in demo")
-
     if suspend_query:
         results = db_conn.execute_suspend(exec_query, suspend_file, suspend_start_time, suspend_end_time).fetchdf()
     elif resume_query:
