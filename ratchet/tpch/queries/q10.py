@@ -7,10 +7,10 @@ SELECT	C_CUSTKEY,
 		C_ADDRESS,
 		C_PHONE,
 		C_COMMENT
-FROM	'TPCH_DATAPATH/customer.parquet',
-		'TPCH_DATAPATH/orders.parquet',
-		'TPCH_DATAPATH/lineitem.parquet',
-		'TPCH_DATAPATH/nation.parquet'
+FROM	customer,
+		orders,
+		lineitem,
+		nation
 WHERE	C_CUSTKEY = O_CUSTKEY
 		AND L_ORDERKEY = O_ORDERKEY
 		AND O_ORDERDATE >= '1993-10-01'

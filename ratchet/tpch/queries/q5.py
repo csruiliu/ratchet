@@ -1,12 +1,12 @@
 query = """
 SELECT  N_NAME,
         sum(L_EXTENDEDPRICE * (1 - L_DISCOUNT)) AS REVENUE
-FROM  	'TPCH_DATAPATH/customer.parquet',
-		'TPCH_DATAPATH/orders.parquet',
-		'TPCH_DATAPATH/lineitem.parquet',
-		'TPCH_DATAPATH/supplier.parquet',
-		'TPCH_DATAPATH/nation.parquet',
-		'TPCH_DATAPATH/region.parquet'
+FROM  	customer,
+		orders,
+		lineitem,
+		supplier,
+		nation,
+		region
 WHERE	C_CUSTKEY = O_CUSTKEY
 		AND	L_ORDERKEY = O_ORDERKEY
 		AND L_SUPPKEY = S_SUPPKEY

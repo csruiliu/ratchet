@@ -5,12 +5,12 @@ SELECT	C_NAME,
 		O_ORDERDATE,
 		O_TOTALPRICE,
 		sum(L_QUANTITY)
-FROM	'TPCH_DATAPATH/customer.parquet',
-		'TPCH_DATAPATH/orders.parquet',
-		'TPCH_DATAPATH/lineitem.parquet'
+FROM	customer,
+		orders,
+		lineitem
 WHERE	O_ORDERKEY IN (
 		SELECT	L_ORDERKEY
-		FROM	'TPCH_DATAPATH/lineitem.parquet'
+		FROM	lineitem
 		GROUP BY	L_ORDERKEY 
 		HAVING sum(L_QUANTITY) > 300
 		)

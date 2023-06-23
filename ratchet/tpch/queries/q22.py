@@ -5,17 +5,17 @@ SELECT	CNTRYCODE,
 FROM	(
 			SELECT	SUBSTRING(C_PHONE FROM 1 FOR 2) AS CNTRYCODE,
 					C_ACCTBAL
-			FROM	'TPCH_DATAPATH/customer.parquet'
+			FROM	customer
 			WHERE	SUBSTRING(C_PHONE FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')
 					AND C_ACCTBAL > (
 						SELECT	AVG(C_ACCTBAL)
-						FROM	'TPCH_DATAPATH/customer.parquet'
+						FROM	customer
 						WHERE	C_ACCTBAL > 0.00
 								AND SUBSTRING(C_PHONE FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')
 					)
 					AND NOT EXISTS (
 						SELECT	*
-						FROM	'TPCH_DATAPATH/orders.parquet'
+						FROM	orders
 						WHERE	O_CUSTKEY = C_CUSTKEY
 					)
 		) AS CUSTSALE
