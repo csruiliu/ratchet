@@ -3,6 +3,8 @@ import argparse
 import time
 import pandas as pd
 
+from queries import *
+
 
 def main():
     pd.set_option('display.float_format', '{:.1f}'.format)
