@@ -1546,7 +1546,9 @@ private:
 };
 
 TaskExecutionResult WindowMergeTask::ExecuteTask(TaskExecutionMode mode) {
+#if RATCHET_PRINT == 1
     std::cout << "[WindowMergeTask] ExecuteTask" << std::endl;
+#endif
 	// Loop until all hash groups are done
 	size_t sorted = 0;
 	while (sorted < hash_groups.states.size()) {

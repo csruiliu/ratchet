@@ -245,8 +245,10 @@ CachingPhysicalOperator::CachingPhysicalOperator(PhysicalOperatorType type, vect
 
 OperatorResultType CachingPhysicalOperator::Execute(ExecutionContext &context, DataChunk &input, DataChunk &chunk,
                                                     GlobalOperatorState &gstate, OperatorState &state_p) const {
-    // std::cout << "[CachingPhysicalOperator::Execute] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
-	auto &state = (CachingOperatorState &)state_p;
+#if RATCHET_PRINT == 1
+    std::cout << "[CachingPhysicalOperator::Execute] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
+#endif
+    auto &state = (CachingOperatorState &)state_p;
 
 	// Execute child operator
 	auto child_result = ExecuteInternal(context, input, chunk, gstate, state);

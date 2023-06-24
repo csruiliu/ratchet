@@ -168,8 +168,10 @@ unique_ptr<OperatorState> PerfectHashJoinExecutor::GetOperatorState(ExecutionCon
 
 OperatorResultType PerfectHashJoinExecutor::ProbePerfectHashTable(ExecutionContext &context, DataChunk &input,
                                                                   DataChunk &result, OperatorState &state_p) {
-    // std::cout << "[PerfectHashJoinExecutor::ProbePerfectHashTable] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
-	auto &state = (PerfectHashJoinState &)state_p;
+#if RATCHET_PRINT == 1
+    std::cout << "[PerfectHashJoinExecutor::ProbePerfectHashTable] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
+#endif
+    auto &state = (PerfectHashJoinState &)state_p;
 	// keeps track of how many probe keys have a match
 	idx_t probe_sel_count = 0;
 
@@ -290,7 +292,7 @@ void PerfectHashJoinExecutor::TemplatedFillSelectionVectorProbe(Vector &source, 
 // Ratchet
 //===--------------------------------------------------------------------===//
 void PerfectHashJoinExecutor::SerializePerfectHashTable() {
-    std::cout << "== Serialize PerfectHashTable" << std::endl;
+    std::cout << "== Serialize PerfectHashTable ==" << std::endl;
 
     json json_data;
 

@@ -345,8 +345,10 @@ public:
 	}
 
 	void AggregateDistinct() {
+#if RATCHET_PRINT == 1
         std::cout << "[physical_ungrouped_aggregate] AggregateDistinct" << std::endl;
-		D_ASSERT(gstate.distinct_state);
+#endif
+        D_ASSERT(gstate.distinct_state);
 		auto &aggregates = op.aggregates;
 		auto &distinct_state = *gstate.distinct_state;
 		auto &distinct_data = *op.distinct_data;
@@ -415,7 +417,9 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#if RATCHET_PRINT == 1
         std::cout << "[UngroupedDistinctAggregateFinalizeTask] ExecuteTask" << std::endl;
+#endif
 		AggregateDistinct();
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
@@ -522,8 +526,9 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
         uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
 
         if (time_dur_ms > global_suspend_point_ms) {
+#if RATCHET_PRINT == 1
             std::cout << "[PhysicalUngroupedAggregate::Finalize] Suspend and Serialize Global State" << std::endl;
-
+#endif
             json jsonfile;
 
             vector<string> aggregate_values;
@@ -593,8 +598,9 @@ void VerifyNullHandling(DataChunk &chunk, AggregateState &state, const vector<un
 
 void PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                          LocalSourceState &lstate) const {
+#if RATCHET_PRINT == 1
     std::cout << "[PhysicalUngroupedAggregate::GetData]" << std::endl;
-
+#endif
 	auto &gstate = (UngroupedAggregateGlobalState &)*sink_state;
 	auto &state = (UngroupedAggregateState &)gstate_p;
 	D_ASSERT(gstate.finished);

@@ -358,8 +358,10 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 	// now convert logical query plan into a physical query plan
 	PhysicalPlanGenerator physical_planner(*this);
 	auto physical_plan = physical_planner.CreatePlan(std::move(plan));
-    // std::cout << "==== Physical Plan ====" << std::endl;
-    // physical_plan->Print();
+#if RATCHET_PRINT == 2
+    std::cout << "==== Physical Plan ====" << std::endl;
+    physical_plan->Print();
+#endif
     profiler.EndPhase();
 
 #ifdef DEBUG

@@ -117,8 +117,10 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#if RATCHET_PRINT == 1
         std::cout << "[PhysicalOrderMergeTask] ExecuteTask" << std::endl;
-		// Initialize merge sorted and iterate until done
+#endif
+        // Initialize merge sorted and iterate until done
 		auto &global_sort_state = state.global_sort_state;
 		MergeSorter merge_sorter(global_sort_state, BufferManager::GetBufferManager(context));
 		merge_sorter.PerformInMergeRound();

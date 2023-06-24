@@ -90,8 +90,10 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#if RATCHET_PRINT == 1
         std::cout << "[RangeJoinMergeTask] ExecuteTask" << std::endl;
-		// Initialize iejoin sorted and iterate until done
+#endif
+        // Initialize iejoin sorted and iterate until done
 		auto &global_sort_state = table.global_sort_state;
 		MergeSorter merge_sorter(global_sort_state, BufferManager::GetBufferManager(context));
 		merge_sorter.PerformInMergeRound();
