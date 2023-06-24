@@ -322,7 +322,7 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
     json_data["pipeline_ids"] = global_finalized_pipelines;
     json_data["build_size"] = build_size;
 
-    std::ofstream outputFile("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_suspend_file);
+    std::ofstream outputFile(global_suspend_file);
     outputFile << json_data;
     outputFile.close();
     if (outputFile.fail()) {

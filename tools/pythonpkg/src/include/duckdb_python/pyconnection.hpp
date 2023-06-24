@@ -82,14 +82,16 @@ public:
 	shared_ptr<DuckDBPyConnection> Execute(const string &query, py::object params = py::list(), bool many = false);
 
     shared_ptr<DuckDBPyConnection> ExecuteSuspend(const string &query,
-                                                  const string &ratchet_file,
+                                                  const string &suspend_location,
                                                   float_t suspend_start_time,
                                                   float_t suspend_end_time,
+                                                  bool partition_suspend,
                                                   py::object params = py::list(),
                                                   bool many = false);
 
     shared_ptr<DuckDBPyConnection> ExecuteResume(const string &query,
-                                                 const string &resume_file,
+                                                 const string &resume_location,
+                                                 bool partition_resume,
                                                  py::object params = py::list(),
                                                  bool many = false);
 

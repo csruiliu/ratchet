@@ -262,14 +262,16 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
             json_data["pipeline_ids"] = global_finalized_pipelines;
             json_data["build_size"] = build_size;
 
-            std::ofstream outputFile("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_suspend_file + "-part-" +
-                                     to_string(global_ht_partition));
-            global_ht_partition++;
+            string suspend_folder = global_suspend_folder;
+
+            std::ofstream outputFile(suspend_folder.append("/part-").append(to_string(global_ht_partition)).append(".ratchet"));
             outputFile << json_data;
             outputFile.close();
             if (outputFile.fail()) {
                 std::cerr << "Error writing to file!" << std::endl;
             }
+
+            global_ht_partition++;
         }
     }
 
@@ -453,7 +455,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
             std::cout << "== Resume Perfect Hash Join ==" << std::endl;
             sink.hash_table->Reset();
 
-            std::ifstream f("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_resume_file);
+            std::ifstream f(global_resume_file);
             json json_data = json::parse(f);
 
             // idx_t build_size = build_vector_str.size();
@@ -506,16 +508,14 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
             DIR *dir;
             struct dirent *ent;
 
-            std::regex fileNameRegex("^demo.ratchet-part-[0-9]");
-
-            string folderPath = "/home/ruiliu/Develop/ratchet-duckdb/ratchet";
-
-            if ((dir = opendir(folderPath.c_str())) != nullptr) {
+            std::regex fileNameRegex("^part-.*\\.ratchet$");
+            if ((dir = opendir(global_resume_folder.c_str())) != nullptr) {
                 while ((ent = readdir(dir)) != nullptr) {
                     std::string fileName = ent->d_name;
-                    
+
                     if (std::regex_match(fileName, fileNameRegex)) {
-                        std::ifstream f("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + fileName);
+                        string resume_folder = global_resume_folder;
+                        std::ifstream f(resume_folder.append("/").append(fileName));
                         json json_data = json::parse(f);
 
                         // idx_t build_size = build_vector_str.size();

@@ -41,9 +41,19 @@ public:
 			pipeline_executor = make_unique<PipelineExecutor>(pipeline.GetClientContext(), pipeline);
 		}
 
+        // Check if it is a resume execution
         if (global_resume_start) {
-            std::ifstream f("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_resume_file);
-            json json_data = json::parse(f);
+            // check to use global_resume_file or global_resume_folder
+            // TODO: collect pipeline_ids from all part-*.ratchet file and check if they are same
+            // TODO: pipeline-level part-*.ratchet file such as ppl-1-part-*.ratchet
+            json json_data;
+            if (global_resume_file == "rfile") {
+                std::ifstream inputFile(global_resume_folder + "/part-0.ratchet");
+                json_data = json::parse(inputFile);
+            } else {
+                std::ifstream inputFile(global_resume_file);
+                json_data = json::parse(inputFile);
+            }
             vector<idx_t> pipeline_ids = json_data.at("pipeline_ids");
 
             for (auto pl_id : pipeline_ids) {

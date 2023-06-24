@@ -28,13 +28,16 @@ def main():
                         help="indicate start time for suspension (second)")
     parser.add_argument("-se", "--suspend_end_time", type=float, action="store",
                         help="indicate end time for suspension (second)")
-    parser.add_argument("-sf", "--suspend_file", type=str, action="store",
-                        help="indicate the file for suspending query")
+    parser.add_argument("-sl", "--suspend_location", type=str, action="store",
+                        help="indicate the file or folder for suspending query")
 
     parser.add_argument("-r", "--resume_query", action="store_true", default=False,
                         help="whether it is a resumed query")
-    parser.add_argument("-rf", "--resume_file", type=str, action="store",
-                        help="indicate the file for resuming query")
+    parser.add_argument("-rl", "--resume_location", type=str, action="store",
+                        help="indicate the file or folder for resuming query")
+
+    parser.add_argument("-psr", "--partition_suspend_resume", action="store_true", default=False,
+                        help="indicate whether we will use partitioned file for suspend and resume")
 
     args = parser.parse_args()
 
@@ -46,15 +49,17 @@ def main():
     resume_query = args.resume_query
     update_table = args.update_table
 
+    partition_suspend_resume = args.partition_suspend_resume
+
     exec_query = globals()[qid].query
 
     if suspend_query:
         suspend_start_time = args.suspend_start_time
         suspend_end_time = args.suspend_end_time
-        suspend_file = args.suspend_file
+        suspend_location = args.suspend_location
 
     if resume_query:
-        resume_file = args.resume_file
+        resume_location = args.resume_location
 
     # open and connect a database
     if database == "memory":
@@ -76,9 +81,15 @@ def main():
 
     # start the query execution
     if suspend_query:
-        results = db_conn.execute_suspend(exec_query, suspend_file, suspend_start_time, suspend_end_time).fetchdf()
+        execution = db_conn.execute_suspend(exec_query,
+                                            suspend_location,
+                                            suspend_start_time,
+                                            suspend_end_time,
+                                            partition_suspend_resume)
+        results = execution.fetchdf()
     elif resume_query:
-        results = db_conn.execute_resume(exec_query, resume_file).fetchdf()
+        execution = db_conn.execute_resume(exec_query, resume_location, partition_suspend_resume)
+        results = execution.fetchdf()
     else:
         results = db_conn.execute(exec_query).fetchdf()
 
