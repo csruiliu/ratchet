@@ -273,7 +273,9 @@ struct SortedAggregateFunction {
 
 	static void Finalize(Vector &states, AggregateInputData &aggr_input_data, Vector &result, idx_t count,
 	                     idx_t offset) {
+#if RATCHET_PRINT == 1
         std::cout << "Sorted_Aggregate_Function::Finalize" << std::endl;
+#endif
 		const auto order_bind = (SortedAggregateBindData *)aggr_input_data.bind_data;
 		auto &buffer_manager = order_bind->buffer_manager;
 		auto &orders = order_bind->orders;

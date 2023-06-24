@@ -17,6 +17,12 @@
 
 namespace duckdb {
 
+//! Enable ratchet print out
+//! 0: no ratchet printout
+//! 1: printout function invoking
+//! 2: printout function invoking + query plan
+#define RATCHET_PRINT 0
+
 // API versions
 // if no explicit API version is defined, the latest API version is used
 // Note that using older API versions (i.e. not using DUCKDB_API_LATEST) is deprecated.

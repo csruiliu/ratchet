@@ -70,13 +70,17 @@ public:
         }
 
         if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
+#if RATCHET_PRINT == 1
             std::cout << "[PipelineTask] ExecuteTask at PARTIAL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
+#endif
             bool finished = pipeline_executor->Execute(PARTIAL_CHUNK_COUNT);
             if (!finished) {
                 return TaskExecutionResult::TASK_NOT_FINISHED;
             }
         } else {
+#if RATCHET_PRINT == 1
             std::cout << "[PipelineTask] ExecuteTask at ALL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
+#endif
             pipeline_executor->Execute();
         }
         event->FinishTask();

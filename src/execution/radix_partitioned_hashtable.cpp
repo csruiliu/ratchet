@@ -285,8 +285,10 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#if RATCHET_PRINT == 1
         std::cout << "[RadixAggregateFinalizeTask] ExecuteTask" << std::endl;
-		FinalizeHT(state, radix);
+#endif
+        FinalizeHT(state, radix);
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
 	}

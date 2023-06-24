@@ -21,8 +21,9 @@ JoinHashTable::JoinHashTable(BufferManager &buffer_manager, const vector<JoinCon
     : buffer_manager(buffer_manager), conditions(conditions), build_types(std::move(btypes)), entry_size(0),
       tuple_size(0), vfound(Value::BOOLEAN(false)), join_type(type), finalized(false), has_null(false), external(false),
       radix_bits(4), tuples_per_round(0), partition_start(0), partition_end(0) {
-
+#if RATCHET_PRINT == 1
     std::cout << "[JoinHashTable] Construction" << std::endl;
+#endif
 	for (auto &condition : conditions) {
 		D_ASSERT(condition.left->return_type == condition.right->return_type);
 		auto type = condition.left->return_type;
@@ -197,7 +198,9 @@ idx_t JoinHashTable::PrepareKeys(DataChunk &keys, unique_ptr<UnifiedVectorFormat
 }
 
 void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
+#if RATCHET_PRINT == 1
     std::cout << "[JoinHashTable::Build]" << std::endl;
+#endif
     D_ASSERT(!finalized);
 	D_ASSERT(keys.size() == payload.size());
 	if (keys.size() == 0) {
@@ -320,10 +323,14 @@ void JoinHashTable::InsertHashes(Vector &hashes, idx_t count, data_ptr_t key_loc
 	auto pointers = (atomic<data_ptr_t> *)hash_map.get();
 	auto indices = FlatVector::GetData<hash_t>(hashes);
 	if (parallel) {
+#if RATCHET_PRINT == 1
         std::cout << "parallel in InsertHashes" << std::endl;
+#endif
 		InsertHashesLoop<true>(pointers, indices, count, key_locations, pointer_offset);
 	} else {
+#if RATCHET_PRINT == 1
         std::cout << "not parallel in InsertHashes" << std::endl;
+#endif
 		InsertHashesLoop<false>(pointers, indices, count, key_locations, pointer_offset);
 	}
 }
@@ -346,8 +353,10 @@ void JoinHashTable::InitializePointerTable() {
 }
 
 void JoinHashTable::Finalize(idx_t block_idx_start, idx_t block_idx_end, bool parallel) {
+#if RATCHET_PRINT == 1
     std::cout << "[JoinHashTable::Finalize]" << std::endl;
-	// Pointer table should be allocated
+#endif
+    // Pointer table should be allocated
 	D_ASSERT(hash_map.get());
 
 	const auto unswizzle = external && !layout.AllConstant();
@@ -374,10 +383,13 @@ void JoinHashTable::Finalize(idx_t block_idx_start, idx_t block_idx_end, bool pa
 		idx_t entry = 0;
 		while (entry < block->count) {
 			idx_t next = MinValue<idx_t>(STANDARD_VECTOR_SIZE, block->count - entry);
+#if RATCHET_PRINT == 1
             std::cout << "block_idx: " << block_idx << ", entry: " << entry << ", block->count: " << block->count << ", next: " << next << std::endl;
-
+#endif
 			if (unswizzle) {
+#if RATCHET_PRINT == 1
                 std::cout << "RowOperations::UnswizzlePointers" << std::endl;
+#endif
 				RowOperations::UnswizzlePointers(layout, dataptr, heap_ptr, next);
 			}
 
@@ -420,7 +432,9 @@ unique_ptr<ScanStructure> JoinHashTable::InitializeScanStructure(DataChunk &keys
 }
 
 unique_ptr<ScanStructure> JoinHashTable::Probe(DataChunk &keys, Vector *precomputed_hashes) {
-    // std::cout << "JoinHashTable::Prob" << std::endl;
+#if RATCHET_PRINT == 1
+    std::cout << "[JoinHashTable::Prob]" << std::endl;
+#endif
 	const SelectionVector *current_sel;
 	auto ss = InitializeScanStructure(keys, current_sel);
 	if (ss->count == 0) {
@@ -1010,7 +1024,9 @@ void JoinHashTable::SwizzleBlocks() {
 
 void JoinHashTable::ComputePartitionSizes(ClientConfig &config, vector<unique_ptr<JoinHashTable>> &local_hts,
                                           idx_t max_ht_size) {
+#if RATCHET_PRINT == 1
     std::cout << "[JoinHashTable::ComputePartitionSizes]" << std::endl;
+#endif
 	external = true;
 
 	// First set the number of tuples in the HT per partitioned round
@@ -1050,7 +1066,9 @@ void JoinHashTable::ComputePartitionSizes(ClientConfig &config, vector<unique_pt
 }
 
 void JoinHashTable::Partition(JoinHashTable &global_ht) {
+#if RATCHET_PRINT == 1
     std::cout << "[JoinHashTable::Partition]" << std::endl;
+#endif
 #ifdef DEBUG
 	D_ASSERT(layout.ColumnCount() == global_ht.layout.ColumnCount());
 	for (idx_t col_idx = 0; col_idx < layout.ColumnCount(); col_idx++) {
@@ -1075,9 +1093,13 @@ void JoinHashTable::Reset() {
 }
 
 bool JoinHashTable::PrepareExternalFinalize() {
+#if RATCHET_PRINT == 1
     std::cout << "[JoinHashTable::PrepareExternalFinalize]" << std::endl;
+#endif
 	idx_t num_partitions = RadixPartitioning::NumberOfPartitions(radix_bits);
+#if RATCHET_PRINT == 1
     std::cout << "Number of Partitions in PrepareExternalFinalize: " << num_partitions << std::endl;
+#endif
 	if (partition_block_collections.empty() || partition_end == num_partitions) {
 		return false;
 	}
@@ -1188,7 +1210,9 @@ unique_ptr<ScanStructure> JoinHashTable::ProbeAndSpill(DataChunk &keys, DataChun
 
 ProbeSpill::ProbeSpill(JoinHashTable &ht, ClientContext &context, const vector<LogicalType> &probe_types)
     : ht(ht), context(context), probe_types(probe_types) {
+#if RATCHET_PRINT == 1
     std::cout << "[ProbeSpill::ProbeSpill]" << std::endl;
+#endif
 	if (ht.total_count - ht.Count() <= ht.tuples_per_round) {
 		// No need to partition as we will only have one more probe round
 		partitioned = false;
@@ -1235,7 +1259,9 @@ void ProbeSpill::Append(DataChunk &chunk, ProbeSpillLocalAppendState &local_stat
 }
 
 void ProbeSpill::Finalize() {
+#if RATCHET_PRINT == 1
     std::cout << "[ProbeSpill::Finalize]" << std::endl;
+#endif
 	if (partitioned) {
 		D_ASSERT(local_partitions.size() == local_partition_append_states.size());
 		for (idx_t i = 0; i < local_partition_append_states.size(); i++) {

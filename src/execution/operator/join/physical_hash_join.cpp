@@ -61,8 +61,10 @@ class HashJoinGlobalSinkState : public GlobalSinkState {
 public:
 	HashJoinGlobalSinkState(const PhysicalHashJoin &op, ClientContext &context)
 	    : finalized(false), scanned_data(false) {
+#if RATCHET_PRINT == 1
         std::cout << "[HashJoinGlobalSinkState] Construction" << std::endl;
-		hash_table = op.InitializeHashTable(context);
+#endif
+        hash_table = op.InitializeHashTable(context);
 
 		// for perfect hash join
 		perfect_join_executor = make_unique<PerfectHashJoinExecutor>(op, *hash_table, op.perfect_join_statistics);
@@ -195,8 +197,10 @@ unique_ptr<LocalSinkState> PhysicalHashJoin::GetLocalSinkState(ExecutionContext 
 
 SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState &gstate_p, LocalSinkState &lstate_p,
                                       DataChunk &input) const {
+#if RATCHET_PRINT == 1
     std::cout << "[PhysicalHashJoin::Sink] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
-	auto &gstate = (HashJoinGlobalSinkState &)gstate_p;
+#endif
+    auto &gstate = (HashJoinGlobalSinkState &)gstate_p;
 	auto &lstate = (HashJoinLocalSinkState &)lstate_p;
 
 	// resolve the join keys for the right chunk
@@ -286,8 +290,10 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
 }
 
 void PhysicalHashJoin::Combine(ExecutionContext &context, GlobalSinkState &gstate_p, LocalSinkState &lstate_p) const {
+#if RATCHET_PRINT == 1
     std::cout << "[PhysicalHashJoin::Combine] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
-	auto &gstate = (HashJoinGlobalSinkState &)gstate_p;
+#endif
+    auto &gstate = (HashJoinGlobalSinkState &)gstate_p;
 	auto &lstate = (HashJoinLocalSinkState &)lstate_p;
 	if (lstate.hash_table) {
 		lock_guard<mutex> local_ht_lock(gstate.lock);
@@ -310,7 +316,9 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#if RATCHET_PRINT == 1
         std::cout << "[HashJoinFinalizeTask] ExecuteTask start " << block_idx_start << "," << block_idx_end << std::endl;
+#endif
         sink.hash_table->Finalize(block_idx_start, block_idx_end, parallel);
         event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
@@ -397,8 +405,10 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#if RATCHET_PRINT == 1
         std::cout << "[HashJoinPartitionTask] ExecuteTask" << std::endl;
-		local_ht.Partition(global_ht);
+#endif
+        local_ht.Partition(global_ht);
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
 	}
@@ -441,8 +451,10 @@ public:
 
 SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
                                             GlobalSinkState &gstate) const {
+#if RATCHET_PRINT == 1
     std::cout << "[PhysicalHashJoin::Finalize] for pipeline " << pipeline.GetPipelineId() << std::endl;
-	auto &sink = (HashJoinGlobalSinkState &)gstate;
+#endif
+    auto &sink = (HashJoinGlobalSinkState &)gstate;
 
     auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
 
@@ -452,7 +464,9 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
     // Check if we should resume
     if (global_resume_start && it != global_finalized_pipelines.end()) {
         if (!sink.external) {
+#if RATCHET_PRINT == 1
             std::cout << "== Resume Perfect Hash Join ==" << std::endl;
+#endif
             sink.hash_table->Reset();
 
             std::ifstream f(global_resume_file);
@@ -553,7 +567,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                 }
                 closedir(dir);
             } else {
-                std::cout << "Failed to open the folder." << std::endl;
+                std::cerr << "Failed to open the folder." << std::endl;
             }
 
             // External join - partition HT
@@ -667,8 +681,10 @@ unique_ptr<OperatorState> PhysicalHashJoin::GetOperatorState(ExecutionContext &c
 
 OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, DataChunk &input, DataChunk &chunk,
                                                      GlobalOperatorState &gstate, OperatorState &state_p) const {
+#if RATCHET_PRINT == 1
     std::cout << "[PhysicalHashJoin::ExecuteInternal] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
-	auto &state = (HashJoinOperatorState &)state_p;
+#endif
+    auto &state = (HashJoinOperatorState &)state_p;
 	auto &sink = (HashJoinGlobalSinkState &)*sink_state;
 	D_ASSERT(sink.finalized);
 	D_ASSERT(!sink.scanned_data);
@@ -719,10 +735,13 @@ OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, 
         // split the original input to input + state.spill_chunk
 		state.scan_structure = sink.hash_table->ProbeAndSpill(state.join_keys, input, *sink.probe_spill,
 		                                                      state.spill_state, state.spill_chunk);
-
-        // state.spill_chunk.Print();
-        // std::cout << "== input ==" << std::endl;
-	} else {
+#if RATCHET_PRINT == 1
+        std::cout << "== state.spill ==" << std::endl;
+        state.spill_chunk.Print();
+        std::cout << "== input ==" << std::endl;
+	    input.Print()
+#endif
+    } else {
 		state.scan_structure = sink.hash_table->Probe(state.join_keys);
 	}
     state.scan_structure->Next(state.join_keys, input, chunk);
@@ -1070,8 +1089,10 @@ void HashJoinLocalSourceState::ScanFullOuter(HashJoinGlobalSinkState &sink, Hash
 
 void PhysicalHashJoin::GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                LocalSourceState &lstate_p) const {
-    // std::cout << "[PhysicalHashJoin::GetData] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
-	auto &sink = (HashJoinGlobalSinkState &)*sink_state;
+#if RATCHET_PRINT == 1
+    std::cout << "[PhysicalHashJoin::GetData] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
+#endif
+    auto &sink = (HashJoinGlobalSinkState &)*sink_state;
 	auto &gstate = (HashJoinGlobalSourceState &)gstate_p;
 	auto &lstate = (HashJoinLocalSourceState &)lstate_p;
 	sink.scanned_data = true;
