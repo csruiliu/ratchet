@@ -546,7 +546,7 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
             }
             jsonfile["aggregate_values"] = aggregate_values;
 
-            std::ofstream outputFile("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_suspend_file);
+            std::ofstream outputFile(global_suspend_file);
             outputFile << jsonfile;
 
             outputFile.close();
@@ -610,7 +610,7 @@ void PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &c
 
 	// if (global_resume_start && it != global_finalized_pipelines.end()) {
     if (global_resume_start) {
-        std::ifstream f("/home/ruiliu/Develop/ratchet-duckdb/ratchet/" + global_resume_file);
+        std::ifstream f(global_resume_file);
         json json_data = json::parse(f);
         vector<idx_t> pipeline_ids = json_data.at("pipeline_ids");
         vector<string> aggregate_values = json_data.at("aggregate_values");

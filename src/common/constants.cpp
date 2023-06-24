@@ -17,8 +17,10 @@ const transaction_t MAXIMUM_QUERY_ID = NumericLimits<transaction_t>::Maximum(); 
 
 bool global_suspend_start = false;
 bool global_resume_start = false;
-string global_suspend_file = "s";
-string global_resume_file = "r";
+string global_suspend_file = "sfile";
+string global_suspend_folder = "sfolder";
+string global_resume_file = "rfile";
+string global_resume_folder = "rfolder";
 std::chrono::steady_clock::time_point global_start = {};
 uint64_t global_suspend_point_ms = NumericLimits<transaction_t>::Maximum();
 uint16_t global_threads = 0;
