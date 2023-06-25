@@ -23,6 +23,11 @@ namespace duckdb {
 //! 2: printout function invoking + query plan
 #define RATCHET_PRINT 0
 
+//! Ratchet Serialize and Deserialize Format
+//! 0: CBOR
+//! 1: JSON
+#define RATCHET_SERDE_FORMAT 0
+
 // API versions
 // if no explicit API version is defined, the latest API version is used
 // Note that using older API versions (i.e. not using DUCKDB_API_LATEST) is deprecated.

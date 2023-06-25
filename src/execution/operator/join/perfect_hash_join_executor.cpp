@@ -324,8 +324,14 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
     json_data["pipeline_ids"] = global_finalized_pipelines;
     json_data["build_size"] = build_size;
 
+#if RATCHET_SERDE_FORMAT == 0
+    std::ofstream outputFile(global_suspend_file, std::ios::out | std::ios::binary);
+    const auto output_vector = json::to_cbor(json_data);
+    outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
+#elif RATCHET_SERDE_FORMAT == 1
     std::ofstream outputFile(global_suspend_file);
     outputFile << json_data;
+#endif
     outputFile.close();
     if (outputFile.fail()) {
         std::cerr << "Error writing to file!" << std::endl;

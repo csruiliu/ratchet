@@ -268,8 +268,15 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
 
             string suspend_folder = global_suspend_folder;
 
+#if RATCHET_SERDE_FORMAT == 0
+            std::ofstream outputFile(suspend_folder.append("/part-").append(to_string(global_ht_partition)).append(".ratchet"),
+                                     std::ios::out | std::ios::binary);
+            const auto output_vector = json::to_cbor(json_data);
+            outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
+#elif RATCHET_SERDE_FORMAT == 1
             std::ofstream outputFile(suspend_folder.append("/part-").append(to_string(global_ht_partition)).append(".ratchet"));
             outputFile << json_data;
+#endif
             outputFile.close();
             if (outputFile.fail()) {
                 std::cerr << "Error writing to file!" << std::endl;
@@ -468,10 +475,14 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
             std::cout << "== Resume Perfect Hash Join ==" << std::endl;
 #endif
             sink.hash_table->Reset();
-
+#if RATCHET_SERDE_FORMAT == 0
+            std::ifstream input_file(global_resume_file, std::ios::binary);
+            std::vector<uint8_t> input_vector((std::istreambuf_iterator<char>(input_file)),std::istreambuf_iterator<char>());
+            json json_data = json::from_cbor(input_vector);
+#elif RATCHET_SERDE_FORMAT == 1
             std::ifstream f(global_resume_file);
             json json_data = json::parse(f);
-
+#endif
             // idx_t build_size = build_vector_str.size();
             auto build_size = (idx_t)json_data["build_size"];
 
@@ -529,9 +540,15 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
 
                     if (std::regex_match(fileName, fileNameRegex)) {
                         string resume_folder = global_resume_folder;
+
+#if RATCHET_SERDE_FORMAT == 0
+                        std::ifstream input_file(resume_folder.append("/").append(fileName), std::ios::binary);
+                        std::vector<uint8_t> input_vector((std::istreambuf_iterator<char>(input_file)),std::istreambuf_iterator<char>());
+                        json json_data = json::from_cbor(input_vector);
+#elif RATCHET_SERDE_FORMAT == 1
                         std::ifstream f(resume_folder.append("/").append(fileName));
                         json json_data = json::parse(f);
-
+#endif
                         // idx_t build_size = build_vector_str.size();
                         auto build_size = (idx_t)json_data["build_size"];
 
