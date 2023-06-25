@@ -48,11 +48,23 @@ public:
             // TODO: pipeline-level part-*.ratchet file such as ppl-1-part-*.ratchet
             json json_data;
             if (global_resume_file == "rfile") {
+#if RATCHET_SERDE_FORMAT == 0
+                std::ifstream inputFile(global_resume_folder + "/part-0.ratchet", std::ios::binary);
+                std::vector<uint8_t> input_vector((std::istreambuf_iterator<char>(inputFile)),std::istreambuf_iterator<char>());
+                json_data = json::from_cbor(input_vector);
+#elif RATCHET_SERDE_FORMAT == 1
                 std::ifstream inputFile(global_resume_folder + "/part-0.ratchet");
                 json_data = json::parse(inputFile);
+#endif
             } else {
+#if RATCHET_SERDE_FORMAT == 0
+                std::ifstream inputFile(global_resume_file, std::ios::binary);
+                std::vector<uint8_t> input_vector((std::istreambuf_iterator<char>(inputFile)),std::istreambuf_iterator<char>());
+                json_data = json::from_cbor(input_vector);
+#elif RATCHET_SERDE_FORMAT == 1
                 std::ifstream inputFile(global_resume_file);
                 json_data = json::parse(inputFile);
+#endif
             }
             vector<idx_t> pipeline_ids = json_data.at("pipeline_ids");
 

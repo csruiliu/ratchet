@@ -550,14 +550,19 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
                 aggregate_values.push_back(chunk.data[aggr_idx].GetValue(0).ToString());
             }
             jsonfile["aggregate_values"] = aggregate_values;
-
+#if RATCHET_SERDE_FORMAT == 0
+            std::ofstream outputFile(global_suspend_file, std::ios::out | std::ios::binary);
+            const auto output_vector = json::to_cbor(jsonfile);
+            outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
+#elif RATCHET_SERDE_FORMAT == 1
             std::ofstream outputFile(global_suspend_file);
             outputFile << jsonfile;
-
+#endif
             outputFile.close();
             if (outputFile.fail()) {
                 std::cerr << "Error writing to file!" << std::endl;
             }
+
             exit(0);
         }
     }
@@ -611,13 +616,20 @@ void PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &c
 	// initialize the result chunk with the aggregate values
 	chunk.SetCardinality(1);
 
+    //! TODO: tricky to check pipeline id, since GetData isn't invoked in the suspended pipeline
     // idx_t current_pl_id = context.pipeline->GetPipelineId();
     // auto it = std::find(global_finalized_pipelines.begin(),global_finalized_pipelines.end(),current_pl_id);
-
 	// if (global_resume_start && it != global_finalized_pipelines.end()) {
+
     if (global_resume_start) {
+#if RATCHET_SERDE_FORMAT == 0
+        std::ifstream input_file(global_resume_file, std::ios::binary);
+        std::vector<uint8_t> input_vector((std::istreambuf_iterator<char>(input_file)),std::istreambuf_iterator<char>());
+        json json_data = json::from_cbor(input_vector);
+#elif RATCHET_SERDE_FORMAT == 1
         std::ifstream f(global_resume_file);
         json json_data = json::parse(f);
+#endif
         vector<idx_t> pipeline_ids = json_data.at("pipeline_ids");
         vector<string> aggregate_values = json_data.at("aggregate_values");
 
