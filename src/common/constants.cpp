@@ -15,8 +15,9 @@ const transaction_t MAX_TRANSACTION_ID = NumericLimits<transaction_t>::Maximum()
 const transaction_t NOT_DELETED_ID = NumericLimits<transaction_t>::Maximum() - 1; // 2^64 - 1
 const transaction_t MAXIMUM_QUERY_ID = NumericLimits<transaction_t>::Maximum();   // 2^64
 
+bool global_suspend = false;
 bool global_suspend_start = false;
-bool global_resume_start = false;
+bool global_resume = false;
 string global_suspend_file = "sfile";
 string global_suspend_folder = "sfolder";
 string global_resume_file = "rfile";

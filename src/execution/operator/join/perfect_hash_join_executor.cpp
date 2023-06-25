@@ -297,27 +297,48 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
     json json_data;
 
     auto build_size = perfect_join_statistics.build_range + 1;
+
     for (idx_t i = 0; i < ht.build_types.size(); i++) {
-        if (ht.build_types[i] == LogicalType::VARCHAR) {
-            vector<string> str_vector;
-            auto &build_vec = perfect_hash_table[i];
+        auto &build_vec = perfect_hash_table[i];
+
+        if (ht.build_types.at(i) == LogicalType::VARCHAR) {
+            vector<string> value_vector;
             for (idx_t j = 0; j < build_size; j++) {
-                str_vector.push_back(build_vec.GetValue(j).ToString());
+                value_vector.push_back(build_vec.GetValue(j).ToString());
             }
             json_data["build_chunk_" + to_string(i)]["type"] = LogicalType::VARCHAR;
-            json_data["build_chunk_" + to_string(i)]["data"] = str_vector;
+            json_data["build_chunk_" + to_string(i)]["data"] = value_vector;
+        } else if (ht.build_types.at(i) == LogicalType::INTEGER) {
+            vector<int64_t> value_vector;
+            for (idx_t j = 0; j < build_size; j++) {
+                value_vector.push_back(stoi(build_vec.GetValue(j).ToString()));
+            }
+            json_data["build_chunk_" + to_string(i)]["type"] = LogicalType::INTEGER;
+            json_data["build_chunk_" + to_string(i)]["data"] = value_vector;
+        } else {
+            throw ParserException("Cannot recognize build types");
         }
     }
 
     for (idx_t i = 0; i < ht.condition_types.size(); i++) {
-        if (ht.condition_types[i] == LogicalType::INTEGER) {
-            vector<idx_t> key_vector;
-            auto &key_vec = join_keys_perfect_hash_table[i];
+        auto &key_vec = join_keys_perfect_hash_table[i];
+
+        if (ht.condition_types.at(i) == LogicalType::VARCHAR) {
+            vector<string> key_vector;
             for (idx_t j = 0; j < build_size; j++) {
-                key_vector.emplace_back(std::stoi(key_vec.GetValue(j).ToString()));
+                key_vector.push_back(key_vec.GetValue(j).ToString());
+            }
+            json_data["join_key_" + to_string(i)]["type"] = LogicalType::VARCHAR;
+            json_data["join_key_" + to_string(i)]["data"] = key_vector;
+        } else if (ht.condition_types.at(i) == LogicalType::INTEGER) {
+            vector<int64_t> key_vector;
+            for (idx_t j = 0; j < build_size; j++) {
+                key_vector.push_back(stoi(key_vec.GetValue(j).ToString()));
             }
             json_data["join_key_" + to_string(i)]["type"] = LogicalType::INTEGER;
             json_data["join_key_" + to_string(i)]["data"] = key_vector;
+        } else {
+            throw ParserException("Cannot recognize key types");
         }
     }
 

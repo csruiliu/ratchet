@@ -17,7 +17,7 @@
 
 namespace duckdb {
 
-//! Enable ratchet print out
+//! Enable Ratchet Printout
 //! 0: no ratchet printout
 //! 1: printout function invoking
 //! 2: printout function invoking + query plan
@@ -27,6 +27,11 @@ namespace duckdb {
 //! 0: CBOR
 //! 1: JSON
 #define RATCHET_SERDE_FORMAT 0
+
+//! External Join
+//! 0: Disable
+//! 1: Enable
+#define RATCHET_EXTERNAL_JOIN 1
 
 // API versions
 // if no explicit API version is defined, the latest API version is used
@@ -105,8 +110,9 @@ extern const transaction_t NOT_DELETED_ID;
 extern const double PI;
 
 //! global variable for Ratchet
+extern bool global_suspend;
 extern bool global_suspend_start;
-extern bool global_resume_start;
+extern bool global_resume;
 extern uint16_t global_threads;
 extern string global_suspend_file;
 extern string global_suspend_folder;

@@ -521,11 +521,12 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
 		return FinalizeDistinct(pipeline, event, context, gstate_p);
 	}
 
-    if (global_suspend_start) {
+    if (global_suspend) {
         std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
         uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
 
         if (time_dur_ms > global_suspend_point_ms) {
+            global_suspend_start = true;
 #if RATCHET_PRINT == 1
             std::cout << "[PhysicalUngroupedAggregate::Finalize] Suspend and Serialize Global State" << std::endl;
 #endif
@@ -619,9 +620,9 @@ void PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &c
     //! TODO: tricky to check pipeline id, since GetData isn't invoked in the suspended pipeline
     // idx_t current_pl_id = context.pipeline->GetPipelineId();
     // auto it = std::find(global_finalized_pipelines.begin(),global_finalized_pipelines.end(),current_pl_id);
-	// if (global_resume_start && it != global_finalized_pipelines.end()) {
+	// if (global_resume && it != global_finalized_pipelines.end()) {
 
-    if (global_resume_start) {
+    if (global_resume) {
 #if RATCHET_SERDE_FORMAT == 0
         std::ifstream input_file(global_resume_file, std::ios::binary);
         std::vector<uint8_t> input_vector((std::istreambuf_iterator<char>(input_file)),std::istreambuf_iterator<char>());
