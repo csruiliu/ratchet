@@ -227,7 +227,7 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
 	}
 
     // Serialization for external hash join
-    if (global_suspend_start && gstate.external) {
+    if (global_suspend && gstate.external) {
         std::cout << "== Serialization for external hash join ==" << std::endl;
         D_ASSERT(lstate.join_keys.size() == lstate.build_chunk.size());
 
@@ -236,6 +236,7 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
                 suspend_check - global_start).count();
 
         if (time_dur_ms > global_suspend_point_ms) {
+            global_suspend_start = true;
             json json_data;
 
             global_finalized_pipelines.emplace_back(context.pipeline->GetPipelineId());
@@ -243,24 +244,42 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
 
             for (idx_t i = 0; i < lstate.join_keys.GetTypes().size(); i++) {
                 if (lstate.join_keys.GetTypes()[i] == LogicalType::INTEGER) {
-                    vector<idx_t> key_vector;
+                    vector<int64_t> key_vector;
                     for (idx_t j = 0; j < build_size; j++) {
                         key_vector.emplace_back(std::stoi(lstate.join_keys.data[i].GetValue(j).ToString()));
                     }
                     json_data["join_key_" + to_string(i)]["type"] = LogicalType::INTEGER;
                     json_data["join_key_" + to_string(i)]["data"] = key_vector;
+                } else if (lstate.join_keys.GetTypes()[i] == LogicalType::VARCHAR) {
+                    vector<string> key_vector;
+                    for (idx_t j = 0; j < build_size; j++) {
+                        key_vector.emplace_back(lstate.join_keys.data[i].GetValue(j).ToString());
+                    }
+                    json_data["join_key_" + to_string(i)]["type"] = LogicalType::VARCHAR;
+                    json_data["join_key_" + to_string(i)]["data"] = key_vector;
+                } else {
+                    throw ParserException("Cannot recognize build types");
                 }
             }
 
             for (idx_t i = 0; i < lstate.build_chunk.GetTypes().size(); i++) {
-                if (lstate.build_chunk.GetTypes()[i] == LogicalType::VARCHAR) {
-                    vector<string> str_vector;
+                if (lstate.build_chunk.GetTypes()[i] == LogicalType::INTEGER) {
+                    vector<int64_t> value_vector;
                     for (idx_t j = 0; j < build_size; j++) {
-                        str_vector.emplace_back(lstate.build_chunk.data[i].GetValue(j).ToString());
+                        value_vector.emplace_back(stoi(lstate.build_chunk.data[i].GetValue(j).ToString()));
+                    }
+                    json_data["build_chunk_" + to_string(i)]["type"] = LogicalType::INTEGER;
+                    json_data["build_chunk_" + to_string(i)]["data"] = value_vector;
+                } else if (lstate.build_chunk.GetTypes()[i] == LogicalType::VARCHAR) {
+                    vector<string> value_vector;
+                    for (idx_t j = 0; j < build_size; j++) {
+                        value_vector.emplace_back(lstate.build_chunk.data[i].GetValue(j).ToString());
                     }
                     json_data["build_chunk_" + to_string(i)]["type"] = LogicalType::VARCHAR;
-                    json_data["build_chunk_" + to_string(i)]["data"] = str_vector;
-                }
+                    json_data["build_chunk_" + to_string(i)]["data"] = value_vector;
+                } else {
+                    throw ParserException("Cannot recognize key types");
+                };
             }
 
             json_data["pipeline_ids"] = global_finalized_pipelines;
@@ -468,12 +487,10 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
     idx_t current_id = pipeline.GetPipelineId();
     auto it = std::find(global_finalized_pipelines.begin(),global_finalized_pipelines.end(),current_id);
 
-    // Check if we should resume
-    if (global_resume_start && it != global_finalized_pipelines.end()) {
+    //! Resume Process for Finalize
+    if (global_resume && it != global_finalized_pipelines.end()) {
         if (!sink.external) {
-#if RATCHET_PRINT == 1
             std::cout << "== Resume Perfect Hash Join ==" << std::endl;
-#endif
             sink.hash_table->Reset();
 #if RATCHET_SERDE_FORMAT == 0
             std::ifstream input_file(global_resume_file, std::ios::binary);
@@ -488,32 +505,56 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
 
             unique_ptr<JoinHashTable> hash_table;
             hash_table = this->InitializeHashTable(context);
+
             for (idx_t i = 0; i < build_types.size(); i++) {
-                vector<string> build_vector_data = json_data["build_chunk_" + to_string(i)]["data"];
+                //! For building values
                 LogicalType build_type = LogicalType((LogicalTypeId)json_data["build_chunk_" + to_string(i)]["type"]);
+                Vector build_chunk_vector = Vector(build_type, true, false, build_size);
                 DataChunk build_chunk;
                 build_chunk.SetCardinality(build_size);
-                Vector build_chunk_vector = Vector(build_type, true, false, build_size);
-                for (idx_t j = 0; j < build_size; j++) {
-                    build_chunk_vector.SetValue(j, Value(build_vector_data[j]));
-                }
-                build_chunk.data.emplace_back(build_chunk_vector);
 
-                vector<int64_t> join_key_data = json_data["join_key_" + to_string(i)]["data"];
+                if (build_type == LogicalType::VARCHAR) {
+                    vector<string> build_vector_data = json_data["build_chunk_" + to_string(i)]["data"];
+                    for (idx_t j = 0; j < build_size; j++) {
+                        build_chunk_vector.SetValue(j, Value(build_vector_data[j]));
+                    }
+                    build_chunk.data.emplace_back(build_chunk_vector);
+                } else if (build_type == LogicalType::INTEGER) {
+                    vector<int64_t> build_vector_data = json_data["build_chunk_" + to_string(i)]["data"];
+                    for (idx_t j = 0; j < build_size; j++) {
+                        build_chunk_vector.SetValue(j, Value(build_vector_data[j]));
+                    }
+                    build_chunk.data.emplace_back(build_chunk_vector);
+                } else {
+                    throw ParserException("Cannot recognize build types");
+                }
+
+                //! For building keys
                 LogicalType key_type = LogicalType((LogicalTypeId)json_data["join_key_" + to_string(i)]["type"]);
+                Vector join_keys_vector = Vector(key_type, true, false, build_size);
                 DataChunk join_keys;
                 join_keys.SetCardinality(build_size);
-                Vector join_keys_vector = Vector(key_type, true, true, build_size);
-                for (idx_t j = 0; j < build_size; j++) {
-                    join_keys_vector.SetValue(j, Value(join_key_data[j]));
+
+                if (key_type == LogicalType::VARCHAR) {
+                    vector<string> join_key_data = json_data["join_key_" + to_string(i)]["data"];
+                    for (idx_t j = 0; j < build_size; j++) {
+                        join_keys_vector.SetValue(j, Value(join_key_data[j]));
+                    }
+                    join_keys.data.emplace_back(join_keys_vector);
+                } else if (key_type == LogicalType::INTEGER) {
+                    vector<int64_t> join_key_data = json_data["join_key_" + to_string(i)]["data"];
+                    for (idx_t j = 0; j < build_size; j++) {
+                        join_keys_vector.SetValue(j, Value(join_key_data[j]));
+                    }
+                    join_keys.data.emplace_back(join_keys_vector);
+                } else {
+                    throw ParserException("Cannot recognize key types");
                 }
-                join_keys.data.emplace_back(join_keys_vector);
 
                 // build hash table using join_keys and build_chunk
                 hash_table->Build(join_keys, build_chunk);
                 sink.hash_table->Merge(*hash_table);
             }
-
             // auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
             if (use_perfect_hash) {
                 // D_ASSERT(sink.hash_table->equality_types.size() == 1);
@@ -525,6 +566,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                 sink.ScheduleFinalize(pipeline, event);
             }
             sink.finalized = true;
+            return SinkFinalizeType::READY;
         } else {
             D_ASSERT(can_go_external);
             std::cout << "== Resume External Hash Join ==" << std::endl;
@@ -555,25 +597,49 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                         unique_ptr<JoinHashTable> hash_table;
                         hash_table = this->InitializeHashTable(context);
                         for (idx_t i = 0; i < build_types.size(); i++) {
-                            vector<string> build_vector_data = json_data["build_chunk_" + to_string(i)]["data"];
+                            //! For building values
                             LogicalType build_type = LogicalType((LogicalTypeId)json_data["build_chunk_" + to_string(i)]["type"]);
+                            Vector build_chunk_vector = Vector(build_type, true, false, build_size);
                             DataChunk build_chunk;
                             build_chunk.SetCardinality(build_size);
-                            Vector build_chunk_vector = Vector(build_type, true, false, build_size);
-                            for (idx_t j = 0; j < build_size; j++) {
-                                build_chunk_vector.SetValue(j, Value(build_vector_data[j]));
-                            }
-                            build_chunk.data.emplace_back(build_chunk_vector);
 
-                            vector<int64_t> join_key_data = json_data["join_key_" + to_string(i)]["data"];
+                            if (build_type == LogicalType::VARCHAR) {
+                                vector<string> build_vector_data = json_data["build_chunk_" + to_string(i)]["data"];
+                                for (idx_t j = 0; j < build_size; j++) {
+                                    build_chunk_vector.SetValue(j, Value(build_vector_data[j]));
+                                }
+                                build_chunk.data.emplace_back(build_chunk_vector);
+                            } else if (build_type == LogicalType::INTEGER) {
+                                vector<int64_t> build_vector_data = json_data["build_chunk_" + to_string(i)]["data"];
+                                for (idx_t j = 0; j < build_size; j++) {
+                                    build_chunk_vector.SetValue(j, Value(build_vector_data[j]));
+                                }
+                                build_chunk.data.emplace_back(build_chunk_vector);
+                            } else {
+                                throw ParserException("Cannot recognize build types");
+                            }
+
+                            //! For building keys
                             LogicalType key_type = LogicalType((LogicalTypeId)json_data["join_key_" + to_string(i)]["type"]);
+                            Vector join_keys_vector = Vector(key_type, true, false, build_size);
                             DataChunk join_keys;
                             join_keys.SetCardinality(build_size);
-                            Vector join_keys_vector = Vector(key_type, true, true, build_size);
-                            for (idx_t j = 0; j < build_size; j++) {
-                                join_keys_vector.SetValue(j, Value(join_key_data[j]));
+
+                            if (key_type == LogicalType::VARCHAR) {
+                                vector<string> join_key_data = json_data["join_key_" + to_string(i)]["data"];
+                                for (idx_t j = 0; j < build_size; j++) {
+                                    join_keys_vector.SetValue(j, Value(join_key_data[j]));
+                                }
+                                join_keys.data.emplace_back(join_keys_vector);
+                            } else if (key_type == LogicalType::INTEGER) {
+                                vector<int64_t> join_key_data = json_data["join_key_" + to_string(i)]["data"];
+                                for (idx_t j = 0; j < build_size; j++) {
+                                    join_keys_vector.SetValue(j, Value(join_key_data[j]));
+                                }
+                                join_keys.data.emplace_back(join_keys_vector);
+                            } else {
+                                throw ParserException("Cannot recognize key types");
                             }
-                            join_keys.data.emplace_back(join_keys_vector);
 
                             // build hash table using join_keys and build_chunk
                             hash_table->Build(join_keys, build_chunk);
@@ -598,25 +664,37 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
         }
     }
 
-    // Check if we should suspend
-    if (global_suspend_start) {
+    //! Suspend Process for Finalize
+    // if external hash join, checking suspend and serializing states happened in Sink()
+    if (sink.external && global_suspend_start) {
+        exit(0);
+    }
+    // if not external hash join, checking suspend and serializing states happened here
+    if (!sink.external && global_suspend) {
         std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
         uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                 suspend_check - global_start).count();
         if (time_dur_ms > global_suspend_point_ms) {
-            if (sink.external) {
-                exit(0);
+            global_suspend_start = true;
+            for (auto &local_ht : sink.local_hash_tables) {
+                sink.hash_table->Merge(*local_ht);
             }
+            sink.local_hash_tables.clear();
+
             if (use_perfect_hash) {
-                global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
-                // Serialize PerfectHashTable to Disk
-                sink.perfect_join_executor->SerializePerfectHashTable();
-                exit(0);
+                D_ASSERT(sink.hash_table->equality_types.size() == 1);
+                auto key_type = sink.hash_table->equality_types[0];
+                use_perfect_hash = sink.perfect_join_executor->BuildPerfectHashTable(key_type);
             }
+
+            global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
+            // Serialize PerfectHashTable to Disk
+            sink.perfect_join_executor->SerializePerfectHashTable();
+            exit(0);
         }
     }
 
-    // Do regular Finalize
+    //! Regular Process for Finalize
     if (sink.external) {
         D_ASSERT(can_go_external);
         // External join - partition HT
@@ -640,6 +718,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
         auto key_type = sink.hash_table->equality_types[0];
         use_perfect_hash = sink.perfect_join_executor->BuildPerfectHashTable(key_type);
     }
+
     // In case of a large build side or duplicates, use regular hash join
     if (!use_perfect_hash) {
         sink.perfect_join_executor.reset();

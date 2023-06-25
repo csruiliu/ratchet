@@ -42,7 +42,7 @@ public:
 		}
 
         // Check if it is a resume execution
-        if (global_resume_start) {
+        if (global_resume) {
             // check to use global_resume_file or global_resume_folder
             // TODO: collect pipeline_ids from all part-*.ratchet file and check if they are same
             // TODO: pipeline-level part-*.ratchet file such as ppl-1-part-*.ratchet
