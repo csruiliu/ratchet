@@ -530,6 +530,7 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
 #if RATCHET_PRINT == 1
             std::cout << "[PhysicalUngroupedAggregate::Finalize] Suspend and Serialize Global State" << std::endl;
 #endif
+            std::cout << "== Serialization for aggregation ==" << std::endl;
             json jsonfile;
 
             vector<string> aggregate_values;
