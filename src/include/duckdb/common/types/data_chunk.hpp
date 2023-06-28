@@ -40,6 +40,10 @@ class VectorCache;
     In addition to holding the data of the vectors, the DataChunk also owns the
    selection vector that underlying vectors can point to.
 */
+//! Rui's Note:
+//! A Vector usually is a column or a subset of column.
+//! A DataChunk is a combination of one or multiple (subset of) columns
+//! The card of a DataChunk is the number of rows, should equal to the number of items in each column.
 class DataChunk {
 public:
 	//! Creates an empty DataChunk
