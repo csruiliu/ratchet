@@ -509,11 +509,66 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
             unique_ptr<JoinHashTable> hash_table;
             hash_table = this->InitializeHashTable(context);
 
+            uint64_t chunk_amount = build_size / STANDARD_VECTOR_SIZE;
+            uint64_t chunk_reminder = build_size % STANDARD_VECTOR_SIZE;
+
+            LogicalType build_chunk_type = LogicalType((LogicalTypeId)json_data["build_chunk_0"]["type"]);
+            LogicalType join_key_type = LogicalType((LogicalTypeId)json_data["join_key_0"]["type"]);
+            vector<string> build_vector_data = json_data["build_chunk_0"]["data"].get<vector<string>>();
+            vector<int64_t> join_key_data = json_data["join_key_0"]["data"].get<vector<int64_t>>();
+
+            for (idx_t i = 0; i < chunk_amount; ++i) {
+                DataChunk build_chunk;
+                DataChunk join_keys;
+
+                Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
+                Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
+                for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
+                    build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                    join_keys_vector.SetValue(v, Value(join_key_data[j]));
+                }
+                build_chunk.data.emplace_back(build_chunk_vector);
+                join_keys.data.emplace_back(join_keys_vector);
+
+                build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
+                join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
+
+                hash_table->Build(join_keys, build_chunk);
+                sink.hash_table->Merge(*hash_table);
+                hash_table->Reset();
+            }
+
+            DataChunk build_chunk;
+            DataChunk join_keys;
+            Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
+            Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
+            for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
+                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                join_keys_vector.SetValue(v, Value(join_key_data[j]));
+            }
+            build_chunk.data.emplace_back(build_chunk_vector);
+            join_keys.data.emplace_back(join_keys_vector);
+
+            build_chunk.SetCardinality(chunk_reminder);
+            join_keys.SetCardinality(chunk_reminder);
+
+            hash_table->Build(join_keys, build_chunk);
+            sink.hash_table->Merge(*hash_table);
+            hash_table->Reset();
+            
+            /*
             //! calculate how to fit in duckdb vector
             uint64_t chunk_amount = build_size / STANDARD_VECTOR_SIZE;
             uint64_t round = chunk_amount <= 2024 ? 1 : (chunk_amount / STANDARD_VECTOR_SIZE) + 1;
             uint64_t chunk_amount_reminder = chunk_amount % STANDARD_VECTOR_SIZE;
             uint64_t chunk_size_reminder = build_size % STANDARD_VECTOR_SIZE;
+
+            std::cout << "build_size: " << build_size << std::endl;
+            std::cout << "col_size: " << col_size << std::endl;
+            std::cout << "chunk_amount: " << chunk_amount << std::endl;
+            std::cout << "round: " << round << std::endl;
+            std::cout << "chunk_amount_reminder: " << chunk_amount_reminder << std::endl;
+            std::cout << "chunk_size_reminder: " << chunk_size_reminder << std::endl;
 
             //! TODO: Need to optimize
             //! build hash table
@@ -547,9 +602,6 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                                 }
 
                                 if (chunk_size_reminder) {
-                                    build_chunk.SetCardinality(chunk_amount_reminder);
-                                    join_keys.SetCardinality(chunk_amount_reminder);
-                                } else {
                                     // handle the very last reminder data whose size < STANDARD_VECTOR_SIZE
                                     Vector build_chunk_vector = Vector(build_type, true, false, chunk_size_reminder);
                                     Vector join_keys_vector = Vector(key_type, true, false, chunk_size_reminder);
@@ -560,8 +612,11 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                                     build_chunk.data.emplace_back(build_chunk_vector);
                                     join_keys.data.emplace_back(join_keys_vector);
 
-                                    build_chunk.SetCardinality(chunk_amount_reminder + 1);
-                                    join_keys.SetCardinality(chunk_amount_reminder + 1);
+                                    build_chunk.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
+                                    join_keys.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
+                                } else {
+                                    build_chunk.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
+                                    join_keys.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
                                 }
                             } else {
                                 for (idx_t j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++j) {
@@ -576,8 +631,8 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                                     join_keys.data.emplace_back(join_keys_vector);
                                 }
 
-                                build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
-                                join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
+                                build_chunk.SetCardinality(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
+                                join_keys.SetCardinality(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
                             }
 
                             hash_table->Build(join_keys, build_chunk);
@@ -600,11 +655,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                                     build_chunk.data.emplace_back(build_chunk_vector);
                                     join_keys.data.emplace_back(join_keys_vector);
                                 }
-
                                 if (chunk_size_reminder) {
-                                    build_chunk.SetCardinality(chunk_amount_reminder);
-                                    join_keys.SetCardinality(chunk_amount_reminder);
-                                } else {
                                     // handle the very last reminder data whose size < STANDARD_VECTOR_SIZE
                                     Vector build_chunk_vector = Vector(build_type, true, false, chunk_size_reminder);
                                     Vector join_keys_vector = Vector(key_type, true, false, chunk_size_reminder);
@@ -615,8 +666,15 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                                     build_chunk.data.emplace_back(build_chunk_vector);
                                     join_keys.data.emplace_back(join_keys_vector);
 
-                                    build_chunk.SetCardinality(chunk_amount_reminder + 1);
-                                    join_keys.SetCardinality(chunk_amount_reminder + 1);
+                                    build_chunk.SetCapacity(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
+                                    build_chunk.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
+                                    join_keys.SetCapacity(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
+                                    join_keys.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
+                                } else {
+                                    build_chunk.SetCapacity(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
+                                    build_chunk.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
+                                    join_keys.SetCapacity(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
+                                    join_keys.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
                                 }
                             } else {
                                 for (idx_t j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++j) {
@@ -630,11 +688,11 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                                     build_chunk.data.emplace_back(build_chunk_vector);
                                     join_keys.data.emplace_back(join_keys_vector);
                                 }
-
-                                build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
-                                join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
+                                build_chunk.SetCapacity(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
+                                build_chunk.SetCardinality(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
+                                join_keys.SetCapacity(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
+                                join_keys.SetCardinality(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
                             }
-
                             hash_table->Build(join_keys, build_chunk);
                             sink.hash_table->Merge(*hash_table);
                             hash_table->Reset();
@@ -664,9 +722,6 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                                 }
 
                                 if (chunk_size_reminder) {
-                                    build_chunk.SetCardinality(chunk_amount_reminder);
-                                    join_keys.SetCardinality(chunk_amount_reminder);
-                                } else {
                                     // handle the very last reminder data whose size < STANDARD_VECTOR_SIZE
                                     Vector build_chunk_vector = Vector(build_type, true, false, chunk_size_reminder);
                                     Vector join_keys_vector = Vector(key_type, true, false, chunk_size_reminder);
@@ -677,8 +732,11 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                                     build_chunk.data.emplace_back(build_chunk_vector);
                                     join_keys.data.emplace_back(join_keys_vector);
 
-                                    build_chunk.SetCardinality(chunk_amount_reminder + 1);
-                                    join_keys.SetCardinality(chunk_amount_reminder + 1);
+                                    build_chunk.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
+                                    join_keys.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
+                                } else {
+                                    build_chunk.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
+                                    join_keys.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
                                 }
                             } else {
                                 for (idx_t j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++j) {
@@ -693,8 +751,8 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                                     join_keys.data.emplace_back(join_keys_vector);
                                 }
 
-                                build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
-                                join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
+                                build_chunk.SetCardinality(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
+                                join_keys.SetCardinality(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
                             }
 
                             hash_table->Build(join_keys, build_chunk);
@@ -719,9 +777,6 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                                 }
 
                                 if (chunk_size_reminder) {
-                                    build_chunk.SetCardinality(chunk_amount_reminder);
-                                    join_keys.SetCardinality(chunk_amount_reminder);
-                                } else {
                                     // handle the very last reminder data whose size < STANDARD_VECTOR_SIZE
                                     Vector build_chunk_vector = Vector(build_type, true, false, chunk_size_reminder);
                                     Vector join_keys_vector = Vector(key_type, true, false, chunk_size_reminder);
@@ -732,8 +787,12 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                                     build_chunk.data.emplace_back(build_chunk_vector);
                                     join_keys.data.emplace_back(join_keys_vector);
 
-                                    build_chunk.SetCardinality(chunk_amount_reminder + 1);
-                                    join_keys.SetCardinality(chunk_amount_reminder + 1);
+                                    build_chunk.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
+                                    join_keys.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
+                                } else {
+                                    build_chunk.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
+                                    join_keys.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
+
                                 }
                             } else {
                                 for (idx_t j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++j) {
@@ -748,8 +807,8 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                                     join_keys.data.emplace_back(join_keys_vector);
                                 }
 
-                                build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
-                                join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
+                                build_chunk.SetCardinality(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
+                                join_keys.SetCardinality(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
                             }
 
                             hash_table->Build(join_keys, build_chunk);
@@ -763,11 +822,8 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                     }
                 }
             }
-
-            auto key_type = sink.hash_table->equality_types[0];
-            sink.perfect_join_executor->BuildPerfectHashTable(key_type);
-            /*
-            auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
+            */
+            // auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
             if (use_perfect_hash) {
                 // D_ASSERT(sink.hash_table->equality_types.size() == 1);
                 auto key_type = sink.hash_table->equality_types[0];
@@ -777,7 +833,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                 sink.perfect_join_executor.reset();
                 sink.ScheduleFinalize(pipeline, event);
             }
-            */
+
             sink.finalized = true;
             return SinkFinalizeType::READY;
         } else {
