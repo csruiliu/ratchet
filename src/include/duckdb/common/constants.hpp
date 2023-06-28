@@ -31,7 +31,7 @@ namespace duckdb {
 //! External Join
 //! 0: Disable
 //! 1: Enable
-#define RATCHET_EXTERNAL_JOIN 1
+#define RATCHET_EXTERNAL_JOIN 0
 
 // API versions
 // if no explicit API version is defined, the latest API version is used

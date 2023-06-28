@@ -298,6 +298,12 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
 
     auto build_size = perfect_join_statistics.build_range + 1;
 
+    //! TODO: handle ht.build_types.size() != ht.condition_types.size()
+    D_ASSERT(ht.build_types.size() == ht.condition_types.size());
+    json_data["pipeline_ids"] = global_finalized_pipelines;
+    json_data["column_size"] = ht.build_types.size();
+    json_data["build_size"] = build_size;
+
     for (idx_t i = 0; i < ht.build_types.size(); i++) {
         auto &build_vec = perfect_hash_table[i];
 
@@ -342,8 +348,7 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
         }
     }
 
-    json_data["pipeline_ids"] = global_finalized_pipelines;
-    json_data["build_size"] = build_size;
+
 
 #if RATCHET_SERDE_FORMAT == 0
     std::ofstream outputFile(global_suspend_file, std::ios::out | std::ios::binary);
