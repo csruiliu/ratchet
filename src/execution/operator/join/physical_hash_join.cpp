@@ -241,9 +241,16 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
             json json_data;
 
             global_finalized_pipelines.emplace_back(context.pipeline->GetPipelineId());
-            idx_t build_size = lstate.join_keys.size();
+            json_data["pipeline_ids"] = global_finalized_pipelines;
 
-            // lstate.join_keys.GetTypes().size is the number of the columns, similar to build_chunk
+            //! TODO: handle ht.build_types.size() != ht.condition_types.size()
+            D_ASSERT(ht.build_types.size() == ht.condition_types.size());
+            json_data["column_size"] = ht.build_types.size();
+
+            idx_t build_size = lstate.join_keys.size();
+            json_data["part_build_size"] = build_size;
+
+            // lstate.join_keys.GetTypes().size is the number of the columns
             for (idx_t i = 0; i < lstate.join_keys.GetTypes().size(); i++) {
                 if (lstate.join_keys.GetTypes()[i] == LogicalType::INTEGER) {
                     vector<int64_t> key_vector;
@@ -283,9 +290,6 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
                     throw ParserException("Cannot recognize key types");
                 };
             }
-
-            json_data["pipeline_ids"] = global_finalized_pipelines;
-            json_data["build_size"] = build_size;
 
             string suspend_folder = global_suspend_folder;
 
@@ -506,323 +510,217 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
             auto build_size = (uint64_t)json_data["build_size"];
             auto col_size = (uint64_t)json_data["column_size"];
 
-            unique_ptr<JoinHashTable> hash_table;
-            hash_table = this->InitializeHashTable(context);
-
             uint64_t chunk_amount = build_size / STANDARD_VECTOR_SIZE;
             uint64_t chunk_reminder = build_size % STANDARD_VECTOR_SIZE;
 
-            LogicalType build_chunk_type = LogicalType((LogicalTypeId)json_data["build_chunk_0"]["type"]);
-            LogicalType join_key_type = LogicalType((LogicalTypeId)json_data["join_key_0"]["type"]);
-            vector<string> build_vector_data = json_data["build_chunk_0"]["data"].get<vector<string>>();
-            vector<int64_t> join_key_data = json_data["join_key_0"]["data"].get<vector<int64_t>>();
-
-            for (idx_t i = 0; i < chunk_amount; ++i) {
-                DataChunk build_chunk;
-                DataChunk join_keys;
-
-                Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
-                Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
-                for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
-                    build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                    join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                }
-                build_chunk.data.emplace_back(build_chunk_vector);
-                join_keys.data.emplace_back(join_keys_vector);
-
-                build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
-                join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
-
-                hash_table->Build(join_keys, build_chunk);
-                sink.hash_table->Merge(*hash_table);
-                hash_table->Reset();
-            }
-
-            DataChunk build_chunk;
-            DataChunk join_keys;
-            Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
-            Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
-            for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
-                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                join_keys_vector.SetValue(v, Value(join_key_data[j]));
-            }
-            build_chunk.data.emplace_back(build_chunk_vector);
-            join_keys.data.emplace_back(join_keys_vector);
-
-            build_chunk.SetCardinality(chunk_reminder);
-            join_keys.SetCardinality(chunk_reminder);
-
-            hash_table->Build(join_keys, build_chunk);
-            sink.hash_table->Merge(*hash_table);
-            hash_table->Reset();
-            
-            /*
-            //! calculate how to fit in duckdb vector
-            uint64_t chunk_amount = build_size / STANDARD_VECTOR_SIZE;
-            uint64_t round = chunk_amount <= 2024 ? 1 : (chunk_amount / STANDARD_VECTOR_SIZE) + 1;
-            uint64_t chunk_amount_reminder = chunk_amount % STANDARD_VECTOR_SIZE;
-            uint64_t chunk_size_reminder = build_size % STANDARD_VECTOR_SIZE;
-
-            std::cout << "build_size: " << build_size << std::endl;
-            std::cout << "col_size: " << col_size << std::endl;
-            std::cout << "chunk_amount: " << chunk_amount << std::endl;
-            std::cout << "round: " << round << std::endl;
-            std::cout << "chunk_amount_reminder: " << chunk_amount_reminder << std::endl;
-            std::cout << "chunk_size_reminder: " << chunk_size_reminder << std::endl;
+            unique_ptr<JoinHashTable> hash_table;
+            hash_table = this->InitializeHashTable(context);
 
             //! TODO: Need to optimize
             //! build hash table
             for (idx_t c = 0; c < col_size; ++c) {
-                LogicalType build_type = LogicalType((LogicalTypeId)json_data["build_chunk_" + to_string(c)]["type"]);
-                LogicalType key_type = LogicalType((LogicalTypeId)json_data["join_key_" + to_string(c)]["type"]);
+                LogicalType build_chunk_type = LogicalType((LogicalTypeId)json_data["build_chunk_" + to_string(c)]["type"]);
+                LogicalType join_key_type = LogicalType((LogicalTypeId)json_data["join_key_" + to_string(c)]["type"]);
 
-                for (idx_t i = 0; i < round; ++i) {
+                if (build_chunk_type == LogicalType::VARCHAR) {
+                    vector<string> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<string>>();
 
-                    DataChunk build_chunk;
-                    DataChunk join_keys;
+                    if (join_key_type == LogicalType::VARCHAR) {
+                        vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
 
-                    if (build_type == LogicalType::VARCHAR) {
-                        vector<string> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<string>>();
+                        for (idx_t i = 0; i < chunk_amount; ++i) {
+                            DataChunk build_chunk;
+                            DataChunk join_keys;
+                            Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
+                            Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
 
-                        if (key_type == LogicalType::VARCHAR) {
-                            vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
-
-                            // last round
-                            if (i + 1 == round) {
-                                for (idx_t j = i * STANDARD_VECTOR_SIZE; j < i * STANDARD_VECTOR_SIZE + chunk_amount_reminder; ++j) {
-                                    Vector build_chunk_vector = Vector(build_type, true, false, STANDARD_VECTOR_SIZE);
-                                    Vector join_keys_vector = Vector(key_type, true, false, STANDARD_VECTOR_SIZE);
-
-                                    for (idx_t v = 0, k = j * STANDARD_VECTOR_SIZE; k < (j + 1) * STANDARD_VECTOR_SIZE; ++v, ++k) {
-                                        build_chunk_vector.SetValue(v, Value(build_vector_data[k]));
-                                        join_keys_vector.SetValue(v, Value(join_key_data[k]));
-                                    }
-                                    build_chunk.data.emplace_back(build_chunk_vector);
-                                    join_keys.data.emplace_back(join_keys_vector);
-                                }
-
-                                if (chunk_size_reminder) {
-                                    // handle the very last reminder data whose size < STANDARD_VECTOR_SIZE
-                                    Vector build_chunk_vector = Vector(build_type, true, false, chunk_size_reminder);
-                                    Vector join_keys_vector = Vector(key_type, true, false, chunk_size_reminder);
-                                    for (idx_t v = 0, l = build_size - chunk_size_reminder; l < build_size; ++v, ++l) {
-                                        build_chunk_vector.SetValue(v, Value(build_vector_data[l]));
-                                        join_keys_vector.SetValue(v, Value(join_key_data[l]));
-                                    }
-                                    build_chunk.data.emplace_back(build_chunk_vector);
-                                    join_keys.data.emplace_back(join_keys_vector);
-
-                                    build_chunk.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
-                                    join_keys.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
-                                } else {
-                                    build_chunk.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
-                                    join_keys.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
-                                }
-                            } else {
-                                for (idx_t j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++j) {
-                                    Vector build_chunk_vector = Vector(build_type, true, false, STANDARD_VECTOR_SIZE);
-                                    Vector join_keys_vector = Vector(key_type, true, false, STANDARD_VECTOR_SIZE);
-
-                                    for (idx_t v = 0, k = j * STANDARD_VECTOR_SIZE; k < (j + 1) * STANDARD_VECTOR_SIZE; ++v, ++k) {
-                                        build_chunk_vector.SetValue(v, Value(build_vector_data[k]));
-                                        join_keys_vector.SetValue(v, Value(join_key_data[k]));
-                                    }
-                                    build_chunk.data.emplace_back(build_chunk_vector);
-                                    join_keys.data.emplace_back(join_keys_vector);
-                                }
-
-                                build_chunk.SetCardinality(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
-                                join_keys.SetCardinality(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
+                            for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
+                                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                                join_keys_vector.SetValue(v, Value(join_key_data[j]));
                             }
+
+                            build_chunk.data.emplace_back(build_chunk_vector);
+                            join_keys.data.emplace_back(join_keys_vector);
+                            build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
+                            join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
 
                             hash_table->Build(join_keys, build_chunk);
                             sink.hash_table->Merge(*hash_table);
                             hash_table->Reset();
-
-                        } else if (key_type == LogicalType::INTEGER) {
-                            vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
-
-                            // last round
-                            if (i + 1 == round) {
-                                for (idx_t j = i * STANDARD_VECTOR_SIZE; j < i * STANDARD_VECTOR_SIZE + chunk_amount_reminder; ++j) {
-                                    Vector build_chunk_vector = Vector(build_type, true, false, STANDARD_VECTOR_SIZE);
-                                    Vector join_keys_vector = Vector(key_type, true, false, STANDARD_VECTOR_SIZE);
-
-                                    for (idx_t v = 0, k = j * STANDARD_VECTOR_SIZE; k < (j + 1) * STANDARD_VECTOR_SIZE; ++v, ++k) {
-                                        build_chunk_vector.SetValue(v, Value(build_vector_data[k]));
-                                        join_keys_vector.SetValue(v, Value(join_key_data[k]));
-                                    }
-                                    build_chunk.data.emplace_back(build_chunk_vector);
-                                    join_keys.data.emplace_back(join_keys_vector);
-                                }
-                                if (chunk_size_reminder) {
-                                    // handle the very last reminder data whose size < STANDARD_VECTOR_SIZE
-                                    Vector build_chunk_vector = Vector(build_type, true, false, chunk_size_reminder);
-                                    Vector join_keys_vector = Vector(key_type, true, false, chunk_size_reminder);
-                                    for (idx_t v = 0, l = build_size - chunk_size_reminder; l < build_size; ++v, ++l) {
-                                        build_chunk_vector.SetValue(v, Value(build_vector_data[l]));
-                                        join_keys_vector.SetValue(v, Value(join_key_data[l]));
-                                    }
-                                    build_chunk.data.emplace_back(build_chunk_vector);
-                                    join_keys.data.emplace_back(join_keys_vector);
-
-                                    build_chunk.SetCapacity(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
-                                    build_chunk.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
-                                    join_keys.SetCapacity(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
-                                    join_keys.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
-                                } else {
-                                    build_chunk.SetCapacity(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
-                                    build_chunk.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
-                                    join_keys.SetCapacity(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
-                                    join_keys.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
-                                }
-                            } else {
-                                for (idx_t j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++j) {
-                                    Vector build_chunk_vector = Vector(build_type, true, false, STANDARD_VECTOR_SIZE);
-                                    Vector join_keys_vector = Vector(key_type, true, false, STANDARD_VECTOR_SIZE);
-
-                                    for (idx_t v = 0, k = j * STANDARD_VECTOR_SIZE; k < (j + 1) * STANDARD_VECTOR_SIZE; ++v, ++k) {
-                                        build_chunk_vector.SetValue(v, Value(build_vector_data[k]));
-                                        join_keys_vector.SetValue(v, Value(join_key_data[k]));
-                                    }
-                                    build_chunk.data.emplace_back(build_chunk_vector);
-                                    join_keys.data.emplace_back(join_keys_vector);
-                                }
-                                build_chunk.SetCapacity(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
-                                build_chunk.SetCardinality(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
-                                join_keys.SetCapacity(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
-                                join_keys.SetCardinality(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
-                            }
-                            hash_table->Build(join_keys, build_chunk);
-                            sink.hash_table->Merge(*hash_table);
-                            hash_table->Reset();
-
-                        } else {
-                            throw ParserException("Cannot recognize build types");
                         }
 
-                    } else if (build_type == LogicalType::INTEGER) {
-                        vector<int64_t> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<int64_t>>();
+                        if (chunk_reminder) {
+                            DataChunk build_chunk;
+                            DataChunk join_keys;
+                            Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
+                            Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
 
-                        if (key_type == LogicalType::VARCHAR) {
-                            vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
-
-                            // last round
-                            if (i + 1 == round) {
-                                for (idx_t j = i * STANDARD_VECTOR_SIZE; j < i * STANDARD_VECTOR_SIZE + chunk_amount_reminder; ++j) {
-                                    Vector build_chunk_vector = Vector(build_type, true, false, STANDARD_VECTOR_SIZE);
-                                    Vector join_keys_vector = Vector(key_type, true, false, STANDARD_VECTOR_SIZE);
-
-                                    for (idx_t v = 0, k = j * STANDARD_VECTOR_SIZE; k < (j + 1) * STANDARD_VECTOR_SIZE; ++v, ++k) {
-                                        build_chunk_vector.SetValue(v, Value(build_vector_data[k]));
-                                        join_keys_vector.SetValue(v, Value(join_key_data[k]));
-                                    }
-                                    build_chunk.data.emplace_back(build_chunk_vector);
-                                    join_keys.data.emplace_back(join_keys_vector);
-                                }
-
-                                if (chunk_size_reminder) {
-                                    // handle the very last reminder data whose size < STANDARD_VECTOR_SIZE
-                                    Vector build_chunk_vector = Vector(build_type, true, false, chunk_size_reminder);
-                                    Vector join_keys_vector = Vector(key_type, true, false, chunk_size_reminder);
-                                    for (idx_t v = 0, l = build_size - chunk_size_reminder; l < build_size; ++v, ++l) {
-                                        build_chunk_vector.SetValue(v, Value(build_vector_data[l]));
-                                        join_keys_vector.SetValue(v, Value(join_key_data[l]));
-                                    }
-                                    build_chunk.data.emplace_back(build_chunk_vector);
-                                    join_keys.data.emplace_back(join_keys_vector);
-
-                                    build_chunk.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
-                                    join_keys.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
-                                } else {
-                                    build_chunk.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
-                                    join_keys.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
-                                }
-                            } else {
-                                for (idx_t j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++j) {
-                                    Vector build_chunk_vector = Vector(build_type, true, false, STANDARD_VECTOR_SIZE);
-                                    Vector join_keys_vector = Vector(key_type, true, false, STANDARD_VECTOR_SIZE);
-
-                                    for (idx_t v = 0, k = j * STANDARD_VECTOR_SIZE; k < (j + 1) * STANDARD_VECTOR_SIZE; ++v, ++k) {
-                                        build_chunk_vector.SetValue(v, Value(build_vector_data[k]));
-                                        join_keys_vector.SetValue(v, Value(join_key_data[k]));
-                                    }
-                                    build_chunk.data.emplace_back(build_chunk_vector);
-                                    join_keys.data.emplace_back(join_keys_vector);
-                                }
-
-                                build_chunk.SetCardinality(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
-                                join_keys.SetCardinality(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
+                            for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
+                                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                                join_keys_vector.SetValue(v, Value(join_key_data[j]));
                             }
+
+                            build_chunk.data.emplace_back(build_chunk_vector);
+                            join_keys.data.emplace_back(join_keys_vector);
+                            build_chunk.SetCardinality(chunk_reminder);
+                            join_keys.SetCardinality(chunk_reminder);
 
                             hash_table->Build(join_keys, build_chunk);
                             sink.hash_table->Merge(*hash_table);
                             hash_table->Reset();
-
-                        } else if (key_type == LogicalType::INTEGER) {
-                            vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
-
-                            // last round
-                            if (i + 1 == round) {
-                                for (idx_t j = i * STANDARD_VECTOR_SIZE; j < i * STANDARD_VECTOR_SIZE + chunk_amount_reminder; ++j) {
-                                    Vector build_chunk_vector = Vector(build_type, true, false, STANDARD_VECTOR_SIZE);
-                                    Vector join_keys_vector = Vector(key_type, true, false, STANDARD_VECTOR_SIZE);
-
-                                    for (idx_t v = 0, k = j * STANDARD_VECTOR_SIZE; k < (j + 1) * STANDARD_VECTOR_SIZE; ++v, ++k) {
-                                        build_chunk_vector.SetValue(v, Value(build_vector_data[k]));
-                                        join_keys_vector.SetValue(v, Value(join_key_data[k]));
-                                    }
-                                    build_chunk.data.emplace_back(build_chunk_vector);
-                                    join_keys.data.emplace_back(join_keys_vector);
-                                }
-
-                                if (chunk_size_reminder) {
-                                    // handle the very last reminder data whose size < STANDARD_VECTOR_SIZE
-                                    Vector build_chunk_vector = Vector(build_type, true, false, chunk_size_reminder);
-                                    Vector join_keys_vector = Vector(key_type, true, false, chunk_size_reminder);
-                                    for (idx_t v = 0, l = build_size - chunk_size_reminder; l < build_size; ++v, ++l) {
-                                        build_chunk_vector.SetValue(v, Value(build_vector_data[l]));
-                                        join_keys_vector.SetValue(v, Value(join_key_data[l]));
-                                    }
-                                    build_chunk.data.emplace_back(build_chunk_vector);
-                                    join_keys.data.emplace_back(join_keys_vector);
-
-                                    build_chunk.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
-                                    join_keys.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE + chunk_size_reminder);
-                                } else {
-                                    build_chunk.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
-                                    join_keys.SetCardinality(chunk_amount_reminder * STANDARD_VECTOR_SIZE);
-
-                                }
-                            } else {
-                                for (idx_t j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++j) {
-                                    Vector build_chunk_vector = Vector(build_type, true, false, STANDARD_VECTOR_SIZE);
-                                    Vector join_keys_vector = Vector(key_type, true, false, STANDARD_VECTOR_SIZE);
-
-                                    for (idx_t v = 0, k = j * STANDARD_VECTOR_SIZE; k < (j + 1) * STANDARD_VECTOR_SIZE; ++v, ++k) {
-                                        build_chunk_vector.SetValue(v, Value(build_vector_data[k]));
-                                        join_keys_vector.SetValue(v, Value(join_key_data[k]));
-                                    }
-                                    build_chunk.data.emplace_back(build_chunk_vector);
-                                    join_keys.data.emplace_back(join_keys_vector);
-                                }
-
-                                build_chunk.SetCardinality(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
-                                join_keys.SetCardinality(STANDARD_VECTOR_SIZE * STANDARD_VECTOR_SIZE);
-                            }
-
-                            hash_table->Build(join_keys, build_chunk);
-                            sink.hash_table->Merge(*hash_table);
-                            hash_table->Reset();
-                        } else {
-                            throw ParserException("Cannot recognize build types");
                         }
+
+                    } else if (join_key_type == LogicalType::INTEGER) {
+                        vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
+
+                        for (idx_t i = 0; i < chunk_amount; ++i) {
+                            DataChunk build_chunk;
+                            DataChunk join_keys;
+                            Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
+                            Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
+
+                            for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
+                                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                                join_keys_vector.SetValue(v, Value(join_key_data[j]));
+                            }
+
+                            build_chunk.data.emplace_back(build_chunk_vector);
+                            join_keys.data.emplace_back(join_keys_vector);
+                            build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
+                            join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
+
+                            hash_table->Build(join_keys, build_chunk);
+                            sink.hash_table->Merge(*hash_table);
+                            hash_table->Reset();
+                        }
+
+                        if (chunk_reminder) {
+                            DataChunk build_chunk;
+                            DataChunk join_keys;
+                            Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
+                            Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
+
+                            for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
+                                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                                join_keys_vector.SetValue(v, Value(join_key_data[j]));
+                            }
+
+                            build_chunk.data.emplace_back(build_chunk_vector);
+                            join_keys.data.emplace_back(join_keys_vector);
+                            build_chunk.SetCardinality(chunk_reminder);
+                            join_keys.SetCardinality(chunk_reminder);
+
+                            hash_table->Build(join_keys, build_chunk);
+                            sink.hash_table->Merge(*hash_table);
+                            hash_table->Reset();
+                        }
+
                     } else {
-                        throw ParserException("Cannot recognize build types");
+                        throw ParserException("Cannot recognize join_key_type");
                     }
+
+                } else if (build_chunk_type == LogicalType::INTEGER) {
+                    vector<int64_t> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<int64_t>>();
+
+                    if (join_key_type == LogicalType::VARCHAR) {
+                        vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
+
+                        for (idx_t i = 0; i < chunk_amount; ++i) {
+                            DataChunk build_chunk;
+                            DataChunk join_keys;
+                            Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
+                            Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
+
+                            for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
+                                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                                join_keys_vector.SetValue(v, Value(join_key_data[j]));
+                            }
+
+                            build_chunk.data.emplace_back(build_chunk_vector);
+                            join_keys.data.emplace_back(join_keys_vector);
+                            build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
+                            join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
+
+                            hash_table->Build(join_keys, build_chunk);
+                            sink.hash_table->Merge(*hash_table);
+                            hash_table->Reset();
+                        }
+
+                        if (chunk_reminder) {
+                            DataChunk build_chunk;
+                            DataChunk join_keys;
+                            Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
+                            Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
+
+                            for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
+                                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                                join_keys_vector.SetValue(v, Value(join_key_data[j]));
+                            }
+
+                            build_chunk.data.emplace_back(build_chunk_vector);
+                            join_keys.data.emplace_back(join_keys_vector);
+                            build_chunk.SetCardinality(chunk_reminder);
+                            join_keys.SetCardinality(chunk_reminder);
+
+                            hash_table->Build(join_keys, build_chunk);
+                            sink.hash_table->Merge(*hash_table);
+                            hash_table->Reset();
+                        }
+
+                    } else if (join_key_type == LogicalType::INTEGER) {
+                        vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
+
+                        for (idx_t i = 0; i < chunk_amount; ++i) {
+                            DataChunk build_chunk;
+                            DataChunk join_keys;
+                            Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
+                            Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
+
+                            for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
+                                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                                join_keys_vector.SetValue(v, Value(join_key_data[j]));
+                            }
+
+                            build_chunk.data.emplace_back(build_chunk_vector);
+                            join_keys.data.emplace_back(join_keys_vector);
+                            build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
+                            join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
+
+                            hash_table->Build(join_keys, build_chunk);
+                            sink.hash_table->Merge(*hash_table);
+                            hash_table->Reset();
+                        }
+
+                        if (chunk_reminder) {
+                            DataChunk build_chunk;
+                            DataChunk join_keys;
+                            Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
+                            Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
+
+                            for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
+                                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                                join_keys_vector.SetValue(v, Value(join_key_data[j]));
+                            }
+
+                            build_chunk.data.emplace_back(build_chunk_vector);
+                            join_keys.data.emplace_back(join_keys_vector);
+                            build_chunk.SetCardinality(chunk_reminder);
+                            join_keys.SetCardinality(chunk_reminder);
+
+                            hash_table->Build(join_keys, build_chunk);
+                            sink.hash_table->Merge(*hash_table);
+                            hash_table->Reset();
+                        }
+
+                    } else {
+                        throw ParserException("Cannot recognize join_key_type");
+                    }
+
+                } else {
+                    throw ParserException("Cannot recognize build_chunk_type");
                 }
             }
-            */
+
             // auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
             if (use_perfect_hash) {
                 // D_ASSERT(sink.hash_table->equality_types.size() == 1);
@@ -861,60 +759,227 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                         json json_data = json::parse(f);
 #endif
                         // idx_t build_size = build_vector_str.size();
-                        auto build_size = (idx_t)json_data["build_size"];
+                        auto part_build_size = (uint64_t)json_data["part_build_size"];
+                        auto col_size = (uint64_t)json_data["column_size"];
 
-                        unique_ptr<JoinHashTable> hash_table;
-                        hash_table = this->InitializeHashTable(context);
-                        for (idx_t i = 0; i < build_types.size(); i++) {
-                            //! For building values
-                            LogicalType build_type = LogicalType((LogicalTypeId)json_data["build_chunk_" + to_string(i)]["type"]);
-                            Vector build_chunk_vector = Vector(build_type, true, false, build_size);
-                            DataChunk build_chunk;
-                            build_chunk.SetCardinality(build_size);
+                        uint64_t chunk_amount = part_build_size / STANDARD_VECTOR_SIZE;
+                        uint64_t chunk_reminder = part_build_size % STANDARD_VECTOR_SIZE;
 
-                            if (build_type == LogicalType::VARCHAR) {
-                                vector<string> build_vector_data = json_data["build_chunk_" + to_string(i)]["data"];
-                                for (idx_t j = 0; j < build_size; j++) {
-                                    build_chunk_vector.SetValue(j, Value(build_vector_data[j]));
+                        // unique_ptr<JoinHashTable> hash_table;
+                        // hash_table = this->InitializeHashTable(context);
+
+                        //! TODO: Need to optimize
+                        //! build hash table
+                        for (idx_t c = 0; c < col_size; ++c) {
+                            LogicalType build_chunk_type = LogicalType((LogicalTypeId)json_data["build_chunk_" + to_string(c)]["type"]);
+                            LogicalType join_key_type = LogicalType((LogicalTypeId)json_data["join_key_" + to_string(c)]["type"]);
+
+                            if (build_chunk_type == LogicalType::VARCHAR) {
+                                vector<string> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<string>>();
+
+                                if (join_key_type == LogicalType::VARCHAR) {
+                                    vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
+
+                                    for (idx_t i = 0; i < chunk_amount; ++i) {
+                                        DataChunk build_chunk;
+                                        DataChunk join_keys;
+                                        Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
+                                        Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
+
+                                        for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
+                                            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                                            join_keys_vector.SetValue(v, Value(join_key_data[j]));
+                                        }
+
+                                        build_chunk.data.emplace_back(build_chunk_vector);
+                                        join_keys.data.emplace_back(join_keys_vector);
+                                        build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
+                                        join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
+
+                                        unique_ptr<JoinHashTable> hash_table;
+                                        hash_table = this->InitializeHashTable(context);
+                                        hash_table->Build(join_keys, build_chunk);
+                                        sink.local_hash_tables.push_back(std::move(hash_table));
+                                    }
+
+                                    if (chunk_reminder) {
+                                        DataChunk build_chunk;
+                                        DataChunk join_keys;
+                                        Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
+                                        Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
+
+                                        for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
+                                            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                                            join_keys_vector.SetValue(v, Value(join_key_data[j]));
+                                        }
+
+                                        build_chunk.data.emplace_back(build_chunk_vector);
+                                        join_keys.data.emplace_back(join_keys_vector);
+                                        build_chunk.SetCardinality(chunk_reminder);
+                                        join_keys.SetCardinality(chunk_reminder);
+
+                                        unique_ptr<JoinHashTable> hash_table;
+                                        hash_table = this->InitializeHashTable(context);
+                                        hash_table->Build(join_keys, build_chunk);
+                                        sink.local_hash_tables.push_back(std::move(hash_table));
+                                    }
+
+                                } else if (join_key_type == LogicalType::INTEGER) {
+                                    vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
+
+                                    for (idx_t i = 0; i < chunk_amount; ++i) {
+                                        DataChunk build_chunk;
+                                        DataChunk join_keys;
+                                        Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
+                                        Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
+
+                                        for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
+                                            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                                            join_keys_vector.SetValue(v, Value(join_key_data[j]));
+                                        }
+
+                                        build_chunk.data.emplace_back(build_chunk_vector);
+                                        join_keys.data.emplace_back(join_keys_vector);
+                                        build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
+                                        join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
+
+                                        unique_ptr<JoinHashTable> hash_table;
+                                        hash_table = this->InitializeHashTable(context);
+                                        hash_table->Build(join_keys, build_chunk);
+                                        sink.local_hash_tables.push_back(std::move(hash_table));
+                                    }
+
+                                    if (chunk_reminder) {
+                                        DataChunk build_chunk;
+                                        DataChunk join_keys;
+                                        Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
+                                        Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
+
+                                        for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
+                                            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                                            join_keys_vector.SetValue(v, Value(join_key_data[j]));
+                                        }
+
+                                        build_chunk.data.emplace_back(build_chunk_vector);
+                                        join_keys.data.emplace_back(join_keys_vector);
+                                        build_chunk.SetCardinality(chunk_reminder);
+                                        join_keys.SetCardinality(chunk_reminder);
+
+                                        unique_ptr<JoinHashTable> hash_table;
+                                        hash_table = this->InitializeHashTable(context);
+                                        hash_table->Build(join_keys, build_chunk);
+                                        sink.local_hash_tables.push_back(std::move(hash_table));
+                                    }
+
+                                } else {
+                                    throw ParserException("Cannot recognize join_key_type");
                                 }
-                                build_chunk.data.emplace_back(build_chunk_vector);
-                            } else if (build_type == LogicalType::INTEGER) {
-                                vector<int64_t> build_vector_data = json_data["build_chunk_" + to_string(i)]["data"];
-                                for (idx_t j = 0; j < build_size; j++) {
-                                    build_chunk_vector.SetValue(j, Value(build_vector_data[j]));
+
+                            } else if (build_chunk_type == LogicalType::INTEGER) {
+                                vector<int64_t> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<int64_t>>();
+
+                                if (join_key_type == LogicalType::VARCHAR) {
+                                    vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
+
+                                    for (idx_t i = 0; i < chunk_amount; ++i) {
+                                        DataChunk build_chunk;
+                                        DataChunk join_keys;
+                                        Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
+                                        Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
+
+                                        for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
+                                            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                                            join_keys_vector.SetValue(v, Value(join_key_data[j]));
+                                        }
+
+                                        build_chunk.data.emplace_back(build_chunk_vector);
+                                        join_keys.data.emplace_back(join_keys_vector);
+                                        build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
+                                        join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
+
+                                        unique_ptr<JoinHashTable> hash_table;
+                                        hash_table = this->InitializeHashTable(context);
+                                        hash_table->Build(join_keys, build_chunk);
+                                        sink.local_hash_tables.push_back(std::move(hash_table));
+                                    }
+
+                                    if (chunk_reminder) {
+                                        DataChunk build_chunk;
+                                        DataChunk join_keys;
+                                        Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
+                                        Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
+
+                                        for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
+                                            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                                            join_keys_vector.SetValue(v, Value(join_key_data[j]));
+                                        }
+
+                                        build_chunk.data.emplace_back(build_chunk_vector);
+                                        join_keys.data.emplace_back(join_keys_vector);
+                                        build_chunk.SetCardinality(chunk_reminder);
+                                        join_keys.SetCardinality(chunk_reminder);
+
+                                        unique_ptr<JoinHashTable> hash_table;
+                                        hash_table = this->InitializeHashTable(context);
+                                        hash_table->Build(join_keys, build_chunk);
+                                        sink.local_hash_tables.push_back(std::move(hash_table));
+                                    }
+
+                                } else if (join_key_type == LogicalType::INTEGER) {
+                                    vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
+
+                                    for (idx_t i = 0; i < chunk_amount; ++i) {
+                                        DataChunk build_chunk;
+                                        DataChunk join_keys;
+                                        Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
+                                        Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
+
+                                        for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
+                                            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                                            join_keys_vector.SetValue(v, Value(join_key_data[j]));
+                                        }
+
+                                        build_chunk.data.emplace_back(build_chunk_vector);
+                                        join_keys.data.emplace_back(join_keys_vector);
+                                        build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
+                                        join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
+
+                                        unique_ptr<JoinHashTable> hash_table;
+                                        hash_table = this->InitializeHashTable(context);
+                                        hash_table->Build(join_keys, build_chunk);
+                                        sink.local_hash_tables.push_back(std::move(hash_table));
+                                    }
+
+                                    if (chunk_reminder) {
+                                        DataChunk build_chunk;
+                                        DataChunk join_keys;
+                                        Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
+                                        Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
+
+                                        for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
+                                            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+                                            join_keys_vector.SetValue(v, Value(join_key_data[j]));
+                                        }
+
+                                        build_chunk.data.emplace_back(build_chunk_vector);
+                                        join_keys.data.emplace_back(join_keys_vector);
+                                        build_chunk.SetCardinality(chunk_reminder);
+                                        join_keys.SetCardinality(chunk_reminder);
+
+                                        unique_ptr<JoinHashTable> hash_table;
+                                        hash_table = this->InitializeHashTable(context);
+                                        hash_table->Build(join_keys, build_chunk);
+                                        sink.local_hash_tables.push_back(std::move(hash_table));
+                                    }
+
+                                } else {
+                                    throw ParserException("Cannot recognize join_key_type");
                                 }
-                                build_chunk.data.emplace_back(build_chunk_vector);
+
                             } else {
-                                throw ParserException("Cannot recognize build types");
+                                throw ParserException("Cannot recognize build_chunk_type");
                             }
-
-                            //! For building keys
-                            LogicalType key_type = LogicalType((LogicalTypeId)json_data["join_key_" + to_string(i)]["type"]);
-                            Vector join_keys_vector = Vector(key_type, true, false, build_size);
-                            DataChunk join_keys;
-                            join_keys.SetCardinality(build_size);
-
-                            if (key_type == LogicalType::VARCHAR) {
-                                vector<string> join_key_data = json_data["join_key_" + to_string(i)]["data"];
-                                for (idx_t j = 0; j < build_size; j++) {
-                                    join_keys_vector.SetValue(j, Value(join_key_data[j]));
-                                }
-                                join_keys.data.emplace_back(join_keys_vector);
-                            } else if (key_type == LogicalType::INTEGER) {
-                                vector<int64_t> join_key_data = json_data["join_key_" + to_string(i)]["data"];
-                                for (idx_t j = 0; j < build_size; j++) {
-                                    join_keys_vector.SetValue(j, Value(join_key_data[j]));
-                                }
-                                join_keys.data.emplace_back(join_keys_vector);
-                            } else {
-                                throw ParserException("Cannot recognize key types");
-                            }
-
-                            // build hash table using join_keys and build_chunk
-                            hash_table->Build(join_keys, build_chunk);
-                            // sink.hash_table->Merge(*hash_table);
                         }
-                        sink.local_hash_tables.push_back(std::move(hash_table));
                     }
                 }
                 closedir(dir);
