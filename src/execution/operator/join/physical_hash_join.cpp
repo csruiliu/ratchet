@@ -1168,7 +1168,7 @@ OperatorResultType PhysicalHashJoin::ExecuteInternal(ExecutionContext &context, 
         std::cout << "== state.spill ==" << std::endl;
         state.spill_chunk.Print();
         std::cout << "== input ==" << std::endl;
-	    input.Print()
+	    input.Print();
 #endif
     } else {
 		state.scan_structure = sink.hash_table->Probe(state.join_keys);
