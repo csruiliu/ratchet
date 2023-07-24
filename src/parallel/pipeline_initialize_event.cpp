@@ -19,7 +19,7 @@ public:
 
 public:
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-#if RATCHET_PRINT == 1
+#if RATCHET_PRINT >= 1
         std::cout << "[PipelineInitializeTask] ExecuteTask for pipeline " << pipeline.GetPipelineId() << std::endl;
 #endif
         pipeline.ResetSink();
