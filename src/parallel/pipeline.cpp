@@ -40,7 +40,10 @@ public:
         if (!pipeline_executor) {
 			pipeline_executor = make_unique<PipelineExecutor>(pipeline.GetClientContext(), pipeline);
 		}
-
+#if RATCHET_PRINT >= 2
+        this->executor.PrintRootPipelines();
+        this->executor.PrintPipelines();
+#endif
         // Check if it is a resume execution
         if (global_resume) {
             // check to use global_resume_file or global_resume_folder
@@ -82,7 +85,7 @@ public:
         }
 
         if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
-#if RATCHET_PRINT == 1
+#if RATCHET_PRINT >= 1
             std::cout << "[PipelineTask] ExecuteTask at PARTIAL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
 #endif
             bool finished = pipeline_executor->Execute(PARTIAL_CHUNK_COUNT);
@@ -90,7 +93,7 @@ public:
                 return TaskExecutionResult::TASK_NOT_FINISHED;
             }
         } else {
-#if RATCHET_PRINT == 1
+#if RATCHET_PRINT >= 1
             std::cout << "[PipelineTask] ExecuteTask at ALL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
 #endif
             pipeline_executor->Execute();

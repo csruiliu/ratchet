@@ -168,7 +168,7 @@ unique_ptr<OperatorState> PerfectHashJoinExecutor::GetOperatorState(ExecutionCon
 
 OperatorResultType PerfectHashJoinExecutor::ProbePerfectHashTable(ExecutionContext &context, DataChunk &input,
                                                                   DataChunk &result, OperatorState &state_p) {
-#if RATCHET_PRINT == 1
+#if RATCHET_PRINT >= 1
     std::cout << "[PerfectHashJoinExecutor::ProbePerfectHashTable] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
 #endif
     auto &state = (PerfectHashJoinState &)state_p;
