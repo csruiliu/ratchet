@@ -117,7 +117,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-#if RATCHET_PRINT == 1
+#if RATCHET_PRINT >= 1
         std::cout << "[PhysicalOrderMergeTask] ExecuteTask" << std::endl;
 #endif
         // Initialize merge sorted and iterate until done

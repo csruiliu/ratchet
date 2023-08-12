@@ -42,7 +42,7 @@ bool PipelineExecutor::Execute(idx_t max_chunks) {
 	auto &source_chunk = pipeline.operators.empty() ? final_chunk : *intermediate_chunks[0];
 	for (idx_t i = 0; i < max_chunks; i++) {
 		if (IsFinished()) {
-#if RATCHET_PRINT == 1
+#if RATCHET_PRINT >= 1
             std::cout << "PipelineExecutor::Execute, IsFinished() is true" << std::endl;
 #endif
             break;
@@ -51,7 +51,7 @@ bool PipelineExecutor::Execute(idx_t max_chunks) {
 		FetchFromSource(source_chunk);
 		if (source_chunk.size() == 0) {
 			exhausted_source = true;
-#if RATCHET_PRINT == 1
+#if RATCHET_PRINT >= 1
             std::cout << "PipelineExecutor::Execute, exhausted_source is true" << std::endl;
 #endif
             break;
@@ -87,7 +87,7 @@ bool PipelineExecutor::IsFinished() {
 }
 
 OperatorResultType PipelineExecutor::ExecutePushInternal(DataChunk &input, idx_t initial_idx) {
-#if RATCHET_PRINT == 1
+#if RATCHET_PRINT >= 1
     std::cout << "PipelineExecutor::ExecutePushInternal for pipeline " << pipeline.GetPipelineId() << std::endl;
 #endif
     D_ASSERT(pipeline.sink);
@@ -154,7 +154,7 @@ void PipelineExecutor::FlushCachingOperatorsPush() {
 }
 
 void PipelineExecutor::PushFinalize() {
-#if RATCHET_PRINT == 1
+#if RATCHET_PRINT >= 1
     std::cout << "[PipelineExecutor::PushFinalize] for pipeline " << pipeline.GetPipelineId() << std::endl;
 #endif
     if (finalized) {
@@ -244,7 +244,7 @@ void PipelineExecutor::GoToSource(idx_t &current_idx, idx_t initial_idx) {
 }
 
 OperatorResultType PipelineExecutor::Execute(DataChunk &input, DataChunk &result, idx_t initial_idx) {
-#if RATCHET_PRINT == 1
+#if RATCHET_PRINT >= 1
     std::cout << "[PipelineExecutor::Execute] for pipeline " << pipeline.GetPipelineId() << std::endl;
 #endif
     if (input.size() == 0) { // LCOV_EXCL_START
@@ -284,7 +284,7 @@ OperatorResultType PipelineExecutor::Execute(DataChunk &input, DataChunk &result
 			// if current_idx > source_idx, we pass the previous' operators output through the Execute of the current
 			// operator
 			StartOperator(current_operator);
-#if RATCHET_PRINT == 1
+#if RATCHET_PRINT >= 1
             std::cout << "Operator Name: " << current_operator->GetName() << std::endl;
 #endif
             auto result = current_operator->Execute(context, prev_chunk, current_chunk, *current_operator->op_state,

@@ -345,7 +345,7 @@ public:
 	}
 
 	void AggregateDistinct() {
-#if RATCHET_PRINT == 1
+#if RATCHET_PRINT >= 1
         std::cout << "[physical_ungrouped_aggregate] AggregateDistinct" << std::endl;
 #endif
         D_ASSERT(gstate.distinct_state);
@@ -417,7 +417,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-#if RATCHET_PRINT == 1
+#if RATCHET_PRINT >= 1
         std::cout << "[UngroupedDistinctAggregateFinalizeTask] ExecuteTask" << std::endl;
 #endif
 		AggregateDistinct();
@@ -527,7 +527,7 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
 
         if (time_dur_ms > global_suspend_point_ms) {
             global_suspend_start = true;
-#if RATCHET_PRINT == 1
+#if RATCHET_PRINT >= 1
             std::cout << "[PhysicalUngroupedAggregate::Finalize] Suspend and Serialize Global State" << std::endl;
 #endif
             std::cout << "== Serialization for aggregation ==" << std::endl;
@@ -605,7 +605,7 @@ void VerifyNullHandling(DataChunk &chunk, AggregateState &state, const vector<un
 
 void PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                          LocalSourceState &lstate) const {
-#if RATCHET_PRINT == 1
+#if RATCHET_PRINT >= 1
     std::cout << "[PhysicalUngroupedAggregate::GetData]" << std::endl;
 #endif
 	auto &gstate = (UngroupedAggregateGlobalState &)*sink_state;

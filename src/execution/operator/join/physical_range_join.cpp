@@ -90,7 +90,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-#if RATCHET_PRINT == 1
+#if RATCHET_PRINT >= 1
         std::cout << "[RangeJoinMergeTask] ExecuteTask" << std::endl;
 #endif
         // Initialize iejoin sorted and iterate until done
