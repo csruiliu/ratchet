@@ -9,7 +9,7 @@ def main():
                         choices=["part", "supplier", "partsupp", "customer", "orders", "lineitem", "nation", "region"],
                         help="indicate the name of table that needs to be converted to parquet")
     parser.add_argument("-d", "--data_folder", type=str, action="store", required=True,
-                        help="indicate the data source folder for conversion such as <dataset/tbl/sf1>")
+                        help="indicate the data source folder for conversion such as dataset/tpch/tbl-sf1")
     parser.add_argument("-f", "--output_format", type=str, action="store", required=True,
                         help="indicate the output data format", choices=["csv", "parquet"])
     parser.add_argument("-rgs", "--row_group_size", type=int, action="store",
