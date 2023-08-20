@@ -131,7 +131,7 @@ customer = """(
     c_birth_country VARCHAR,
     c_login VARCHAR,
     c_email_address VARCHAR,
-    c_last_review_date VARCHAR
+    c_last_review_date_sk VARCHAR
     )"""
 
 customer_address = """(
