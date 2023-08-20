@@ -3,7 +3,9 @@
 
 Ratchet is a prototype system for efficient fine-grained data analytic suspending and resuming 
 
-Ratchet implementation is modified from DuckDB v0.7.1.
+Ratchet implementation is modified from DuckDB v0.8.1.
+
+~~Ratchet implementation is modified from DuckDB v0.7.1.~~
 
 ~~Ratchet implementation is modified from DuckDB v0.6.1.~~
 

@@ -21,7 +21,6 @@ def third_party_includes():
     includes += [os.path.join('third_party', 'libpg_query', 'include')]
     includes += [os.path.join('third_party', 'libpg_query')]
     includes += [os.path.join('third_party', 'concurrentqueue')]
-    includes += [os.path.join('third_party', 'nlohmann')]
     includes += [os.path.join('third_party', 'pcg')]
     includes += [os.path.join('third_party', 'httplib')]
     includes += [os.path.join('third_party', 'fast_float')]

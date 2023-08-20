@@ -40,10 +40,6 @@ class VectorCache;
     In addition to holding the data of the vectors, the DataChunk also owns the
    selection vector that underlying vectors can point to.
 */
-//! Rui's Note:
-//! A Vector usually is a column or a subset of column.
-//! A DataChunk is a combination of one or multiple (subset of) columns
-//! The card of a DataChunk is the number of rows, should equal to the number of items in each column.
 class DataChunk {
 public:
 	//! Creates an empty DataChunk
@@ -128,7 +124,8 @@ public:
 	//! Turn all the vectors from the chunk into flat vectors
 	DUCKDB_API void Flatten();
 
-	DUCKDB_API unique_ptr<UnifiedVectorFormat[]> ToUnifiedFormat();
+	// FIXME: this is DUCKDB_API, might need conversion back to regular unique ptr?
+	DUCKDB_API unsafe_unique_array<UnifiedVectorFormat> ToUnifiedFormat();
 
 	DUCKDB_API void Slice(const SelectionVector &sel_vector, idx_t count);
 

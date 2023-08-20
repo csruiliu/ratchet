@@ -19,77 +19,76 @@
 namespace duckdb {
 
 //! PhysicalHashJoin represents a hash loop join between two tables
-    class PhysicalHashJoin : public PhysicalComparisonJoin {
-    public:
-        PhysicalHashJoin(LogicalOperator &op, unique_ptr<PhysicalOperator> left, unique_ptr<PhysicalOperator> right,
-                         vector<JoinCondition> cond, JoinType join_type, const vector<idx_t> &left_projection_map,
-                         const vector<idx_t> &right_projection_map, vector<LogicalType> delim_types,
-                         idx_t estimated_cardinality, PerfectHashJoinStats perfect_join_stats);
-        PhysicalHashJoin(LogicalOperator &op, unique_ptr<PhysicalOperator> left, unique_ptr<PhysicalOperator> right,
-                         vector<JoinCondition> cond, JoinType join_type, idx_t estimated_cardinality,
-                         PerfectHashJoinStats join_state);
+class PhysicalHashJoin : public PhysicalComparisonJoin {
+public:
+	static constexpr const PhysicalOperatorType TYPE = PhysicalOperatorType::HASH_JOIN;
 
-        //! Initialize HT for this operator
-        unique_ptr<JoinHashTable> InitializeHashTable(ClientContext &context) const;
+public:
+	PhysicalHashJoin(LogicalOperator &op, unique_ptr<PhysicalOperator> left, unique_ptr<PhysicalOperator> right,
+	                 vector<JoinCondition> cond, JoinType join_type, const vector<idx_t> &left_projection_map,
+	                 const vector<idx_t> &right_projection_map, vector<LogicalType> delim_types,
+	                 idx_t estimated_cardinality, PerfectHashJoinStats perfect_join_stats);
+	PhysicalHashJoin(LogicalOperator &op, unique_ptr<PhysicalOperator> left, unique_ptr<PhysicalOperator> right,
+	                 vector<JoinCondition> cond, JoinType join_type, idx_t estimated_cardinality,
+	                 PerfectHashJoinStats join_state);
 
-        vector<idx_t> right_projection_map;
-        //! The types of the keys
-        vector<LogicalType> condition_types;
-        //! The types of all conditions
-        vector<LogicalType> build_types;
-        //! Duplicate eliminated types; only used for delim_joins (i.e. correlated subqueries)
-        vector<LogicalType> delim_types;
-        //! Used in perfect hash join
-        PerfectHashJoinStats perfect_join_statistics;
-        //! Whether we can go external (can't yet if recursive CTE)
-        bool can_go_external;
+	//! Initialize HT for this operator
+	unique_ptr<JoinHashTable> InitializeHashTable(ClientContext &context) const;
 
-    public:
-        // Operator Interface
-        unique_ptr<OperatorState> GetOperatorState(ExecutionContext &context) const override;
+	vector<idx_t> right_projection_map;
+	//! The types of the keys
+	vector<LogicalType> condition_types;
+	//! The types of all conditions
+	vector<LogicalType> build_types;
+	//! Duplicate eliminated types; only used for delim_joins (i.e. correlated subqueries)
+	vector<LogicalType> delim_types;
+	//! Used in perfect hash join
+	PerfectHashJoinStats perfect_join_statistics;
 
-        bool ParallelOperator() const override {
-            return true;
-        }
+public:
+	// Operator Interface
+	unique_ptr<OperatorState> GetOperatorState(ExecutionContext &context) const override;
 
-    protected:
-        // CachingOperator Interface
-        OperatorResultType ExecuteInternal(ExecutionContext &context, DataChunk &input, DataChunk &chunk,
-                                           GlobalOperatorState &gstate, OperatorState &state) const override;
+	bool ParallelOperator() const override {
+		return true;
+	}
 
-        // Source interface
-        unique_ptr<GlobalSourceState> GetGlobalSourceState(ClientContext &context) const override;
-        unique_ptr<LocalSourceState> GetLocalSourceState(ExecutionContext &context,
-                                                         GlobalSourceState &gstate) const override;
-        void GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate,
-                     LocalSourceState &lstate) const override;
+protected:
+	// CachingOperator Interface
+	OperatorResultType ExecuteInternal(ExecutionContext &context, DataChunk &input, DataChunk &chunk,
+	                                   GlobalOperatorState &gstate, OperatorState &state) const override;
 
-        //! Becomes a source when it is an external join
-        bool IsSource() const override {
-            return true;
-        }
+	// Source interface
+	unique_ptr<GlobalSourceState> GetGlobalSourceState(ClientContext &context) const override;
+	unique_ptr<LocalSourceState> GetLocalSourceState(ExecutionContext &context,
+	                                                 GlobalSourceState &gstate) const override;
+	SourceResultType GetData(ExecutionContext &context, DataChunk &chunk, OperatorSourceInput &input) const override;
 
-        bool ParallelSource() const override {
-            return true;
-        }
+	//! Becomes a source when it is an external join
+	bool IsSource() const override {
+		return true;
+	}
 
-    public:
-        // Sink Interface
-        unique_ptr<GlobalSinkState> GetGlobalSinkState(ClientContext &context) const override;
+	bool ParallelSource() const override {
+		return true;
+	}
 
-        unique_ptr<LocalSinkState> GetLocalSinkState(ExecutionContext &context) const override;
-        SinkResultType Sink(ExecutionContext &context, GlobalSinkState &state, LocalSinkState &lstate,
-                            DataChunk &input) const override;
-        void Combine(ExecutionContext &context, GlobalSinkState &gstate, LocalSinkState &lstate) const override;
-        SinkFinalizeType Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
-                                  GlobalSinkState &gstate) const override;
+public:
+	// Sink Interface
+	unique_ptr<GlobalSinkState> GetGlobalSinkState(ClientContext &context) const override;
 
-        bool IsSink() const override {
-            return true;
-        }
-        bool ParallelSink() const override {
-            return true;
-        }
-    };
+	unique_ptr<LocalSinkState> GetLocalSinkState(ExecutionContext &context) const override;
+	SinkResultType Sink(ExecutionContext &context, DataChunk &chunk, OperatorSinkInput &input) const override;
+	void Combine(ExecutionContext &context, GlobalSinkState &gstate, LocalSinkState &lstate) const override;
+	SinkFinalizeType Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
+	                          GlobalSinkState &gstate) const override;
+
+	bool IsSink() const override {
+		return true;
+	}
+	bool ParallelSink() const override {
+		return true;
+	}
+};
 
 } // namespace duckdb
