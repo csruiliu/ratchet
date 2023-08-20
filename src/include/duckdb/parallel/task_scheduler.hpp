@@ -47,12 +47,11 @@ public:
 
 	unique_ptr<ProducerToken> CreateProducer();
 	//! Schedule a task to be executed by the task scheduler
-	void ScheduleTask(ProducerToken &producer, unique_ptr<Task> task);
+	void ScheduleTask(ProducerToken &producer, shared_ptr<Task> task);
 	//! Fetches a task from a specific producer, returns true if successful or false if no tasks were available
-	bool GetTaskFromProducer(ProducerToken &token, unique_ptr<Task> &task);
+	bool GetTaskFromProducer(ProducerToken &token, shared_ptr<Task> &task);
 	//! Run tasks forever until "marker" is set to false, "marker" must remain valid until the thread is joined
 	void ExecuteForever(atomic<bool> *marker);
-
 	//! Run tasks until `marker` is set to false, `max_tasks` have been completed, or until there are no more tasks
 	//! available. Returns the number of tasks that were completed.
 	idx_t ExecuteTasks(atomic<bool> *marker, idx_t max_tasks);

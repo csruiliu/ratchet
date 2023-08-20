@@ -9,58 +9,19 @@
 #pragma once
 
 #include <memory>
-#include <cstdint>
-#include <vector>
-#include <chrono>
 #include "duckdb/common/string.hpp"
 #include "duckdb/common/winapi.hpp"
+#include "duckdb/common/unique_ptr.hpp"
+#include "duckdb/common/typedefs.hpp"
 
 namespace duckdb {
-
-//! Enable Ratchet Printout
-//! 0: no ratchet printout
-//! 1: printout function invoking
-//! 2: printout function invoking + query plan
-#define RATCHET_PRINT 0
-
-//! Ratchet Serialize and Deserialize Format
-//! 0: CBOR
-//! 1: JSON
-#define RATCHET_SERDE_FORMAT 0
-
-//! External Join
-//! 0: Disable
-//! 1: Enable
-#define RATCHET_EXTERNAL_JOIN 0
-
-// API versions
-// if no explicit API version is defined, the latest API version is used
-// Note that using older API versions (i.e. not using DUCKDB_API_LATEST) is deprecated.
-// These will not be supported long-term, and will be removed in future versions.
-
-#ifndef DUCKDB_API_0_3_1
-#define DUCKDB_API_0_3_1 1
-#endif
-#ifndef DUCKDB_API_0_3_2
-#define DUCKDB_API_0_3_2 2
-#endif
-#ifndef DUCKDB_API_LATEST
-#define DUCKDB_API_LATEST DUCKDB_API_0_3_2
-#endif
-
-#ifndef DUCKDB_API_VERSION
-#define DUCKDB_API_VERSION DUCKDB_API_LATEST
-#endif
+class Serializer;
+class Deserializer;
 
 //! inline std directives that we use frequently
 #ifndef DUCKDB_DEBUG_MOVE
 using std::move;
 #endif
-using std::shared_ptr;
-using std::unique_ptr;
-using std::weak_ptr;
-using data_ptr = unique_ptr<char[]>;
-using std::make_shared;
 
 // NOTE: there is a copy of this in the Postgres' parser grammar (gram.y)
 #define DEFAULT_SCHEMA  "main"
@@ -72,29 +33,6 @@ using std::make_shared;
 DUCKDB_API bool IsInvalidSchema(const string &str);
 DUCKDB_API bool IsInvalidCatalog(const string &str);
 
-//! a saner size_t for loop indices etc
-typedef uint64_t idx_t;
-
-//! The type used for row identifiers
-typedef int64_t row_t;
-
-//! The type used for hashes
-typedef uint64_t hash_t;
-
-//! data pointers
-typedef uint8_t data_t;
-typedef data_t *data_ptr_t;
-typedef const data_t *const_data_ptr_t;
-
-//! Type used for the selection vector
-typedef uint32_t sel_t;
-//! Type used for transaction timestamps
-typedef idx_t transaction_t;
-
-//! Type used for column identifiers
-typedef idx_t column_t;
-//! Type used for storage (column) identifiers
-typedef idx_t storage_t;
 //! Special value used to signify the ROW ID of a table
 DUCKDB_API extern const column_t COLUMN_IDENTIFIER_ROW_ID;
 DUCKDB_API bool IsRowIdColumnId(column_t column_id);
@@ -108,21 +46,6 @@ extern const transaction_t MAXIMUM_QUERY_ID;
 extern const transaction_t NOT_DELETED_ID;
 
 extern const double PI;
-
-//! global variable for Ratchet
-extern bool global_suspend;
-extern bool global_suspend_start;
-extern bool global_resume;
-extern uint16_t global_threads;
-extern string global_suspend_file;
-extern string global_suspend_folder;
-extern string global_resume_file;
-extern string global_resume_folder;
-extern std::chrono::steady_clock::time_point global_start;
-extern uint64_t global_suspend_point_ms;
-extern std::atomic<uint16_t> global_stopped_threads;
-extern std::vector<idx_t> global_finalized_pipelines;
-extern std::atomic<uint16_t> global_ht_partition;
 
 struct DConstants {
 	//! The value used to signify an invalid index entry
@@ -184,6 +107,8 @@ struct PhysicalIndex {
 	}
 };
 
+DUCKDB_API bool IsPowerOfTwo(uint64_t v);
 DUCKDB_API uint64_t NextPowerOfTwo(uint64_t v);
+DUCKDB_API uint64_t PreviousPowerOfTwo(uint64_t v);
 
 } // namespace duckdb

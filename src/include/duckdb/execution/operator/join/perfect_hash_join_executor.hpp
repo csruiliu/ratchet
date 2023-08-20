@@ -33,7 +33,7 @@ struct PerfectHashJoinStats {
 
 //! PhysicalHashJoin represents a hash loop join between two tables
 class PerfectHashJoinExecutor {
-	using PerfectHashTable = std::vector<Vector>;
+	using PerfectHashTable = vector<Vector>;
 
 public:
 	explicit PerfectHashJoinExecutor(const PhysicalHashJoin &join, JoinHashTable &ht, PerfectHashJoinStats pjoin_stats);
@@ -46,8 +46,6 @@ public:
 	                                         OperatorState &state);
 	bool BuildPerfectHashTable(LogicalType &type);
 
-    void SerializePerfectHashTable();
-    
 private:
 	void FillSelectionVectorSwitchProbe(Vector &source, SelectionVector &build_sel_vec, SelectionVector &probe_sel_vec,
 	                                    idx_t count, idx_t &probe_sel_count);
@@ -60,19 +58,17 @@ private:
 	template <typename T>
 	bool TemplatedFillSelectionVectorBuild(Vector &source, SelectionVector &sel_vec, SelectionVector &seq_sel_vec,
 	                                       idx_t count);
-	bool FullScanHashTable(JoinHTScanState &state, LogicalType &key_type);
+	bool FullScanHashTable(LogicalType &key_type);
 
 private:
 	const PhysicalHashJoin &join;
 	JoinHashTable &ht;
 	//! Columnar perfect hash table
 	PerfectHashTable perfect_hash_table;
-    //! Join Keys of `perfect_hash_table`
-    PerfectHashTable join_keys_perfect_hash_table;
 	//! Build and probe statistics
 	PerfectHashJoinStats perfect_join_statistics;
 	//! Stores the occurences of each value in the build side
-	unique_ptr<bool[]> bitmap_build_idx;
+	unsafe_unique_array<bool> bitmap_build_idx;
 	//! Stores the number of unique keys in the build side
 	idx_t unique_keys = 0;
 };

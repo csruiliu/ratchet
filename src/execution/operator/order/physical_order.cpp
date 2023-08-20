@@ -7,8 +7,6 @@
 #include "duckdb/parallel/event.hpp"
 #include "duckdb/storage/buffer_manager.hpp"
 
-#include <iostream>
-
 namespace duckdb {
 
 PhysicalOrder::PhysicalOrder(vector<LogicalType> types, vector<BoundOrderByNode> orders, vector<idx_t> projections,
@@ -60,7 +58,7 @@ unique_ptr<GlobalSinkState> PhysicalOrder::GetGlobalSinkState(ClientContext &con
 	// Get the payload layout from the return types
 	RowLayout payload_layout;
 	payload_layout.Initialize(types);
-	auto state = make_unique<OrderGlobalSinkState>(BufferManager::GetBufferManager(context), *this, payload_layout);
+	auto state = make_uniq<OrderGlobalSinkState>(BufferManager::GetBufferManager(context), *this, payload_layout);
 	// Set external (can be force with the PRAGMA)
 	state->global_sort_state.external = ClientConfig::GetConfig(context).force_external;
 	state->memory_per_thread = GetMaxThreadMemory(context);
@@ -68,13 +66,12 @@ unique_ptr<GlobalSinkState> PhysicalOrder::GetGlobalSinkState(ClientContext &con
 }
 
 unique_ptr<LocalSinkState> PhysicalOrder::GetLocalSinkState(ExecutionContext &context) const {
-	return make_unique<OrderLocalSinkState>(context.client, *this);
+	return make_uniq<OrderLocalSinkState>(context.client, *this);
 }
 
-SinkResultType PhysicalOrder::Sink(ExecutionContext &context, GlobalSinkState &gstate_p, LocalSinkState &lstate_p,
-                                   DataChunk &input) const {
-	auto &gstate = (OrderGlobalSinkState &)gstate_p;
-	auto &lstate = (OrderLocalSinkState &)lstate_p;
+SinkResultType PhysicalOrder::Sink(ExecutionContext &context, DataChunk &chunk, OperatorSinkInput &input) const {
+	auto &gstate = input.global_state.Cast<OrderGlobalSinkState>();
+	auto &lstate = input.local_state.Cast<OrderLocalSinkState>();
 
 	auto &global_sort_state = gstate.global_sort_state;
 	auto &local_sort_state = lstate.local_sort_state;
@@ -87,14 +84,14 @@ SinkResultType PhysicalOrder::Sink(ExecutionContext &context, GlobalSinkState &g
 	// Obtain sorting columns
 	auto &keys = lstate.keys;
 	keys.Reset();
-	lstate.key_executor.Execute(input, keys);
+	lstate.key_executor.Execute(chunk, keys);
 
 	auto &payload = lstate.payload;
-	payload.ReferenceColumns(input, projections);
+	payload.ReferenceColumns(chunk, projections);
 
 	// Sink the data into the local sort state
 	keys.Verify();
-	input.Verify();
+	chunk.Verify();
 	local_sort_state.SinkChunk(keys, payload);
 
 	// When sorting data reaches a certain size, we sort it
@@ -105,8 +102,8 @@ SinkResultType PhysicalOrder::Sink(ExecutionContext &context, GlobalSinkState &g
 }
 
 void PhysicalOrder::Combine(ExecutionContext &context, GlobalSinkState &gstate_p, LocalSinkState &lstate_p) const {
-	auto &gstate = (OrderGlobalSinkState &)gstate_p;
-	auto &lstate = (OrderLocalSinkState &)lstate_p;
+	auto &gstate = gstate_p.Cast<OrderGlobalSinkState>();
+	auto &lstate = lstate_p.Cast<OrderLocalSinkState>();
 	gstate.global_sort_state.AddLocalState(lstate.local_sort_state);
 }
 
@@ -117,10 +114,7 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-#if RATCHET_PRINT >= 1
-        std::cout << "[PhysicalOrderMergeTask] ExecuteTask" << std::endl;
-#endif
-        // Initialize merge sorted and iterate until done
+		// Initialize merge sorted and iterate until done
 		auto &global_sort_state = state.global_sort_state;
 		MergeSorter merge_sorter(global_sort_state, BufferManager::GetBufferManager(context));
 		merge_sorter.PerformInMergeRound();
@@ -150,9 +144,9 @@ public:
 		auto &ts = TaskScheduler::GetScheduler(context);
 		idx_t num_threads = ts.NumberOfThreads();
 
-		vector<unique_ptr<Task>> merge_tasks;
+		vector<shared_ptr<Task>> merge_tasks;
 		for (idx_t tnum = 0; tnum < num_threads; tnum++) {
-			merge_tasks.push_back(make_unique<PhysicalOrderMergeTask>(shared_from_this(), context, gstate));
+			merge_tasks.push_back(make_uniq<PhysicalOrderMergeTask>(shared_from_this(), context, gstate));
 		}
 		SetTasks(std::move(merge_tasks));
 	}
@@ -170,7 +164,7 @@ public:
 
 SinkFinalizeType PhysicalOrder::Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
                                          GlobalSinkState &gstate_p) const {
-	auto &state = (OrderGlobalSinkState &)gstate_p;
+	auto &state = gstate_p.Cast<OrderGlobalSinkState>();
 	auto &global_sort_state = state.global_sort_state;
 
 	if (global_sort_state.sorted_blocks.empty()) {
@@ -220,8 +214,8 @@ public:
 };
 
 unique_ptr<GlobalSourceState> PhysicalOrder::GetGlobalSourceState(ClientContext &context) const {
-	auto &sink = (OrderGlobalSinkState &)*this->sink_state;
-	return make_unique<PhysicalOrderGlobalSourceState>(sink);
+	auto &sink = this->sink_state->Cast<OrderGlobalSinkState>();
+	return make_uniq<PhysicalOrderGlobalSourceState>(sink);
 }
 
 class PhysicalOrderLocalSourceState : public LocalSourceState {
@@ -237,14 +231,13 @@ public:
 
 unique_ptr<LocalSourceState> PhysicalOrder::GetLocalSourceState(ExecutionContext &context,
                                                                 GlobalSourceState &gstate_p) const {
-	auto &gstate = (PhysicalOrderGlobalSourceState &)gstate_p;
-	return make_unique<PhysicalOrderLocalSourceState>(gstate);
+	auto &gstate = gstate_p.Cast<PhysicalOrderGlobalSourceState>();
+	return make_uniq<PhysicalOrderLocalSourceState>(gstate);
 }
 
-void PhysicalOrder::GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
-                            LocalSourceState &lstate_p) const {
-	auto &gstate = (PhysicalOrderGlobalSourceState &)gstate_p;
-	auto &lstate = (PhysicalOrderLocalSourceState &)lstate_p;
+SourceResultType PhysicalOrder::GetData(ExecutionContext &context, DataChunk &chunk, OperatorSourceInput &input) const {
+	auto &gstate = input.global_state.Cast<PhysicalOrderGlobalSourceState>();
+	auto &lstate = input.local_state.Cast<PhysicalOrderLocalSourceState>();
 
 	if (lstate.scanner && lstate.scanner->Remaining() == 0) {
 		lstate.batch_index = gstate.next_batch_index++;
@@ -252,21 +245,23 @@ void PhysicalOrder::GetData(ExecutionContext &context, DataChunk &chunk, GlobalS
 	}
 
 	if (lstate.batch_index >= gstate.total_batches) {
-		return;
+		return SourceResultType::FINISHED;
 	}
 
 	if (!lstate.scanner) {
-		auto &sink = (OrderGlobalSinkState &)*this->sink_state;
+		auto &sink = this->sink_state->Cast<OrderGlobalSinkState>();
 		auto &global_sort_state = sink.global_sort_state;
-		lstate.scanner = make_unique<PayloadScanner>(global_sort_state, lstate.batch_index, true);
+		lstate.scanner = make_uniq<PayloadScanner>(global_sort_state, lstate.batch_index, true);
 	}
 
 	lstate.scanner->Scan(chunk);
+
+	return chunk.size() == 0 ? SourceResultType::FINISHED : SourceResultType::HAVE_MORE_OUTPUT;
 }
 
 idx_t PhysicalOrder::GetBatchIndex(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                    LocalSourceState &lstate_p) const {
-	auto &lstate = (PhysicalOrderLocalSourceState &)lstate_p;
+	auto &lstate = lstate_p.Cast<PhysicalOrderLocalSourceState>();
 	return lstate.batch_index;
 }
 

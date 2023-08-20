@@ -19,20 +19,16 @@ public:
 
 public:
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
-#if RATCHET_PRINT >= 1
-        std::cout << "[PipelineInitializeTask] ExecuteTask for pipeline " << pipeline.GetPipelineId() << std::endl;
-#endif
-        pipeline.ResetSink();
+		pipeline.ResetSink();
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
 	}
-
 };
 
 void PipelineInitializeEvent::Schedule() {
 	// needs to spawn a task to get the chain of tasks for the query plan going
-	vector<unique_ptr<Task>> tasks;
-	tasks.push_back(make_unique<PipelineInitializeTask>(*pipeline, shared_from_this()));
+	vector<shared_ptr<Task>> tasks;
+	tasks.push_back(make_uniq<PipelineInitializeTask>(*pipeline, shared_from_this()));
 	SetTasks(std::move(tasks));
 }
 

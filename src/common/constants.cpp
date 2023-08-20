@@ -1,6 +1,8 @@
 #include "duckdb/common/constants.hpp"
-#include "duckdb/common/vector_size.hpp"
+
 #include "duckdb/common/limits.hpp"
+#include "duckdb/common/vector_size.hpp"
+#include "duckdb/common/serializer.hpp"
 
 namespace duckdb {
 
@@ -15,19 +17,9 @@ const transaction_t MAX_TRANSACTION_ID = NumericLimits<transaction_t>::Maximum()
 const transaction_t NOT_DELETED_ID = NumericLimits<transaction_t>::Maximum() - 1; // 2^64 - 1
 const transaction_t MAXIMUM_QUERY_ID = NumericLimits<transaction_t>::Maximum();   // 2^64
 
-bool global_suspend = false;
-bool global_suspend_start = false;
-bool global_resume = false;
-string global_suspend_file = "sfile";
-string global_suspend_folder = "sfolder";
-string global_resume_file = "rfile";
-string global_resume_folder = "rfolder";
-std::chrono::steady_clock::time_point global_start = {};
-uint64_t global_suspend_point_ms = NumericLimits<transaction_t>::Maximum();
-uint16_t global_threads = 0;
-atomic<uint16_t> global_stopped_threads(0);
-vector<idx_t> global_finalized_pipelines;
-atomic<uint16_t> global_ht_partition(0);
+bool IsPowerOfTwo(uint64_t v) {
+	return (v & (v - 1)) == 0;
+}
 
 uint64_t NextPowerOfTwo(uint64_t v) {
 	v--;
@@ -39,6 +31,10 @@ uint64_t NextPowerOfTwo(uint64_t v) {
 	v |= v >> 32;
 	v++;
 	return v;
+}
+
+uint64_t PreviousPowerOfTwo(uint64_t v) {
+	return NextPowerOfTwo((v / 2) + 1);
 }
 
 bool IsInvalidSchema(const string &str) {

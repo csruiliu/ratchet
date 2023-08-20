@@ -9,6 +9,7 @@
 #pragma once
 
 #include "duckdb/common/constants.hpp"
+#include "duckdb/common/enums/debug_initialize.hpp"
 
 namespace duckdb {
 class Allocator;
@@ -30,7 +31,7 @@ public:
 
 	Allocator &allocator;
 	//! The type of the buffer
-    FileBufferType type;
+	FileBufferType type;
 	//! The buffer that users can write to
 	data_ptr_t buffer;
 	//! The size of the portion that users can write to, this is equivalent to internal_size - BLOCK_HEADER_SIZE
@@ -61,6 +62,8 @@ public:
 	};
 
 	MemoryRequirement CalculateMemory(uint64_t user_size);
+
+	void Initialize(DebugInitialize info);
 
 protected:
 	//! The pointer to the internal buffer that will be read or written, including the buffer header
