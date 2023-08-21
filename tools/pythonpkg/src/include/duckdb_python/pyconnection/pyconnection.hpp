@@ -111,6 +111,21 @@ public:
 
 	shared_ptr<DuckDBPyConnection> Execute(const string &query, py::object params = py::list(), bool many = false);
 
+    // Add suspend and resume functions in header
+    shared_ptr<DuckDBPyConnection> ExecuteSuspend(const string &query,
+                                                  const string &suspend_location,
+                                                  float_t suspend_start_time,
+                                                  float_t suspend_end_time,
+                                                  bool partition_suspend,
+                                                  py::object params = py::list(),
+                                                  bool many = false);
+
+    shared_ptr<DuckDBPyConnection> ExecuteResume(const string &query,
+                                                 const string &resume_location,
+                                                 bool partition_resume,
+                                                 py::object params = py::list(),
+                                                 bool many = false);
+
 	shared_ptr<DuckDBPyConnection> Append(const string &name, const PandasDataFrame &value, bool by_name);
 
 	shared_ptr<DuckDBPyConnection> RegisterPythonObject(const string &name, const py::object &python_object);

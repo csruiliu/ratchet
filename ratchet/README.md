@@ -16,12 +16,27 @@ Ratchet implementation is modified from DuckDB v0.8.1.
 It is highly recommended to add third-party libs whose whole source code is in a single header file. Then, you can add them by,
 
 1. copying the header file of the third-party lib to `third_party` folder
-2. adding `include_directories(third_party/xxx)` after `include_directories(src/include)` in the `CMakeLists.txt` at the root directory. You may have to recompile the source code if needed.
-3. if you are working on Python client, you also need to update `third_party_includes()` in `scripts/package_build.py`. You may have to reinstall python client to reflect the change.
+2. adding `include_directories(third_party/xxx)` after `include_directories(src/include)` in the `CMakeLists.txt` at the root directory. You may have to recompile the source code if needed, using `make` in root folder.
+3. if you are working on Python client, you also need to update `third_party_includes()` in `scripts/package_build.py`. You may have to reinstall python client to reflect the change, using `pip3 install .` in `/tools/pythonpkg`.
 
 ### JSON for Modern C++
 
 We import the `nlohmann/json` to serialize and deserialize JSON. Github: https://github.com/nlohmann/json
+
+### Python Client Modification
+
+When you want to add a new Python API or modify an existing one for DuckDB especially for virtual environments, you need to:
+1. Install `mypy` python library in the virtual environment
+2. Modify the source code in `tools/pythonpkg/src` to reflect to API change
+3. Run `scripts/regenerate_python_stubs.sh` at the **root directory of DuckDB**, making sure `<Ratchet-DuckDB>/tools/pythonpkg/duckdb-stubs/__init__.pyi` already reflect the API change
+4. Install the modified DuckDB again using `python setup.py install` in `<Ratchet-DuckDB>/tools/pythonpkg`
+5. If you still cannot apply the change you made for Python Client APIs, please repeat 3,4 for mutiple times, you should be fine.
+
+## Source Code Compilation
+
+### Main source code [C++]
+
+The main codebase is written in C++, so it is common to use `cmake` to compile the source code. Namely, using `make` command in root folder. 
 
 ### Python Client Installation
 
@@ -37,19 +52,11 @@ Ratchet-DuckDB can be used and tested by a python client. It is recommended to i
 
 ```bash
 source <path/to/python-virtual-environment/bin/activate>
-cd <Ratchet-DuckDB>/tools/pythonpkg 
+cd <Ratchet>/tools/pythonpkg 
 pip3 install . 
 # or python setup.py install
 ```
 
-### Python Client Modification
-
-When you want to add a new Python API or modify an existing one for DuckDB especially for virtual environments, you need to:
-1. Install `mypy` python library in the virtual environment
-2. Modify the source code in `tools/pythonpkg/src` to reflect to API change 
-3. Run `scripts/regenerate_python_stubs.sh` at the **root directory of DuckDB**, making sure `<Ratchet-DuckDB>/tools/pythonpkg/duckdb-stubs/__init__.pyi` already reflect the API change 
-4. Install the modified DuckDB again using `python setup.py install` in `<Ratchet-DuckDB>/tools/pythonpkg`
-5. If you still cannot apply the change you made for Python Client APIs, please repeat 3,4 for mutiple times, you should be fine.
 
 ## Dataset
 
@@ -71,21 +78,7 @@ We have several datasets:
 
 ## Benchmark
 
-### TPC-H
-
-`tpch_perf` will trigger the original TPC-H queries from q1 to q22 (stored in ). For example,
-```bash
-python3 tpch_perf.py -q q1 -d dataset/parquet/sf1 -td 1
-```
-The above command will run `q1` in TPC-H based on the data from `dataset/parquet/sf1` using `1` thread.
-
-The TPC-H benchmark is mostly used for functionality test.
-
-## CRIU
-
-We also exploit `CRIU` to benchmark the performance of suspending and resuming queries at the process level. More details can be found [here](criu/README.md).
-
-## Demo
+### Vanilla
 
 We provide some demo queries in `demo/queries` for suspend and resume, which can be triggered by the following commands
 
@@ -104,4 +97,37 @@ python3 demo.py -q q1 -d demo.db -df ../dataset/tpch/parquet-tiny -td 2 -r -rl /
 python3 demo.py -q q1 -d demo.db -df ../dataset/tpch/parquet-tiny -td 2 -r -rl /home/ruiliu/Develop/ratchet-duckdb/ratchet/demo -psr
 ```
 
+### TPC-H
 
+`duckdb_tpch_perf` will trigger the original TPC-H queries from q1 to q22 (stored in ). For example,
+```bash
+python3 tpch_perf.py -q q1 -d dataset/parquet/sf1 -td 1
+```
+The above command will run `q1` in TPC-H based on the data from `dataset/parquet/sf1` using `1` thread.
+
+The TPC-H benchmark is mostly used for functionality test.
+
+### TPC-DS
+
+`duckdb_tpcds_perf`
+
+### CRIU
+
+We also exploit `CRIU` to benchmark the performance of suspending and resuming queries at the process level. More details can be found [here](criu/README.md).
+
+
+## List of Source Code Modification
+
+1. tools/pythonpkg/src/pyconnection.cpp
+2. tools/pythonpkg/include/duckdb_python/pyconnection/pyconnection.hpp
+3. src/include/duckdb/common/constants.hpp
+4. src/include/duckdb/common/types/data_chunk.hpp
+5. src/include/duckdb/common/vector_operations/aggregate_executor.hpp
+6. src/include/duckdb/execution/operator/join/perfect_hash_join_executor.hpp
+7. src/include/duckdb/execution/executor.hpp
+8. src/include/duckdb/main/client_config.hpp
+9. src/include/duckdb/parallel/pipeline.hpp
+10. src/execution/operator/aggregate/physical_hash_aggregate.cpp
+
+src/execution/operator/aggregate/physical_ungrouped_aggregate.cpp
+src/execution/operator/join/perfect_hash_join_executor.cpp

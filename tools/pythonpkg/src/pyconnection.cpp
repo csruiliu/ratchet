@@ -148,7 +148,19 @@ static void InitializeConnectionMethods(py::class_<DuckDBPyConnection, shared_pt
 	    .def("execute", &DuckDBPyConnection::Execute,
 	         "Execute the given SQL query, optionally using prepared statements with parameters set", py::arg("query"),
 	         py::arg("parameters") = py::none(), py::arg("multiple_parameter_sets") = false)
-	    .def("executemany", &DuckDBPyConnection::ExecuteMany,
+
+        // Add Suspend and Resume Functions
+        .def("execute_suspend", &DuckDBPyConnection::ExecuteSuspend,
+             "Execute the given SQL query with suspension, optionally using prepared statements with parameters set",
+             py::arg("query"), py::arg("suspend_location"),
+             py::arg("suspend_start_time"), py::arg("suspend_end_time"), py::arg("partition_suspend"),
+             py::arg("parameters") = py::none(), py::arg("multiple_parameter_sets") = false)
+        .def("execute_resume", &DuckDBPyConnection::ExecuteResume,
+             "Execute the given SQL query from resume point",
+             py::arg("query"), py::arg("resume_location"), py::arg("partition_resume"),
+             py::arg("parameters") = py::none(), py::arg("multiple_parameter_sets") = false)
+
+        .def("executemany", &DuckDBPyConnection::ExecuteMany,
 	         "Execute the given prepared statement multiple times using the list of parameter sets in parameters",
 	         py::arg("query"), py::arg("parameters") = py::none())
 	    .def("close", &DuckDBPyConnection::Close, "Close the connection")
@@ -510,6 +522,52 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::Execute(const string &query, 
 		result = make_uniq<DuckDBPyRelation>(std::move(py_result));
 	}
 	return shared_from_this();
+}
+
+shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteSuspend(const string &query,
+                                                                  const string &suspend_location,
+                                                                  float_t suspend_start_time,
+                                                                  float_t suspend_end_time,
+                                                                  bool partition_suspend,
+                                                                  py::object params, bool many) {
+    global_suspend = true;
+    if (partition_suspend) {
+        global_suspend_folder = suspend_location;
+    } else {
+        global_suspend_file = suspend_location;
+    }
+    std::default_random_engine generator;
+    auto suspend_start_time_ms = static_cast<uint64_t>(suspend_start_time * 1000);
+    auto suspend_end_time_ms = static_cast<uint64_t>(suspend_end_time * 1000);
+    std::uniform_int_distribution<uint64_t> distribution(suspend_start_time_ms, suspend_end_time_ms);
+    global_suspend_point_ms = distribution(generator);
+    std::cout << "## Query will suspend after " << global_suspend_point_ms << " ms ##" << std::endl;
+    auto res = ExecuteInternal(query, std::move(params), many);
+    if (res) {
+        auto py_result = make_uniq<DuckDBPyResult>(std::move(res));
+        result = make_uniq<DuckDBPyRelation>(std::move(py_result));
+    }
+    return shared_from_this();
+}
+
+shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteResume(const string &query,
+                                                                 const string &resume_location,
+                                                                 bool partition_resume,
+                                                                 py::object params, bool many) {
+    global_resume = true;
+    if (partition_resume) {
+        global_resume_folder = resume_location;
+        std::cout << "## Query will resume using files in " << global_resume_folder << std::endl;
+    } else {
+        global_resume_file = resume_location;
+        std::cout << "## Query will resume using " << global_resume_file << std::endl;
+    }
+    auto res = ExecuteInternal(query,  std::move(params), many);
+    if (res) {
+        auto py_result = make_uniq<DuckDBPyResult>(std::move(res));
+        result = make_uniq<DuckDBPyRelation>(std::move(py_result));
+    }
+    return shared_from_this();
 }
 
 shared_ptr<DuckDBPyConnection> DuckDBPyConnection::Append(const string &name, const PandasDataFrame &value,

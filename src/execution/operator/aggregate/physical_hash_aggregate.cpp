@@ -1,5 +1,7 @@
 #include "duckdb/execution/operator/aggregate/physical_hash_aggregate.hpp"
 
+#include <iostream>
+
 #include "duckdb/catalog/catalog_entry/aggregate_function_catalog_entry.hpp"
 #include "duckdb/common/vector_operations/vector_operations.hpp"
 #include "duckdb/execution/aggregate_hashtable.hpp"
@@ -481,6 +483,9 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#if RATCHET_PRINT >= 1
+        std::cout << "[HashAggregateFinalizeTask] ExecuteTask" << std::endl;
+#endif
 		op.FinalizeInternal(pipeline, *event, context, gstate, false);
 		D_ASSERT(!gstate.finished);
 		gstate.finished = true;
@@ -623,6 +628,9 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#if RATCHET_PRINT >= 1
+        std::cout << "[HashDistinctAggregateFinalizeTask] ExecuteTask" << std::endl;
+#endif
 		D_ASSERT(op.distinct_collection_info);
 		auto &info = *op.distinct_collection_info;
 		for (idx_t i = 0; i < op.groupings.size(); i++) {

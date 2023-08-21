@@ -26,6 +26,7 @@ bool PerfectHashJoinExecutor::BuildPerfectHashTable(LogicalType &key_type) {
 
 	// and for duplicate_checking
 	bitmap_build_idx = make_unsafe_uniq_array<bool>(build_size);
+    // bitmap_build_idx = unique_ptr<bool[]>(new bool[build_size]);
 	memset(bitmap_build_idx.get(), 0, sizeof(bool) * build_size); // set false
 
 	// Now fill columns with build data
@@ -80,6 +81,15 @@ bool PerfectHashJoinExecutor::FullScanHashTable(LogicalType &key_type) {
 		const auto col_no = ht.condition_types.size() + i;
 		data_collection.Gather(tuples_addresses, sel_tuples, key_count, col_no, vector, sel_build);
 	}
+
+    //! Fill the join key column for Ratchet
+    for (idx_t i = 0; i < ht.condition_types.size(); i++) {
+        auto build_size = perfect_join_statistics.build_range + 1;
+        auto &join_keys_vector = join_keys_perfect_hash_table[i];
+        D_ASSERT(join_keys_vector.GetType() == ht.condition_types[i]);
+        const auto col_no = i;
+        data_collection.Gather(tuples_addresses, sel_tuples, key_count, col_no, join_keys_vector, sel_build);
+    }
 
 	return true;
 }
@@ -281,5 +291,6 @@ void PerfectHashJoinExecutor::TemplatedFillSelectionVectorProbe(Vector &source, 
 		}
 	}
 }
+
 
 } // namespace duckdb
