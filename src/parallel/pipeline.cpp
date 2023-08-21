@@ -13,6 +13,12 @@
 #include "duckdb/parallel/pipeline_executor.hpp"
 #include "duckdb/parallel/task_scheduler.hpp"
 
+#include <iostream>
+
+#include "json.hpp"
+using json = nlohmann::json;
+#include <fstream>
+
 namespace duckdb {
 
 class PipelineTask : public ExecutorTask {
@@ -33,9 +39,57 @@ public:
 			pipeline_executor = make_uniq<PipelineExecutor>(pipeline.GetClientContext(), pipeline);
 		}
 
+#if RATCHET_PRINT >= 2
+        this->executor.PrintRootPipelines();
+        this->executor.PrintPipelines();
+#endif
+
+        // Check if it is a resume execution
+        if (global_resume) {
+            // check to use global_resume_file or global_resume_folder
+            // TODO: collect pipeline_ids from all part-*.ratchet file and check if they are same
+            // TODO: pipeline-level part-*.ratchet file such as ppl-1-part-*.ratchet
+            json json_data;
+            if (global_resume_file == "rfile") {
+#if RATCHET_SERDE_FORMAT == 0
+                std::ifstream inputFile(global_resume_folder + "/part-0.ratchet", std::ios::binary);
+                std::vector<uint8_t> input_vector((std::istreambuf_iterator<char>(inputFile)),std::istreambuf_iterator<char>());
+                json_data = json::from_cbor(input_vector);
+#elif RATCHET_SERDE_FORMAT == 1
+                std::ifstream inputFile(global_resume_folder + "/part-0.ratchet");
+                json_data = json::parse(inputFile);
+#endif
+            } else {
+#if RATCHET_SERDE_FORMAT == 0
+                std::ifstream inputFile(global_resume_file, std::ios::binary);
+                std::vector<uint8_t> input_vector((std::istreambuf_iterator<char>(inputFile)),std::istreambuf_iterator<char>());
+                json_data = json::from_cbor(input_vector);
+#elif RATCHET_SERDE_FORMAT == 1
+                std::ifstream inputFile(global_resume_file);
+                json_data = json::parse(inputFile);
+#endif
+            }
+            vector<idx_t> pipeline_ids = json_data.at("pipeline_ids");
+
+            for (auto pl_id : pipeline_ids) {
+                global_finalized_pipelines.push_back(pl_id);
+            }
+
+            idx_t current_id = pipeline.GetPipelineId();
+            auto it = std::find(global_finalized_pipelines.begin(),global_finalized_pipelines.end(),current_id);
+            if (it != global_finalized_pipelines.end()) {
+                event->FinishTask();
+                pipeline_executor.reset();
+                return TaskExecutionResult::TASK_FINISHED;
+            }
+        }
+
 		pipeline_executor->SetTaskForInterrupts(shared_from_this());
 
 		if (mode == TaskExecutionMode::PROCESS_PARTIAL) {
+#if RATCHET_PRINT >= 1
+            std::cout << "[PipelineTask] ExecuteTask at PARTIAL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
+#endif
 			auto res = pipeline_executor->Execute(PARTIAL_CHUNK_COUNT);
 
 			switch (res) {
@@ -47,6 +101,9 @@ public:
 				break;
 			}
 		} else {
+#if RATCHET_PRINT >= 1
+            std::cout << "[PipelineTask] ExecuteTask at ALL MODE for pipeline " << pipeline.GetPipelineId() << std::endl;
+#endif
 			auto res = pipeline_executor->Execute();
 			switch (res) {
 			case PipelineExecuteResult::NOT_FINISHED:
@@ -141,6 +198,14 @@ bool Pipeline::IsOrderDependent() const {
 		return true;
 	}
 	return false;
+}
+
+idx_t Pipeline::GetPipelineId() {
+    return pipeline_id;
+}
+
+void Pipeline::SetPipelineId(idx_t pl_id) {
+    pipeline_id = pl_id;
 }
 
 void Pipeline::Schedule(shared_ptr<Event> &event) {

@@ -14,6 +14,14 @@
 #include "duckdb/storage/buffer_manager.hpp"
 #include "duckdb/storage/storage_manager.hpp"
 
+#include <iostream>
+
+#include "json.hpp"
+using json = nlohmann::json;
+#include <fstream>
+#include <dirent.h>
+#include <regex>
+
 namespace duckdb {
 
 PhysicalHashJoin::PhysicalHashJoin(LogicalOperator &op, unique_ptr<PhysicalOperator> left,

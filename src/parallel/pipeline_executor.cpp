@@ -113,7 +113,6 @@ PipelineExecuteResult PipelineExecutor::Execute(idx_t max_chunks) {
 		if (context.client.interrupted) {
 			throw InterruptException();
 		}
-
 		OperatorResultType result;
 		if (exhausted_source && done_flushing && !remaining_sink_chunk && in_process_operators.empty()) {
 			break;
@@ -194,6 +193,9 @@ bool PipelineExecutor::IsFinished() {
 }
 
 OperatorResultType PipelineExecutor::ExecutePushInternal(DataChunk &input, idx_t initial_idx) {
+#if RATCHET_PRINT >= 1
+    std::cout << "PipelineExecutor::ExecutePushInternal for pipeline " << pipeline.GetPipelineId() << std::endl;
+#endif
 	D_ASSERT(pipeline.sink);
 	if (input.size() == 0) { // LCOV_EXCL_START
 		return OperatorResultType::NEED_MORE_INPUT;
@@ -239,6 +241,9 @@ OperatorResultType PipelineExecutor::ExecutePushInternal(DataChunk &input, idx_t
 }
 
 void PipelineExecutor::PushFinalize() {
+#if RATCHET_PRINT >= 1
+    std::cout << "[PipelineExecutor::PushFinalize] for pipeline " << pipeline.GetPipelineId() << std::endl;
+#endif
 	if (finalized) {
 		throw InternalException("Calling PushFinalize on a pipeline that has been finalized already");
 	}
@@ -342,6 +347,9 @@ void PipelineExecutor::GoToSource(idx_t &current_idx, idx_t initial_idx) {
 }
 
 OperatorResultType PipelineExecutor::Execute(DataChunk &input, DataChunk &result, idx_t initial_idx) {
+#if RATCHET_PRINT >= 1
+    std::cout << "[PipelineExecutor::Execute] for pipeline " << pipeline.GetPipelineId() << std::endl;
+#endif
 	if (input.size() == 0) { // LCOV_EXCL_START
 		return OperatorResultType::NEED_MORE_INPUT;
 	} // LCOV_EXCL_STOP
@@ -379,6 +387,11 @@ OperatorResultType PipelineExecutor::Execute(DataChunk &input, DataChunk &result
 			// if current_idx > source_idx, we pass the previous operators' output through the Execute of the current
 			// operator
 			StartOperator(current_operator);
+
+#if RATCHET_PRINT >= 1
+            std::cout << "Operator Name: " << current_operator->GetName() << std::endl;
+#endif
+
 			auto result = current_operator.Execute(context, prev_chunk, current_chunk, *current_operator.op_state,
 			                                       *intermediate_states[current_intermediate - 1]);
 			EndOperator(current_operator, &current_chunk);

@@ -17,6 +17,8 @@
 
 #include <algorithm>
 
+#include <iostream>
+
 namespace duckdb {
 
 Executor::Executor(ClientContext &context) : context(context) {
@@ -310,6 +312,28 @@ void Executor::VerifyPipelines() {
 #endif
 }
 
+void Executor::AssignPipelineIds() {
+    idx_t pipeline_id = 1;
+    for (auto &pipeline : pipelines) {
+        pipeline->pipeline_id = pipeline_id;
+        pipeline_id++;
+    }
+}
+
+void Executor::PrintPipelines() {
+    for (auto &pipeline : pipelines) {
+        std::cout << "Pipeline " << pipeline->GetPipelineId() << ":" << std::endl;
+        pipeline->Print();
+    }
+}
+
+void Executor::PrintRootPipelines() {
+    for (auto &root_pipeline : root_pipelines) {
+        std::cout << "Pipeline[Root] " << root_pipeline->GetPipelineId() << ":" << std::endl;
+        root_pipeline->Print();
+    }
+}
+
 void Executor::Initialize(unique_ptr<PhysicalOperator> physical_plan) {
 	Reset();
 	owned_plan = std::move(physical_plan);
@@ -360,6 +384,11 @@ void Executor::InitializeInternal(PhysicalOperator &plan) {
 
 		// finally, verify and schedule
 		VerifyPipelines();
+
+        AssignPipelineIds();
+        // PrintPipelines();
+        // PrintRootPipelines();
+
 		ScheduleEvents(to_schedule);
 	}
 }

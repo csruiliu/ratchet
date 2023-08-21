@@ -96,6 +96,9 @@ double PhysicalTableScan::GetProgress(ClientContext &context, GlobalSourceState 
 
 idx_t PhysicalTableScan::GetBatchIndex(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                        LocalSourceState &lstate) const {
+#if RATCHET_PRINT >= 1
+    std::cout << "[PhysicalTableScan::GetBatchIndex]" << std::endl;
+#endif
 	D_ASSERT(SupportsBatchIndex());
 	D_ASSERT(function.get_batch_index);
 	auto &gstate = gstate_p.Cast<TableScanGlobalSourceState>();
