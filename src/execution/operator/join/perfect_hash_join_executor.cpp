@@ -292,5 +292,4 @@ void PerfectHashJoinExecutor::TemplatedFillSelectionVectorProbe(Vector &source, 
 	}
 }
 
-
 } // namespace duckdb
