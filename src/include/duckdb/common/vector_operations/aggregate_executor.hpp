@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <iostream>
+
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/types/vector.hpp"
 #include "duckdb/common/vector_operations/vector_operations.hpp"
@@ -321,6 +323,9 @@ public:
 
 	template <class STATE_TYPE, class OP>
 	static void Combine(Vector &source, Vector &target, AggregateInputData &aggr_input_data, idx_t count) {
+#if RATCHET_PRINT >= 1
+        std::cout << "[aggregate_executor] Combine" << std::endl;
+#endif
 		D_ASSERT(source.GetType().id() == LogicalTypeId::POINTER && target.GetType().id() == LogicalTypeId::POINTER);
 		auto sdata = FlatVector::GetData<const STATE_TYPE *>(source);
 		auto tdata = FlatVector::GetData<STATE_TYPE *>(target);
@@ -333,6 +338,9 @@ public:
 	template <class STATE_TYPE, class RESULT_TYPE, class OP>
 	static void Finalize(Vector &states, AggregateInputData &aggr_input_data, Vector &result, idx_t count,
 	                     idx_t offset) {
+#if RATCHET_PRINT >= 1
+        std::cout << "[aggregate_executor] Finalize" << std::endl;
+#endif
 		if (states.GetVectorType() == VectorType::CONSTANT_VECTOR) {
 			result.SetVectorType(VectorType::CONSTANT_VECTOR);
 

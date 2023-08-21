@@ -16,6 +16,8 @@
 #include <functional>
 #include "duckdb/execution/operator/aggregate/distinct_aggregate_data.hpp"
 
+#include <fstream>
+
 namespace duckdb {
 
 PhysicalUngroupedAggregate::PhysicalUngroupedAggregate(vector<LogicalType> types,
@@ -356,6 +358,9 @@ public:
 	}
 
 	void AggregateDistinct() {
+#if RATCHET_PRINT >= 1
+        std::cout << "[physical_ungrouped_aggregate] AggregateDistinct" << std::endl;
+#endif
 		D_ASSERT(gstate.distinct_state);
 		auto &aggregates = op.aggregates;
 		auto &distinct_state = *gstate.distinct_state;
@@ -432,6 +437,9 @@ public:
 	}
 
 	TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+#if RATCHET_PRINT >= 1
+        std::cout << "[UngroupedDistinctAggregateFinalizeTask] ExecuteTask" << std::endl;
+#endif
 		AggregateDistinct();
 		event->FinishTask();
 		return TaskExecutionResult::TASK_FINISHED;
@@ -557,20 +565,16 @@ void VerifyNullHandling(DataChunk &chunk, AggregateState &state, const vector<un
 
 SourceResultType PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &chunk,
                                                      OperatorSourceInput &input) const {
+#if RATCHET_PRINT >= 1
+    std::cout << "[PhysicalUngroupedAggregate::GetData]" << std::endl;
+#endif
 	auto &gstate = sink_state->Cast<UngroupedAggregateGlobalState>();
 	D_ASSERT(gstate.finished);
 
 	// initialize the result chunk with the aggregate values
 	chunk.SetCardinality(1);
-	for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
-		auto &aggregate = aggregates[aggr_idx]->Cast<BoundAggregateExpression>();
 
-		Vector state_vector(Value::POINTER(CastPointerToValue(gstate.state.aggregates[aggr_idx].get())));
-		AggregateInputData aggr_input_data(aggregate.bind_info.get(), Allocator::DefaultAllocator());
-		aggregate.function.finalize(state_vector, aggr_input_data, chunk.data[aggr_idx], 1, 0);
-	}
 	VerifyNullHandling(chunk, gstate.state, aggregates);
-
 	return SourceResultType::FINISHED;
 }
 

@@ -9,6 +9,7 @@
 #pragma once
 
 #include <memory>
+#include <chrono>
 #include "duckdb/common/string.hpp"
 #include "duckdb/common/winapi.hpp"
 #include "duckdb/common/unique_ptr.hpp"
@@ -17,6 +18,22 @@
 namespace duckdb {
 class Serializer;
 class Deserializer;
+
+//! Enable Ratchet Printout
+//! 0: no ratchet printout
+//! 1: printout function invoking
+//! 2: printout function invoking + query plan
+#define RATCHET_PRINT 0
+
+//! Ratchet Serialize and Deserialize Format
+//! 0: CBOR
+//! 1: JSON
+#define RATCHET_SERDE_FORMAT 0
+
+//! External Join
+//! 0: Disable
+//! 1: Enable
+#define RATCHET_EXTERNAL_JOIN 0
 
 //! inline std directives that we use frequently
 #ifndef DUCKDB_DEBUG_MOVE
@@ -46,6 +63,21 @@ extern const transaction_t MAXIMUM_QUERY_ID;
 extern const transaction_t NOT_DELETED_ID;
 
 extern const double PI;
+
+//! global variable for Ratchet
+extern bool global_suspend;
+extern bool global_suspend_start;
+extern bool global_resume;
+extern uint16_t global_threads;
+extern string global_suspend_file;
+extern string global_suspend_folder;
+extern string global_resume_file;
+extern string global_resume_folder;
+extern std::chrono::steady_clock::time_point global_start;
+extern uint64_t global_suspend_point_ms;
+extern std::atomic<uint16_t> global_stopped_threads;
+extern std::vector<idx_t> global_finalized_pipelines;
+extern std::atomic<uint16_t> global_ht_partition;
 
 struct DConstants {
 	//! The value used to signify an invalid index entry

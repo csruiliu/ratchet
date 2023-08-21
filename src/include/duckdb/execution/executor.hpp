@@ -117,6 +117,10 @@ private:
 	void VerifyPipeline(Pipeline &pipeline);
 	void VerifyPipelines();
 
+    void PrintPipelines();
+    void PrintRootPipelines();
+    void AssignPipelineIds();
+
 private:
 	optional_ptr<PhysicalOperator> physical_plan;
 	unique_ptr<PhysicalOperator> owned_plan;

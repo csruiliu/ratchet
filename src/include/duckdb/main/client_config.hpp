@@ -69,8 +69,14 @@ struct ClientConfig {
 	bool verify_parallelism = false;
 	//! Force index join independent of table cardinality, used for testing
 	bool force_index_join = false;
-	//! Force out-of-core computation for operators that support it, used for testing
-	bool force_external = false;
+
+#if RATCHET_EXTERNAL_JOIN == 0
+        //! Force out-of-core computation for operators that support it, used for testing
+        bool force_external = false;
+#else
+        bool force_external = true;
+#endif
+
 	//! Force disable cross product generation when hyper graph isn't connected, used for testing
 	bool force_no_cross_product = false;
 	//! Force use of IEJoin to implement AsOfJoin, used for testing

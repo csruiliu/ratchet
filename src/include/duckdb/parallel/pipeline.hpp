@@ -100,6 +100,9 @@ public:
 	//! Updates the batch index of a pipeline (and returns the new minimum batch index)
 	idx_t UpdateBatchIndex(idx_t old_index, idx_t new_index);
 
+    idx_t GetPipelineId();
+    void SetPipelineId(idx_t pipeline_id);
+
 private:
 	//! Whether or not the pipeline has been readied
 	bool ready;
@@ -129,6 +132,9 @@ private:
 	//! The reason is that when we start a new pipeline we insert the current minimum batch index as a placeholder
 	//! Which leads to duplicate entries in the set of active batch indexes
 	multiset<idx_t> batch_indexes;
+
+    //! The Pipeline ID
+    idx_t pipeline_id = 0;
 
 private:
 	void ScheduleSequentialTask(shared_ptr<Event> &event);
