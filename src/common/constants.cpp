@@ -28,7 +28,7 @@ std::chrono::steady_clock::time_point global_start = {};
 uint64_t global_suspend_point_ms = NumericLimits<transaction_t>::Maximum();
 uint16_t global_threads = 0;
 atomic<uint16_t> global_stopped_threads(0);
-// vector<idx_t> global_finalized_pipelines;
+std::vector<idx_t> global_finalized_pipelines;
 atomic<uint16_t> global_ht_partition(0);
 
 bool IsPowerOfTwo(uint64_t v) {
