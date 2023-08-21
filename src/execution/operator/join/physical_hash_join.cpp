@@ -196,6 +196,8 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, DataChunk &chun
 	lstate.join_keys.Reset();
 	lstate.build_executor.Execute(chunk, lstate.join_keys);
 
+    // TODO: handle perfect and out-of-core hashjoin
+
 	// build the HT
 	auto &ht = *lstate.hash_table;
 	if (!right_projection_map.empty()) {
@@ -371,10 +373,17 @@ public:
 
 SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
                                             GlobalSinkState &gstate) const {
+#if RATCHET_PRINT >= 1
+    std::cout << "[PhysicalHashJoin::Finalize] for pipeline " << pipeline.GetPipelineId() << std::endl;
+#endif
 	auto &sink = gstate.Cast<HashJoinGlobalSinkState>();
 	auto &ht = *sink.hash_table;
 
 	sink.external = ht.RequiresExternalJoin(context.config, sink.local_hash_tables);
+
+    // TODO: handle perfect and out-of-core hashjoin
+
+    //! Regular Process for Finalize
 	if (sink.external) {
 		sink.perfect_join_executor.reset();
 		if (ht.RequiresPartitioning(context.config, sink.local_hash_tables)) {

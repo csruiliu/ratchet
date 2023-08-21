@@ -115,8 +115,15 @@ The TPC-H benchmark is mostly used for functionality test.
 
 We also exploit `CRIU` to benchmark the performance of suspending and resuming queries at the process level. More details can be found [here](criu/README.md).
 
+## Source Code Modification
 
-## List of Source Code Modification
+1. Adding suspension and resumption APIs in `pyconnection.cpp` and `pyconnection.hp`
+2. Checking finished pipelines when resumption in `pipeline.cpp` 
+3. Suspending and resuming ungrouped aggregation in `physical_ungrouped_aggregate.cpp`
+4. Suspending and resuming in-memory hash join in `physical_hash_join.cpp` and `perfect_hash_join_executor.cpp`
+5. Suspending and resuming in-memory hash join in `physical_hash_join.cpp`
+
+### List of Modification
 
 1. tools/pythonpkg/src/pyconnection.cpp
 2. tools/pythonpkg/include/duckdb_python/pyconnection/pyconnection.hpp
