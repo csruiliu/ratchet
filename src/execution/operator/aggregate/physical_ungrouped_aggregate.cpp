@@ -16,6 +16,8 @@
 #include <functional>
 #include "duckdb/execution/operator/aggregate/distinct_aggregate_data.hpp"
 
+#include "json.hpp"
+using json = nlohmann::json;
 #include <fstream>
 
 namespace duckdb {
@@ -541,6 +543,54 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
 		return FinalizeDistinct(pipeline, event, context, gstate_p);
 	}
 
+    if (global_suspend) {
+        std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
+        uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
+
+        if (time_dur_ms > global_suspend_point_ms) {
+            global_suspend_start = true;
+#if RATCHET_PRINT >= 1
+            std::cout << "[PhysicalUngroupedAggregate::Finalize] Suspend and Serialize Global State" << std::endl;
+#endif
+            std::cout << "== Serialization for aggregation ==" << std::endl;
+            json jsonfile;
+
+            vector<string> aggregate_values;
+
+            global_finalized_pipelines.push_back(pipeline.GetPipelineId());
+            jsonfile["pipeline_ids"] = global_finalized_pipelines;
+
+            DataChunk chunk;
+            chunk.Initialize(Allocator::DefaultAllocator(), this->GetTypes());
+
+            // initialize the result chunk with the aggregate values
+            chunk.SetCardinality(1);
+            for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
+                auto &aggregate = (BoundAggregateExpression &)*aggregates[aggr_idx];
+
+                Vector state_vector(Value::POINTER((uintptr_t)gstate.state.aggregates[aggr_idx].get()));
+                AggregateInputData aggr_input_data(aggregate.bind_info.get(), Allocator::DefaultAllocator());
+                aggregate.function.finalize(state_vector, aggr_input_data, chunk.data[aggr_idx], 1, 0);
+                aggregate_values.push_back(chunk.data[aggr_idx].GetValue(0).ToString());
+            }
+            jsonfile["aggregate_values"] = aggregate_values;
+#if RATCHET_SERDE_FORMAT == 0
+            std::ofstream outputFile(global_suspend_file, std::ios::out | std::ios::binary);
+            const auto output_vector = json::to_cbor(jsonfile);
+            outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
+#elif RATCHET_SERDE_FORMAT == 1
+            std::ofstream outputFile(global_suspend_file);
+            outputFile << jsonfile;
+#endif
+            outputFile.close();
+            if (outputFile.fail()) {
+                std::cerr << "Error writing to file!" << std::endl;
+            }
+
+            exit(0);
+        }
+    }
+
 	D_ASSERT(!gstate.finished);
 	gstate.finished = true;
 	return SinkFinalizeType::READY;
@@ -573,6 +623,36 @@ SourceResultType PhysicalUngroupedAggregate::GetData(ExecutionContext &context, 
 
 	// initialize the result chunk with the aggregate values
 	chunk.SetCardinality(1);
+
+    //! TODO: tricky to check pipeline id, since GetData isn't invoked in the suspended pipeline
+    // idx_t current_pl_id = context.pipeline->GetPipelineId();
+    // auto it = std::find(global_finalized_pipelines.begin(),global_finalized_pipelines.end(),current_pl_id);
+    // if (global_resume && it != global_finalized_pipelines.end()) {
+
+    if (global_resume) {
+#if RATCHET_SERDE_FORMAT == 0
+        std::ifstream input_file(global_resume_file, std::ios::binary);
+        std::vector<uint8_t> input_vector((std::istreambuf_iterator<char>(input_file)),std::istreambuf_iterator<char>());
+        json json_data = json::from_cbor(input_vector);
+#elif RATCHET_SERDE_FORMAT == 1
+        std::ifstream f(global_resume_file);
+        json json_data = json::parse(f);
+#endif
+        vector<idx_t> pipeline_ids = json_data.at("pipeline_ids");
+        vector<string> aggregate_values = json_data.at("aggregate_values");
+
+        for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
+            chunk.data[aggr_idx].SetValue(0, std::stod(aggregate_values.at(0)));
+        }
+    } else {
+        for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
+            auto &aggregate = (BoundAggregateExpression &)*aggregates[aggr_idx];
+
+            Vector state_vector(Value::POINTER((uintptr_t)gstate.state.aggregates[aggr_idx].get()));
+            AggregateInputData aggr_input_data(aggregate.bind_info.get(), Allocator::DefaultAllocator());
+            aggregate.function.finalize(state_vector, aggr_input_data, chunk.data[aggr_idx], 1, 0);
+        }
+    }
 
 	VerifyNullHandling(chunk, gstate.state, aggregates);
 	return SourceResultType::FINISHED;

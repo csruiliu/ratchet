@@ -128,6 +128,5 @@ We also exploit `CRIU` to benchmark the performance of suspending and resuming q
 8. src/include/duckdb/main/client_config.hpp
 9. src/include/duckdb/parallel/pipeline.hpp
 10. src/execution/operator/aggregate/physical_hash_aggregate.cpp
-
-src/execution/operator/aggregate/physical_ungrouped_aggregate.cpp
+11. src/execution/operator/aggregate/physical_ungrouped_aggregate.cpp
 src/execution/operator/join/perfect_hash_join_executor.cpp
