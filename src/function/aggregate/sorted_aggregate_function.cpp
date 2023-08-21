@@ -359,6 +359,9 @@ struct SortedAggregateFunction {
 
 	static void Finalize(Vector &states, AggregateInputData &aggr_input_data, Vector &result, idx_t count,
 	                     const idx_t offset) {
+#if RATCHET_PRINT >= 1
+        std::cout << "Sorted_Aggregate_Function::Finalize" << std::endl;
+#endif
 		auto &order_bind = aggr_input_data.bind_data->Cast<SortedAggregateBindData>();
 		auto &buffer_manager = order_bind.buffer_manager;
 		RowLayout payload_layout;

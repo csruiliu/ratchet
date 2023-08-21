@@ -292,4 +292,78 @@ void PerfectHashJoinExecutor::TemplatedFillSelectionVectorProbe(Vector &source, 
 	}
 }
 
+//===--------------------------------------------------------------------===//
+// Ratchet
+//===--------------------------------------------------------------------===//
+void PerfectHashJoinExecutor::SerializePerfectHashTable() {
+    std::cout << "== Serialize PerfectHashTable ==" << std::endl;
+
+    json json_data;
+
+    auto build_size = perfect_join_statistics.build_range + 1;
+
+    //! TODO: handle ht.build_types.size() != ht.condition_types.size()
+    D_ASSERT(ht.build_types.size() == ht.condition_types.size());
+    json_data["pipeline_ids"] = global_finalized_pipelines;
+    json_data["column_size"] = ht.build_types.size();
+    json_data["build_size"] = build_size;
+
+    for (idx_t i = 0; i < ht.build_types.size(); i++) {
+        auto &build_vec = perfect_hash_table[i];
+
+        if (ht.build_types.at(i) == LogicalType::VARCHAR) {
+            vector<string> value_vector;
+            for (idx_t j = 0; j < build_size; j++) {
+                value_vector.push_back(build_vec.GetValue(j).ToString());
+            }
+            json_data["build_chunk_" + to_string(i)]["type"] = LogicalType::VARCHAR;
+            json_data["build_chunk_" + to_string(i)]["data"] = value_vector;
+        } else if (ht.build_types.at(i) == LogicalType::INTEGER) {
+            vector<int64_t> value_vector;
+            for (idx_t j = 0; j < build_size; j++) {
+                value_vector.push_back(stoi(build_vec.GetValue(j).ToString()));
+            }
+            json_data["build_chunk_" + to_string(i)]["type"] = LogicalType::INTEGER;
+            json_data["build_chunk_" + to_string(i)]["data"] = value_vector;
+        } else {
+            throw ParserException("Cannot recognize build types");
+        }
+    }
+
+    for (idx_t i = 0; i < ht.condition_types.size(); i++) {
+        auto &key_vec = join_keys_perfect_hash_table[i];
+
+        if (ht.condition_types.at(i) == LogicalType::VARCHAR) {
+            vector<string> key_vector;
+            for (idx_t j = 0; j < build_size; j++) {
+                key_vector.push_back(key_vec.GetValue(j).ToString());
+            }
+            json_data["join_key_" + to_string(i)]["type"] = LogicalType::VARCHAR;
+            json_data["join_key_" + to_string(i)]["data"] = key_vector;
+        } else if (ht.condition_types.at(i) == LogicalType::INTEGER) {
+            vector<int64_t> key_vector;
+            for (idx_t j = 0; j < build_size; j++) {
+                key_vector.push_back(stoi(key_vec.GetValue(j).ToString()));
+            }
+            json_data["join_key_" + to_string(i)]["type"] = LogicalType::INTEGER;
+            json_data["join_key_" + to_string(i)]["data"] = key_vector;
+        } else {
+            throw ParserException("Cannot recognize key types");
+        }
+    }
+
+#if RATCHET_SERDE_FORMAT == 0
+    std::ofstream outputFile(global_suspend_file, std::ios::out | std::ios::binary);
+    const auto output_vector = json::to_cbor(json_data);
+    outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
+#elif RATCHET_SERDE_FORMAT == 1
+    std::ofstream outputFile(global_suspend_file);
+    outputFile << json_data;
+#endif
+    outputFile.close();
+    if (outputFile.fail()) {
+        std::cerr << "Error writing to file!" << std::endl;
+    }
+}
+
 } // namespace duckdb

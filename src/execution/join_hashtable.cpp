@@ -19,6 +19,9 @@ JoinHashTable::JoinHashTable(BufferManager &buffer_manager_p, const vector<JoinC
     : buffer_manager(buffer_manager_p), conditions(conditions_p), build_types(std::move(btypes)), entry_size(0),
       tuple_size(0), vfound(Value::BOOLEAN(false)), join_type(type_p), finalized(false), has_null(false),
       external(false), radix_bits(4), partition_start(0), partition_end(0) {
+#if RATCHET_PRINT >= 1
+    std::cout << "[JoinHashTable] Construction" << std::endl;
+#endif
 	for (auto &condition : conditions) {
 		D_ASSERT(condition.left->return_type == condition.right->return_type);
 		auto type = condition.left->return_type;
@@ -167,6 +170,9 @@ idx_t JoinHashTable::PrepareKeys(DataChunk &keys, unsafe_unique_array<UnifiedVec
 }
 
 void JoinHashTable::Build(PartitionedTupleDataAppendState &append_state, DataChunk &keys, DataChunk &payload) {
+#if RATCHET_PRINT >= 1
+    std::cout << "[JoinHashTable::Build]" << std::endl;
+#endif
 	D_ASSERT(!finalized);
 	D_ASSERT(keys.size() == payload.size());
 	if (keys.size() == 0) {
@@ -273,8 +279,14 @@ void JoinHashTable::InsertHashes(Vector &hashes, idx_t count, data_ptr_t key_loc
 	auto indices = FlatVector::GetData<hash_t>(hashes);
 
 	if (parallel) {
+#if RATCHET_PRINT >= 1
+        std::cout << "parallel in InsertHashes" << std::endl;
+#endif
 		InsertHashesLoop<true>(pointers, indices, count, key_locations, pointer_offset);
 	} else {
+#if RATCHET_PRINT >= 1
+        std::cout << "not parallel in InsertHashes" << std::endl;
+#endif
 		InsertHashesLoop<false>(pointers, indices, count, key_locations, pointer_offset);
 	}
 }
@@ -306,6 +318,9 @@ void JoinHashTable::InitializePointerTable() {
 }
 
 void JoinHashTable::Finalize(idx_t chunk_idx_from, idx_t chunk_idx_to, bool parallel) {
+#if RATCHET_PRINT >= 1
+    std::cout << "[JoinHashTable::Finalize]" << std::endl;
+#endif
 	// Pointer table should be allocated
 	D_ASSERT(hash_map.get());
 
@@ -342,6 +357,9 @@ unique_ptr<ScanStructure> JoinHashTable::InitializeScanStructure(DataChunk &keys
 }
 
 unique_ptr<ScanStructure> JoinHashTable::Probe(DataChunk &keys, Vector *precomputed_hashes) {
+#if RATCHET_PRINT >= 1
+    std::cout << "[JoinHashTable::Probe]" << std::endl;
+#endif
 	const SelectionVector *current_sel;
 	auto ss = InitializeScanStructure(keys, current_sel);
 	if (ss->count == 0) {
@@ -870,6 +888,9 @@ void JoinHashTable::Unpartition() {
 }
 
 bool JoinHashTable::RequiresPartitioning(ClientConfig &config, vector<unique_ptr<JoinHashTable>> &local_hts) {
+#if RATCHET_PRINT >= 1
+    std::cout << "[JoinHashTable::RequiresPartitioning]" << std::endl;
+#endif
 	D_ASSERT(total_count != 0);
 	D_ASSERT(external);
 
@@ -926,6 +947,9 @@ bool JoinHashTable::RequiresPartitioning(ClientConfig &config, vector<unique_ptr
 }
 
 void JoinHashTable::Partition(JoinHashTable &global_ht) {
+#if RATCHET_PRINT >= 1
+    std::cout << "[JoinHashTable::Partition]" << std::endl;
+#endif
 	auto new_sink_collection =
 	    make_uniq<RadixPartitionedTupleData>(buffer_manager, layout, global_ht.radix_bits, layout.ColumnCount() - 1);
 	sink_collection->Repartition(*new_sink_collection);
@@ -939,6 +963,9 @@ void JoinHashTable::Reset() {
 }
 
 bool JoinHashTable::PrepareExternalFinalize() {
+#if RATCHET_PRINT >= 1
+    std::cout << "[JoinHashTable::PrepareExternalFinalize]" << std::endl;
+#endif
 	if (finalized) {
 		Reset();
 	}
@@ -1036,6 +1063,9 @@ unique_ptr<ScanStructure> JoinHashTable::ProbeAndSpill(DataChunk &keys, DataChun
 
 ProbeSpill::ProbeSpill(JoinHashTable &ht, ClientContext &context, const vector<LogicalType> &probe_types)
     : ht(ht), context(context), probe_types(probe_types) {
+#if RATCHET_PRINT >= 1
+    std::cout << "[ProbeSpill::ProbeSpill]" << std::endl;
+#endif
 	auto remaining_count = ht.GetSinkCollection().Count();
 	auto remaining_data_size = ht.GetSinkCollection().SizeInBytes();
 	auto remaining_ht_size = remaining_data_size + ht.PointerTableSize(remaining_count);
@@ -1085,6 +1115,9 @@ void ProbeSpill::Append(DataChunk &chunk, ProbeSpillLocalAppendState &local_stat
 }
 
 void ProbeSpill::Finalize() {
+#if RATCHET_PRINT >= 1
+    std::cout << "[ProbeSpill::Finalize]" << std::endl;
+#endif
 	if (partitioned) {
 		D_ASSERT(local_partitions.size() == local_partition_append_states.size());
 		for (idx_t i = 0; i < local_partition_append_states.size(); i++) {
