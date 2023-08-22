@@ -116,6 +116,8 @@ We also exploit `CRIU` to benchmark the performance of suspending and resuming q
 
 ## Source Code Modification
 
+Usually, query suspension should happen in Finalize(), while query resumption should happen in the Sink(). However, it is still case-by-case due to implementation or performance reason.
+
 1. Adding suspension and resumption APIs in `pyconnection.cpp` and `pyconnection.hp`
 2. Checking finished pipelines when resumption in `pipeline.cpp`
 3. Suspending and resuming ungrouped aggregation in `physical_ungrouped_aggregate.cpp`

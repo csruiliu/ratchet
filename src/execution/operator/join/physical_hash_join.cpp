@@ -190,13 +190,16 @@ unique_ptr<LocalSinkState> PhysicalHashJoin::GetLocalSinkState(ExecutionContext 
 }
 
 SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, DataChunk &chunk, OperatorSinkInput &input) const {
+#if RATCHET_PRINT >= 1
+    std::cout << "[PhysicalHashJoin::Sink] For pipeline " << context.pipeline->GetPipelineId() << std::endl;
+#endif
 	auto &lstate = input.local_state.Cast<HashJoinLocalSinkState>();
 
 	// resolve the join keys for the right chunk
 	lstate.join_keys.Reset();
 	lstate.build_executor.Execute(chunk, lstate.join_keys);
 
-    // TODO: handle perfect and out-of-core hashjoin
+    // TODO: handle out-of-core hashjoin
 
 	// build the HT
 	auto &ht = *lstate.hash_table;
@@ -381,9 +384,55 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
 
 	sink.external = ht.RequiresExternalJoin(context.config, sink.local_hash_tables);
 
-    // TODO: handle perfect and out-of-core hashjoin
+    //! Preparation for Suspension and Resumption
+    idx_t current_id = pipeline.GetPipelineId();
+    auto it = std::find(global_finalized_pipelines.begin(),global_finalized_pipelines.end(),current_id);
+    auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
 
-    //! Regular Process for Finalize
+    //! Resumption process for external hash join Finalize()
+    if (global_resume && it != global_finalized_pipelines.end() && sink.external) {
+        std::cout << "== Resume External Hash Join ==" << std::endl;
+        // TODO
+    }
+
+    //! Resumption process for in-memory hash join Finalize()
+    if (global_resume && it != global_finalized_pipelines.end() && !sink.external) {
+        std::cout << "== Resume Perfect Hash Join ==" << std::endl;
+        // TODO
+    }
+
+    //! Suspension process for external hash join in Finalize()
+    // if external hash join, just exit since checking suspend and serializing states happened in Sink()
+    if (sink.external && global_suspend_start) {
+        exit(0);
+    }
+
+    //! Suspension process for in-memory hash join in Finalize()
+    // if in-memory hash join, checking suspend and serializing states happened here
+    if (!sink.external && global_suspend) {
+        std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
+        uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                suspend_check - global_start).count();
+        if (time_dur_ms > global_suspend_point_ms) {
+            global_suspend_start = true;
+            for (auto &local_ht : sink.local_hash_tables) {
+                ht.Merge(*local_ht);
+            }
+            sink.local_hash_tables.clear();
+
+            // TODO: check if perfect hash join works
+            D_ASSERT(sink.hash_table->equality_types.size() == 1);
+            auto key_type = ht.equality_types[0];
+            sink.perfect_join_executor->BuildPerfectHashTable(key_type);
+
+            global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
+            // Serialize PerfectHashTable to Disk
+            sink.perfect_join_executor->SerializePerfectHashTable();
+            exit(0);
+        }
+    }
+
+    //! Regular Process in Finalize()
 	if (sink.external) {
 		sink.perfect_join_executor.reset();
 		if (ht.RequiresPartitioning(context.config, sink.local_hash_tables)) {
@@ -408,7 +457,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
 	}
 
 	// check for possible perfect hash table
-	auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
+	// auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
 	if (use_perfect_hash) {
 		D_ASSERT(ht.equality_types.size() == 1);
 		auto key_type = ht.equality_types[0];
