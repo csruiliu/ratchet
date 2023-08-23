@@ -481,6 +481,62 @@ public:
 	}
 };
 
+template <class T, class S>
+void PhysicalHashJoin::RebuildHashTable(vector<T>& build_vector_data,
+                                        vector<S>& join_key_data,
+                                        const LogicalType& build_chunk_type,
+                                        const LogicalType& join_key_type,
+                                        uint64_t chunk_amount,
+                                        uint64_t chunk_reminder,
+                                        const unique_ptr<JoinHashTable>& sink_hash_table,
+                                        ClientContext &context) const {
+
+    unique_ptr<JoinHashTable> hash_table;
+    hash_table = this->InitializeHashTable(context);
+
+    for (idx_t i = 0; i < chunk_amount; ++i) {
+        DataChunk build_chunk;
+        DataChunk join_keys;
+        Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
+        Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
+
+        for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
+            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+            join_keys_vector.SetValue(v, Value(join_key_data[j]));
+        }
+
+        build_chunk.data.emplace_back(build_chunk_vector);
+        build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
+        join_keys.data.emplace_back(join_keys_vector);
+        join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
+
+        hash_table->Build(join_keys, build_chunk);
+        sink_hash_table->Merge(*hash_table);
+        hash_table->Reset();
+    }
+
+    if (chunk_reminder) {
+        DataChunk build_chunk;
+        DataChunk join_keys;
+        Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
+        Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
+
+        for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
+            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
+            join_keys_vector.SetValue(v, Value(join_key_data[j]));
+        }
+
+        build_chunk.data.emplace_back(build_chunk_vector);
+        build_chunk.SetCardinality(chunk_reminder);
+        join_keys.data.emplace_back(join_keys_vector);
+        join_keys.SetCardinality(chunk_reminder);
+
+        hash_table->Build(join_keys, build_chunk);
+        sink_hash_table->Merge(*hash_table);
+        hash_table->Reset();
+    }
+}
+
 SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
                                             GlobalSinkState &gstate) const {
 #if RATCHET_PRINT >= 1
@@ -488,522 +544,155 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
 #endif
     auto &sink = (HashJoinGlobalSinkState &)gstate;
 
+    //! Preparation for suspension and resumption process
     auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
-
     idx_t current_id = pipeline.GetPipelineId();
     auto it = std::find(global_finalized_pipelines.begin(),global_finalized_pipelines.end(),current_id);
 
-    //! Resume Process for Finalize
-    if (global_resume && it != global_finalized_pipelines.end()) {
-        if (!sink.external) {
-            std::cout << "== Resume Perfect Hash Join ==" << std::endl;
-            sink.hash_table->Reset();
-#if RATCHET_SERDE_FORMAT == 0
-            std::ifstream input_file(global_resume_file, std::ios::binary);
-            std::vector<uint8_t> input_vector((std::istreambuf_iterator<char>(input_file)),std::istreambuf_iterator<char>());
-            json json_data = json::from_cbor(input_vector);
-#elif RATCHET_SERDE_FORMAT == 1
-            std::ifstream f(global_resume_file);
-            json json_data = json::parse(f);
-#endif
-            // idx_t build_size = build_vector_str.size();
-            auto build_size = (uint64_t)json_data["build_size"];
-            auto col_size = (uint64_t)json_data["column_size"];
+    //! Resume process for external hash join in Finalize
+    if (global_resume && it != global_finalized_pipelines.end() && sink.external) {
+        D_ASSERT(can_go_external);
+        std::cout << "== Resume External Hash Join ==" << std::endl;
+        sink.hash_table->Reset();
 
-            uint64_t chunk_amount = build_size / STANDARD_VECTOR_SIZE;
-            uint64_t chunk_reminder = build_size % STANDARD_VECTOR_SIZE;
+        DIR *dir;
+        struct dirent *ent;
 
-            unique_ptr<JoinHashTable> hash_table;
-            hash_table = this->InitializeHashTable(context);
+        std::regex fileNameRegex("^part-.*\\.ratchet$");
+        if ((dir = opendir(global_resume_folder.c_str())) != nullptr) {
+            while ((ent = readdir(dir)) != nullptr) {
+                std::string fileName = ent->d_name;
 
-            //! TODO: Need to optimize
-            //! build hash table
-            for (idx_t c = 0; c < col_size; ++c) {
-                LogicalType build_chunk_type = LogicalType((LogicalTypeId)json_data["build_chunk_" + to_string(c)]["type"]);
-                LogicalType join_key_type = LogicalType((LogicalTypeId)json_data["join_key_" + to_string(c)]["type"]);
-
-                if (build_chunk_type == LogicalType::VARCHAR) {
-                    vector<string> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<string>>();
-
-                    if (join_key_type == LogicalType::VARCHAR) {
-                        vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
-
-                        for (idx_t i = 0; i < chunk_amount; ++i) {
-                            DataChunk build_chunk;
-                            DataChunk join_keys;
-                            Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
-                            Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
-
-                            for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
-                                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                                join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                            }
-
-                            build_chunk.data.emplace_back(build_chunk_vector);
-                            join_keys.data.emplace_back(join_keys_vector);
-                            build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
-                            join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
-
-                            hash_table->Build(join_keys, build_chunk);
-                            sink.hash_table->Merge(*hash_table);
-                            hash_table->Reset();
-                        }
-
-                        if (chunk_reminder) {
-                            DataChunk build_chunk;
-                            DataChunk join_keys;
-                            Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
-                            Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
-
-                            for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
-                                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                                join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                            }
-
-                            build_chunk.data.emplace_back(build_chunk_vector);
-                            join_keys.data.emplace_back(join_keys_vector);
-                            build_chunk.SetCardinality(chunk_reminder);
-                            join_keys.SetCardinality(chunk_reminder);
-
-                            hash_table->Build(join_keys, build_chunk);
-                            sink.hash_table->Merge(*hash_table);
-                            hash_table->Reset();
-                        }
-
-                    } else if (join_key_type == LogicalType::INTEGER) {
-                        vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
-
-                        for (idx_t i = 0; i < chunk_amount; ++i) {
-                            DataChunk build_chunk;
-                            DataChunk join_keys;
-                            Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
-                            Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
-
-                            for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
-                                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                                join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                            }
-
-                            build_chunk.data.emplace_back(build_chunk_vector);
-                            join_keys.data.emplace_back(join_keys_vector);
-                            build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
-                            join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
-
-                            hash_table->Build(join_keys, build_chunk);
-                            sink.hash_table->Merge(*hash_table);
-                            hash_table->Reset();
-                        }
-
-                        if (chunk_reminder) {
-                            DataChunk build_chunk;
-                            DataChunk join_keys;
-                            Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
-                            Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
-
-                            for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
-                                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                                join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                            }
-
-                            build_chunk.data.emplace_back(build_chunk_vector);
-                            join_keys.data.emplace_back(join_keys_vector);
-                            build_chunk.SetCardinality(chunk_reminder);
-                            join_keys.SetCardinality(chunk_reminder);
-
-                            hash_table->Build(join_keys, build_chunk);
-                            sink.hash_table->Merge(*hash_table);
-                            hash_table->Reset();
-                        }
-
-                    } else {
-                        throw ParserException("Cannot recognize join_key_type");
-                    }
-
-                } else if (build_chunk_type == LogicalType::INTEGER) {
-                    vector<int64_t> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<int64_t>>();
-
-                    if (join_key_type == LogicalType::VARCHAR) {
-                        vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
-
-                        for (idx_t i = 0; i < chunk_amount; ++i) {
-                            DataChunk build_chunk;
-                            DataChunk join_keys;
-                            Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
-                            Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
-
-                            for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
-                                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                                join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                            }
-
-                            build_chunk.data.emplace_back(build_chunk_vector);
-                            join_keys.data.emplace_back(join_keys_vector);
-                            build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
-                            join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
-
-                            hash_table->Build(join_keys, build_chunk);
-                            sink.hash_table->Merge(*hash_table);
-                            hash_table->Reset();
-                        }
-
-                        if (chunk_reminder) {
-                            DataChunk build_chunk;
-                            DataChunk join_keys;
-                            Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
-                            Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
-
-                            for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
-                                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                                join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                            }
-
-                            build_chunk.data.emplace_back(build_chunk_vector);
-                            join_keys.data.emplace_back(join_keys_vector);
-                            build_chunk.SetCardinality(chunk_reminder);
-                            join_keys.SetCardinality(chunk_reminder);
-
-                            hash_table->Build(join_keys, build_chunk);
-                            sink.hash_table->Merge(*hash_table);
-                            hash_table->Reset();
-                        }
-
-                    } else if (join_key_type == LogicalType::INTEGER) {
-                        vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
-
-                        for (idx_t i = 0; i < chunk_amount; ++i) {
-                            DataChunk build_chunk;
-                            DataChunk join_keys;
-                            Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
-                            Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
-
-                            for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
-                                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                                join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                            }
-
-                            build_chunk.data.emplace_back(build_chunk_vector);
-                            join_keys.data.emplace_back(join_keys_vector);
-                            build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
-                            join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
-
-                            hash_table->Build(join_keys, build_chunk);
-                            sink.hash_table->Merge(*hash_table);
-                            hash_table->Reset();
-                        }
-
-                        if (chunk_reminder) {
-                            DataChunk build_chunk;
-                            DataChunk join_keys;
-                            Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
-                            Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
-
-                            for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
-                                build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                                join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                            }
-
-                            build_chunk.data.emplace_back(build_chunk_vector);
-                            join_keys.data.emplace_back(join_keys_vector);
-                            build_chunk.SetCardinality(chunk_reminder);
-                            join_keys.SetCardinality(chunk_reminder);
-
-                            hash_table->Build(join_keys, build_chunk);
-                            sink.hash_table->Merge(*hash_table);
-                            hash_table->Reset();
-                        }
-
-                    } else {
-                        throw ParserException("Cannot recognize join_key_type");
-                    }
-
-                } else {
-                    throw ParserException("Cannot recognize build_chunk_type");
-                }
-            }
-
-            // auto use_perfect_hash = sink.perfect_join_executor->CanDoPerfectHashJoin();
-            if (use_perfect_hash) {
-                // D_ASSERT(sink.hash_table->equality_types.size() == 1);
-                auto key_type = sink.hash_table->equality_types[0];
-                use_perfect_hash = sink.perfect_join_executor->BuildPerfectHashTable(key_type);
-            }
-            if (!use_perfect_hash) {
-                sink.perfect_join_executor.reset();
-                sink.ScheduleFinalize(pipeline, event);
-            }
-
-            sink.finalized = true;
-            return SinkFinalizeType::READY;
-        } else {
-            D_ASSERT(can_go_external);
-            std::cout << "== Resume External Hash Join ==" << std::endl;
-            sink.hash_table->Reset();
-
-            DIR *dir;
-            struct dirent *ent;
-
-            std::regex fileNameRegex("^part-.*\\.ratchet$");
-            if ((dir = opendir(global_resume_folder.c_str())) != nullptr) {
-                while ((ent = readdir(dir)) != nullptr) {
-                    std::string fileName = ent->d_name;
-
-                    if (std::regex_match(fileName, fileNameRegex)) {
-                        string resume_folder = global_resume_folder;
+                if (std::regex_match(fileName, fileNameRegex)) {
+                    string resume_folder = global_resume_folder;
 
 #if RATCHET_SERDE_FORMAT == 0
-                        std::ifstream input_file(resume_folder.append("/").append(fileName), std::ios::binary);
-                        std::vector<uint8_t> input_vector((std::istreambuf_iterator<char>(input_file)),std::istreambuf_iterator<char>());
-                        json json_data = json::from_cbor(input_vector);
+                    std::ifstream input_file(resume_folder.append("/").append(fileName), std::ios::binary);
+                    std::vector<uint8_t> input_vector((std::istreambuf_iterator<char>(input_file)),std::istreambuf_iterator<char>());
+                    json json_data = json::from_cbor(input_vector);
 #elif RATCHET_SERDE_FORMAT == 1
-                        std::ifstream f(resume_folder.append("/").append(fileName));
+                    std::ifstream f(resume_folder.append("/").append(fileName));
                         json json_data = json::parse(f);
 #endif
-                        // idx_t build_size = build_vector_str.size();
-                        auto part_build_size = (uint64_t)json_data["part_build_size"];
-                        auto col_size = (uint64_t)json_data["column_size"];
+                    // idx_t build_size = build_vector_str.size();
+                    auto part_build_size = (uint64_t)json_data["part_build_size"];
+                    auto col_size = (uint64_t)json_data["column_size"];
 
-                        uint64_t chunk_amount = part_build_size / STANDARD_VECTOR_SIZE;
-                        uint64_t chunk_reminder = part_build_size % STANDARD_VECTOR_SIZE;
+                    uint64_t chunk_amount = part_build_size / STANDARD_VECTOR_SIZE;
+                    uint64_t chunk_reminder = part_build_size % STANDARD_VECTOR_SIZE;
 
-                        // unique_ptr<JoinHashTable> hash_table;
-                        // hash_table = this->InitializeHashTable(context);
+                    // unique_ptr<JoinHashTable> hash_table;
+                    // hash_table = this->InitializeHashTable(context);
 
-                        //! TODO: Need to optimize
-                        //! build hash table
-                        for (idx_t c = 0; c < col_size; ++c) {
-                            LogicalType build_chunk_type = LogicalType((LogicalTypeId)json_data["build_chunk_" + to_string(c)]["type"]);
-                            LogicalType join_key_type = LogicalType((LogicalTypeId)json_data["join_key_" + to_string(c)]["type"]);
+                    //! Build hash table
+                    for (idx_t c = 0; c < col_size; ++c) {
+                        LogicalType build_chunk_type = LogicalType((LogicalTypeId)json_data["build_chunk_" + to_string(c)]["type"]);
+                        LogicalType join_key_type = LogicalType((LogicalTypeId)json_data["join_key_" + to_string(c)]["type"]);
 
-                            if (build_chunk_type == LogicalType::VARCHAR) {
-                                vector<string> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<string>>();
+                        if (build_chunk_type == LogicalType::VARCHAR && join_key_type == LogicalType::VARCHAR) {
+                            vector<string> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<string>>();
+                            vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
+                            this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type, chunk_amount,
+                                                   chunk_reminder, sink.hash_table, context);
 
-                                if (join_key_type == LogicalType::VARCHAR) {
-                                    vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
+                        } else if (build_chunk_type == LogicalType::VARCHAR && join_key_type == LogicalType::INTEGER) {
+                            vector<string> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<string>>();
+                            vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
+                            this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type, chunk_amount,
+                                                   chunk_reminder, sink.hash_table, context);
 
-                                    for (idx_t i = 0; i < chunk_amount; ++i) {
-                                        DataChunk build_chunk;
-                                        DataChunk join_keys;
-                                        Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
-                                        Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
+                        } else if (build_chunk_type == LogicalType::INTEGER && join_key_type == LogicalType::VARCHAR) {
+                            vector<int64_t> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<int64_t>>();
+                            vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
+                            this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type, chunk_amount,
+                                                   chunk_reminder, sink.hash_table, context);
 
-                                        for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
-                                            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                                            join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                                        }
-
-                                        build_chunk.data.emplace_back(build_chunk_vector);
-                                        join_keys.data.emplace_back(join_keys_vector);
-                                        build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
-                                        join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
-
-                                        unique_ptr<JoinHashTable> hash_table;
-                                        hash_table = this->InitializeHashTable(context);
-                                        hash_table->Build(join_keys, build_chunk);
-                                        sink.local_hash_tables.push_back(std::move(hash_table));
-                                    }
-
-                                    if (chunk_reminder) {
-                                        DataChunk build_chunk;
-                                        DataChunk join_keys;
-                                        Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
-                                        Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
-
-                                        for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
-                                            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                                            join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                                        }
-
-                                        build_chunk.data.emplace_back(build_chunk_vector);
-                                        join_keys.data.emplace_back(join_keys_vector);
-                                        build_chunk.SetCardinality(chunk_reminder);
-                                        join_keys.SetCardinality(chunk_reminder);
-
-                                        unique_ptr<JoinHashTable> hash_table;
-                                        hash_table = this->InitializeHashTable(context);
-                                        hash_table->Build(join_keys, build_chunk);
-                                        sink.local_hash_tables.push_back(std::move(hash_table));
-                                    }
-
-                                } else if (join_key_type == LogicalType::INTEGER) {
-                                    vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
-
-                                    for (idx_t i = 0; i < chunk_amount; ++i) {
-                                        DataChunk build_chunk;
-                                        DataChunk join_keys;
-                                        Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
-                                        Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
-
-                                        for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
-                                            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                                            join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                                        }
-
-                                        build_chunk.data.emplace_back(build_chunk_vector);
-                                        join_keys.data.emplace_back(join_keys_vector);
-                                        build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
-                                        join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
-
-                                        unique_ptr<JoinHashTable> hash_table;
-                                        hash_table = this->InitializeHashTable(context);
-                                        hash_table->Build(join_keys, build_chunk);
-                                        sink.local_hash_tables.push_back(std::move(hash_table));
-                                    }
-
-                                    if (chunk_reminder) {
-                                        DataChunk build_chunk;
-                                        DataChunk join_keys;
-                                        Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
-                                        Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
-
-                                        for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
-                                            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                                            join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                                        }
-
-                                        build_chunk.data.emplace_back(build_chunk_vector);
-                                        join_keys.data.emplace_back(join_keys_vector);
-                                        build_chunk.SetCardinality(chunk_reminder);
-                                        join_keys.SetCardinality(chunk_reminder);
-
-                                        unique_ptr<JoinHashTable> hash_table;
-                                        hash_table = this->InitializeHashTable(context);
-                                        hash_table->Build(join_keys, build_chunk);
-                                        sink.local_hash_tables.push_back(std::move(hash_table));
-                                    }
-
-                                } else {
-                                    throw ParserException("Cannot recognize join_key_type");
-                                }
-
-                            } else if (build_chunk_type == LogicalType::INTEGER) {
-                                vector<int64_t> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<int64_t>>();
-
-                                if (join_key_type == LogicalType::VARCHAR) {
-                                    vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
-
-                                    for (idx_t i = 0; i < chunk_amount; ++i) {
-                                        DataChunk build_chunk;
-                                        DataChunk join_keys;
-                                        Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
-                                        Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
-
-                                        for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
-                                            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                                            join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                                        }
-
-                                        build_chunk.data.emplace_back(build_chunk_vector);
-                                        join_keys.data.emplace_back(join_keys_vector);
-                                        build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
-                                        join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
-
-                                        unique_ptr<JoinHashTable> hash_table;
-                                        hash_table = this->InitializeHashTable(context);
-                                        hash_table->Build(join_keys, build_chunk);
-                                        sink.local_hash_tables.push_back(std::move(hash_table));
-                                    }
-
-                                    if (chunk_reminder) {
-                                        DataChunk build_chunk;
-                                        DataChunk join_keys;
-                                        Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
-                                        Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
-
-                                        for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
-                                            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                                            join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                                        }
-
-                                        build_chunk.data.emplace_back(build_chunk_vector);
-                                        join_keys.data.emplace_back(join_keys_vector);
-                                        build_chunk.SetCardinality(chunk_reminder);
-                                        join_keys.SetCardinality(chunk_reminder);
-
-                                        unique_ptr<JoinHashTable> hash_table;
-                                        hash_table = this->InitializeHashTable(context);
-                                        hash_table->Build(join_keys, build_chunk);
-                                        sink.local_hash_tables.push_back(std::move(hash_table));
-                                    }
-
-                                } else if (join_key_type == LogicalType::INTEGER) {
-                                    vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
-
-                                    for (idx_t i = 0; i < chunk_amount; ++i) {
-                                        DataChunk build_chunk;
-                                        DataChunk join_keys;
-                                        Vector build_chunk_vector = Vector(build_chunk_type, true, false, STANDARD_VECTOR_SIZE);
-                                        Vector join_keys_vector = Vector(join_key_type, true, false, STANDARD_VECTOR_SIZE);
-
-                                        for (idx_t v = 0, j = i * STANDARD_VECTOR_SIZE; j < (i + 1) * STANDARD_VECTOR_SIZE; ++v, ++j) {
-                                            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                                            join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                                        }
-
-                                        build_chunk.data.emplace_back(build_chunk_vector);
-                                        join_keys.data.emplace_back(join_keys_vector);
-                                        build_chunk.SetCardinality(STANDARD_VECTOR_SIZE);
-                                        join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
-
-                                        unique_ptr<JoinHashTable> hash_table;
-                                        hash_table = this->InitializeHashTable(context);
-                                        hash_table->Build(join_keys, build_chunk);
-                                        sink.local_hash_tables.push_back(std::move(hash_table));
-                                    }
-
-                                    if (chunk_reminder) {
-                                        DataChunk build_chunk;
-                                        DataChunk join_keys;
-                                        Vector build_chunk_vector = Vector(build_chunk_type, true, false, chunk_reminder);
-                                        Vector join_keys_vector = Vector(join_key_type, true, false, chunk_reminder);
-
-                                        for (idx_t v = 0, j = chunk_amount * STANDARD_VECTOR_SIZE; j < chunk_amount * STANDARD_VECTOR_SIZE + chunk_reminder; ++v, ++j) {
-                                            build_chunk_vector.SetValue(v, Value(build_vector_data[j]));
-                                            join_keys_vector.SetValue(v, Value(join_key_data[j]));
-                                        }
-
-                                        build_chunk.data.emplace_back(build_chunk_vector);
-                                        join_keys.data.emplace_back(join_keys_vector);
-                                        build_chunk.SetCardinality(chunk_reminder);
-                                        join_keys.SetCardinality(chunk_reminder);
-
-                                        unique_ptr<JoinHashTable> hash_table;
-                                        hash_table = this->InitializeHashTable(context);
-                                        hash_table->Build(join_keys, build_chunk);
-                                        sink.local_hash_tables.push_back(std::move(hash_table));
-                                    }
-
-                                } else {
-                                    throw ParserException("Cannot recognize join_key_type");
-                                }
-
-                            } else {
-                                throw ParserException("Cannot recognize build_chunk_type");
-                            }
+                        } else if (build_chunk_type == LogicalType::INTEGER && join_key_type == LogicalType::INTEGER) {
+                            vector<int64_t> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<int64_t>>();
+                            vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
+                            this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type, chunk_amount,
+                                                   chunk_reminder, sink.hash_table, context);
+                        } else {
+                            throw ParserException("Cannot recognize build_chunk_type or join_key_type");
                         }
                     }
                 }
-                closedir(dir);
-            } else {
-                std::cerr << "Failed to open the folder." << std::endl;
             }
+            closedir(dir);
+        } else {
+            std::cerr << "Failed to open the folder." << std::endl;
+        }
 
-            // External join - partition HT
-            sink.perfect_join_executor.reset();
+        // External join - partition HT
+        sink.perfect_join_executor.reset();
 
-            sink.hash_table->ComputePartitionSizes(context.config, sink.local_hash_tables, sink.max_ht_size);
-            auto new_event = make_shared<HashJoinPartitionEvent>(pipeline, sink, sink.local_hash_tables);
-            event.InsertEvent(std::move(new_event));
-            sink.finalized = true;
-            return SinkFinalizeType::READY;
+        sink.hash_table->ComputePartitionSizes(context.config, sink.local_hash_tables, sink.max_ht_size);
+        auto new_event = make_shared<HashJoinPartitionEvent>(pipeline, sink, sink.local_hash_tables);
+        event.InsertEvent(std::move(new_event));
+        sink.finalized = true;
+        return SinkFinalizeType::READY;
+    }
+
+    //! Resume process for in-memory hash join in Finalize
+    if (global_resume && it != global_finalized_pipelines.end() && !sink.external) {
+        std::cout << "== Resume In-memory Hash Join ==" << std::endl;
+        sink.hash_table->Reset();
+#if RATCHET_SERDE_FORMAT == 0
+        std::ifstream input_file(global_resume_file, std::ios::binary);
+        std::vector<uint8_t> input_vector((std::istreambuf_iterator<char>(input_file)),std::istreambuf_iterator<char>());
+        json json_data = json::from_cbor(input_vector);
+#elif RATCHET_SERDE_FORMAT == 1
+        std::ifstream f(global_resume_file);
+            json json_data = json::parse(f);
+#endif
+        // idx_t build_size = build_vector_str.size();
+        auto build_size = (uint64_t)json_data["build_size"];
+        auto col_size = (uint64_t)json_data["column_size"];
+
+        uint64_t chunk_amount = build_size / STANDARD_VECTOR_SIZE;
+        uint64_t chunk_reminder = build_size % STANDARD_VECTOR_SIZE;
+
+        //! Build hash table
+        for (idx_t c = 0; c < col_size; ++c) {
+            LogicalType build_chunk_type = LogicalType((LogicalTypeId)json_data["build_chunk_" + to_string(c)]["type"]);
+            LogicalType join_key_type = LogicalType((LogicalTypeId)json_data["join_key_" + to_string(c)]["type"]);
+
+            if (build_chunk_type == LogicalType::VARCHAR && join_key_type == LogicalType::VARCHAR) {
+                vector<string> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<string>>();
+                vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
+                this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type, chunk_amount,
+                                       chunk_reminder, sink.hash_table, context);
+
+            } else if (build_chunk_type == LogicalType::VARCHAR && join_key_type == LogicalType::INTEGER) {
+                vector<string> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<string>>();
+                vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
+                this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type, chunk_amount,
+                                       chunk_reminder, sink.hash_table, context);
+
+            } else if (build_chunk_type == LogicalType::INTEGER && join_key_type == LogicalType::VARCHAR) {
+                vector<int64_t> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<int64_t>>();
+                vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
+                this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type, chunk_amount,
+                                       chunk_reminder, sink.hash_table, context);
+
+            } else if (build_chunk_type == LogicalType::INTEGER && join_key_type == LogicalType::INTEGER) {
+                vector<int64_t> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<int64_t>>();
+                vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
+                this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type, chunk_amount,
+                                       chunk_reminder, sink.hash_table, context);
+            } else {
+                throw ParserException("Cannot recognize build_chunk_type or join_key_type");
+            }
         }
     }
 
-    //! Suspend Process for Finalize
-    // if external hash join, checking suspend and serializing states happened in Sink()
+    //! Suspend process for external hash join in Finalize
     if (sink.external && global_suspend_start) {
+        // if external hash join, checking suspend and serializing states happened in Sink()
         exit(0);
     }
-    // if not external hash join, checking suspend and serializing states happened here
+
+    //! Suspend process for in-memory hash join in Finalize
     if (!sink.external && global_suspend) {
         std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
         uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1027,7 +716,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
         }
     }
 
-    //! Regular Process for Finalize
+    //! Regular process in Finalize
     if (sink.external) {
         D_ASSERT(can_go_external);
         // External join - partition HT
