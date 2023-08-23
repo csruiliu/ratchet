@@ -482,13 +482,13 @@ public:
 };
 
 template <class T, class S>
-void PhysicalHashJoin::RebuildHashTable(vector<T>& build_vector_data,
-                                        vector<S>& join_key_data,
-                                        const LogicalType& build_chunk_type,
-                                        const LogicalType& join_key_type,
+void PhysicalHashJoin::RebuildHashTable(vector<T> &build_vector_data,
+                                        vector<S> &join_key_data,
+                                        const LogicalType &build_chunk_type,
+                                        const LogicalType &join_key_type,
                                         uint64_t chunk_amount,
                                         uint64_t chunk_reminder,
-                                        const unique_ptr<JoinHashTable>& sink_hash_table,
+                                        HashJoinGlobalSinkState &sink,
                                         ClientContext &context) const {
 
     unique_ptr<JoinHashTable> hash_table;
@@ -511,7 +511,7 @@ void PhysicalHashJoin::RebuildHashTable(vector<T>& build_vector_data,
         join_keys.SetCardinality(STANDARD_VECTOR_SIZE);
 
         hash_table->Build(join_keys, build_chunk);
-        sink_hash_table->Merge(*hash_table);
+        sink.hash_table->Merge(*hash_table);
         hash_table->Reset();
     }
 
@@ -532,7 +532,7 @@ void PhysicalHashJoin::RebuildHashTable(vector<T>& build_vector_data,
         join_keys.SetCardinality(chunk_reminder);
 
         hash_table->Build(join_keys, build_chunk);
-        sink_hash_table->Merge(*hash_table);
+        sink.hash_table->Merge(*hash_table);
         hash_table->Reset();
     }
 }
@@ -581,9 +581,6 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                     uint64_t chunk_amount = part_build_size / STANDARD_VECTOR_SIZE;
                     uint64_t chunk_reminder = part_build_size % STANDARD_VECTOR_SIZE;
 
-                    // unique_ptr<JoinHashTable> hash_table;
-                    // hash_table = this->InitializeHashTable(context);
-
                     //! Build hash table
                     for (idx_t c = 0; c < col_size; ++c) {
                         LogicalType build_chunk_type = LogicalType((LogicalTypeId)json_data["build_chunk_" + to_string(c)]["type"]);
@@ -592,26 +589,26 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                         if (build_chunk_type == LogicalType::VARCHAR && join_key_type == LogicalType::VARCHAR) {
                             vector<string> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<string>>();
                             vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
-                            this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type, chunk_amount,
-                                                   chunk_reminder, sink.hash_table, context);
+                            this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type,
+                                                   chunk_amount, chunk_reminder, sink, context);
 
                         } else if (build_chunk_type == LogicalType::VARCHAR && join_key_type == LogicalType::INTEGER) {
                             vector<string> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<string>>();
                             vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
-                            this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type, chunk_amount,
-                                                   chunk_reminder, sink.hash_table, context);
+                            this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type,
+                                                   chunk_amount, chunk_reminder, sink, context);
 
                         } else if (build_chunk_type == LogicalType::INTEGER && join_key_type == LogicalType::VARCHAR) {
                             vector<int64_t> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<int64_t>>();
                             vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
-                            this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type, chunk_amount,
-                                                   chunk_reminder, sink.hash_table, context);
+                            this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type,
+                                                   chunk_amount, chunk_reminder, sink, context);
 
                         } else if (build_chunk_type == LogicalType::INTEGER && join_key_type == LogicalType::INTEGER) {
                             vector<int64_t> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<int64_t>>();
                             vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
-                            this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type, chunk_amount,
-                                                   chunk_reminder, sink.hash_table, context);
+                            this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type,
+                                                   chunk_amount, chunk_reminder, sink, context);
                         } else {
                             throw ParserException("Cannot recognize build_chunk_type or join_key_type");
                         }
@@ -660,26 +657,26 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
             if (build_chunk_type == LogicalType::VARCHAR && join_key_type == LogicalType::VARCHAR) {
                 vector<string> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<string>>();
                 vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
-                this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type, chunk_amount,
-                                       chunk_reminder, sink.hash_table, context);
+                this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type,
+                                       chunk_amount, chunk_reminder, sink, context);
 
             } else if (build_chunk_type == LogicalType::VARCHAR && join_key_type == LogicalType::INTEGER) {
                 vector<string> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<string>>();
                 vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
-                this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type, chunk_amount,
-                                       chunk_reminder, sink.hash_table, context);
+                this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type,
+                                       chunk_amount, chunk_reminder, sink, context);
 
             } else if (build_chunk_type == LogicalType::INTEGER && join_key_type == LogicalType::VARCHAR) {
                 vector<int64_t> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<int64_t>>();
                 vector<string> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<string>>();
-                this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type, chunk_amount,
-                                       chunk_reminder, sink.hash_table, context);
+                this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type,
+                                       chunk_amount, chunk_reminder, sink, context);
 
             } else if (build_chunk_type == LogicalType::INTEGER && join_key_type == LogicalType::INTEGER) {
                 vector<int64_t> build_vector_data = json_data["build_chunk_" + to_string(c)]["data"].get<vector<int64_t>>();
                 vector<int64_t> join_key_data = json_data["join_key_" + to_string(c)]["data"].get<vector<int64_t>>();
-                this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type, chunk_amount,
-                                       chunk_reminder, sink.hash_table, context);
+                this->RebuildHashTable(build_vector_data, join_key_data, build_chunk_type, join_key_type,
+                                       chunk_amount, chunk_reminder, sink, context);
             } else {
                 throw ParserException("Cannot recognize build_chunk_type or join_key_type");
             }
