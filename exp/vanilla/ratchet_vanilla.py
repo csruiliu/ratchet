@@ -10,15 +10,23 @@ def main():
     pd.set_option('display.float_format', '{:.1f}'.format)
 
     parser = argparse.ArgumentParser()
+
     parser.add_argument("-q", "--query_name", type=str, action="store", required=True,
                         choices=['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9'],
                         help="indicate the query id")
+
     parser.add_argument("-d", "--database", type=str, action="store", required=True, default="memory",
                         help="indicate the database location, memory or other location")
+
     parser.add_argument("-df", "--data_folder", type=str, action="store", required=True,
-                        help="indicate the data source folder for conversion such as <tpch/dataset/parquet/sf1>")
+                        help="indicate the TPC-H dataset for Vanilla Queries, such as <exp/dataset/tpch/parquet-sf1>")
+
     parser.add_argument("-ut", "--update_table", action="store_true",
                         help="force to update table in database")
+
+    parser.add_argument("-tmp", "--tmp_folder", type=str, action="store", required=True,
+                        help="indicate the tmp folder for DuckDB, such as <exp/tmp>")
+
     parser.add_argument("-td", "--thread", type=int, action="store", default=1,
                         help="indicate the number of threads in DuckDB")
 
@@ -44,6 +52,7 @@ def main():
     qid = args.query_name
     database = args.database
     data_folder = args.data_folder
+    tmp_folder = args.tmp_folder
     thread = args.thread
     suspend_query = args.suspend_query
     resume_query = args.resume_query
@@ -67,8 +76,7 @@ def main():
     else:
         db_conn = duckdb.connect(database=database)
 
-    duck_tmp = "/home/ruiliu/Develop/ratchet-duckdb/ratchet/tmp"
-    db_conn.execute(f"PRAGMA temp_directory='{duck_tmp}'")
+    db_conn.execute(f"PRAGMA temp_directory='{tmp_folder}'")
     db_conn.execute(f"PRAGMA threads={thread}")
 
     tpch_table_names = ["part", "supplier", "partsupp", "customer", "orders", "lineitem", "nation", "region"]
