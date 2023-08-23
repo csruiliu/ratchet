@@ -85,10 +85,10 @@ namespace duckdb {
                                   GlobalSinkState &gstate) const override;
 
         template <class T, class S>
-        void RebuildHashTable(vector<T>& build_vector_data, vector<S>& join_key_data,
-                              const LogicalType& build_chunk_type, const LogicalType& join_key_type,
+        void RebuildHashTable(vector<T> &build_vector_data, vector<S> &join_key_data,
+                              const LogicalType &build_chunk_type, const LogicalType &join_key_type,
                               uint64_t chunk_amount, uint64_t chunk_reminder,
-                              const unique_ptr<JoinHashTable>& sink_hash_table, ClientContext &context) const;
+                              HashJoinGlobalSinkState &sink, ClientContext &context) const;
 
         bool IsSink() const override {
             return true;
