@@ -8,12 +8,11 @@ from queries import *
 
 def main():
     pd.set_option('display.float_format', '{:.1f}'.format)
-
     parser = argparse.ArgumentParser()
-    parser.add_argument("-q", "--query_name", type=str, action="store", required=True,
-                        choices=['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9'],
+    parser.add_argument("-q", "--query", type=str, action="store", required=True,
+                        choices=['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9', 'q10', 'q11', 
+                                 'q12', 'q13', 'q14', 'q15', 'q16', 'q17', 'q18', 'q19', 'q20', 'q21', 'q22'], 
                         help="indicate the query id")
-
     parser.add_argument("-d", "--database", type=str, action="store", required=True, default="memory",
                         help="indicate the database location, memory or other location")
 
@@ -67,6 +66,8 @@ def main():
     if resume_query:
         resume_location = args.resume_location
 
+    start = time.perf_counter()
+
     # open and connect a database
     if database == "memory":
         db_conn = duckdb.connect(database=':memory:')
@@ -85,6 +86,7 @@ def main():
         db_conn.execute(f"CREATE TABLE IF NOT EXISTS {t} AS SELECT * FROM read_parquet('{data_folder}/{t}.parquet');")
 
     # start the query execution
+    results = None
     if suspend_query:
         execution = db_conn.execute_suspend(exec_query,
                                             suspend_location,
@@ -96,9 +98,18 @@ def main():
         execution = db_conn.execute_resume(exec_query, resume_location, partition_suspend_resume)
         results = execution.fetchdf()
     else:
-        results = db_conn.execute(exec_query).fetchdf()
+        if isinstance(exec_query, list):
+            for idx, query in enumerate(exec_query):
+                if idx == len(exec_query) - 1:
+                    results = db_conn.execute(query).fetchdf()
+                else:
+                    db_conn.execute(query)
+        else:
+            results = db_conn.execute(exec_query).fetchdf()
 
     print(results)
+    end = time.perf_counter()
+    print("Total Runtime: {}".format(end - start))
     db_conn.close()
 
 
