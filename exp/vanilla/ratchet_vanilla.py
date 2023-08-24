@@ -10,7 +10,7 @@ def main():
     pd.set_option('display.float_format', '{:.1f}'.format)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-q", "--query_name", type=str, action="store", required=True,
+    parser.add_argument("-q", "--query", type=str, action="store", required=True,
                         choices=['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9'],
                         help="indicate the query id")
 
@@ -47,7 +47,7 @@ def main():
                         help="indicate whether we will use partitioned file for suspend and resume")
     args = parser.parse_args()
 
-    qid = args.query_name
+    qid = args.query
     database = args.database
     data_folder = args.data_folder
     tmp_folder = args.tmp_folder
