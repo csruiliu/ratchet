@@ -46,7 +46,7 @@ def main():
                         help="indicate whether we will use partitioned file for suspend and resume")
     args = parser.parse_args()
 
-    qid = args.query_name
+    qid = args.query
     database = args.database
     data_folder = args.data_folder
     tmp_folder = args.tmp_folder
