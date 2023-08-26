@@ -117,7 +117,7 @@ public:
 	void Partition(vector<GroupedAggregateHashTable *> &partition_hts, hash_t mask, idx_t shift);
 
 	void Finalize();
-
+    
 private:
 	HtEntryType entry_type;
 

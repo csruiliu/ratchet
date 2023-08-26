@@ -21,12 +21,12 @@ namespace duckdb {
 //! 0: no ratchet printout
 //! 1: printout function invoking
 //! 2: printout function invoking + query plan
-#define RATCHET_PRINT 0
+#define RATCHET_PRINT 2
 
 //! Ratchet Serialize and Deserialize Format
 //! 0: CBOR
 //! 1: JSON
-#define RATCHET_SERDE_FORMAT 0
+#define RATCHET_SERDE_FORMAT 1
 
 //! External Join
 //! 0: Disable

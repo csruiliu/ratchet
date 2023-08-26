@@ -606,7 +606,7 @@ void VerifyNullHandling(DataChunk &chunk, AggregateState &state, const vector<un
 void PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                          LocalSourceState &lstate) const {
 #if RATCHET_PRINT >= 1
-    std::cout << "[PhysicalUngroupedAggregate::GetData]" << std::endl;
+    std::cout << "[PhysicalUngroupedAggregate::GetData] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
 #endif
 	auto &gstate = (UngroupedAggregateGlobalState &)*sink_state;
 	auto &state = (UngroupedAggregateState &)gstate_p;

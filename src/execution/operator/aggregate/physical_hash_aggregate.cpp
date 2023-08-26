@@ -339,8 +339,14 @@ void PhysicalHashAggregate::SinkDistinct(ExecutionContext &context, GlobalSinkSt
 
 SinkResultType PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalSinkState &state, LocalSinkState &lstate,
                                            DataChunk &input) const {
+#if RATCHET_PRINT >= 1
+    std::cout << "[PhysicalHashAggregate::Sink] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
+#endif
 	auto &llstate = (HashAggregateLocalState &)lstate;
 	auto &gstate = (HashAggregateGlobalState &)state;
+
+    std::cout << "== INPUT ==" << std::endl;
+    input.Print();
 
 	if (distinct_collection_info) {
 		SinkDistinct(context, state, lstate, input);
@@ -351,6 +357,9 @@ SinkResultType PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalSink
 	}
 
 	DataChunk &aggregate_input_chunk = llstate.aggregate_input_chunk;
+
+    std::cout << "== AGGREGATE INPUT CHUNK ==" << std::endl;
+    aggregate_input_chunk.Print();
 
 	auto &aggregates = grouped_aggregate_data.aggregates;
 	idx_t aggregate_input_idx = 0;
@@ -785,6 +794,36 @@ SinkFinalizeType PhysicalHashAggregate::FinalizeDistinct(Pipeline &pipeline, Eve
 	return SinkFinalizeType::READY;
 }
 
+SinkFinalizeType PhysicalHashAggregate::FinalizeInternalSuspension(Pipeline &pipeline, Event &event,
+                                                                   ClientContext &context, GlobalSinkState &gstate_p,
+                                                                   bool check_distinct) const {
+    auto &gstate = (HashAggregateGlobalState &)gstate_p;
+
+    if (check_distinct && distinct_collection_info) {
+        // There are distinct aggregates
+        // If these are partitioned those need to be combined first
+        // Then we Finalize again, skipping this step
+        return FinalizeDistinct(pipeline, event, context, gstate_p);
+    }
+
+    bool any_partitioned = false;
+    std::cout << "[FinalizeInternalSuspension] Group Size:" << groupings.size() << std::endl;
+    for (idx_t i = 0; i < groupings.size(); i++) {
+        auto &grouping = groupings[i];
+        auto &grouping_gstate = gstate.grouping_states[i];
+
+        bool is_partitioned = grouping.table_data.Finalize(context, *grouping_gstate.table_state);
+        if (is_partitioned) {
+            any_partitioned = true;
+        }
+    }
+    if (any_partitioned) {
+        auto new_event = make_shared<HashAggregateMergeEvent>(*this, gstate, &pipeline);
+        event.InsertEvent(std::move(new_event));
+    }
+    return SinkFinalizeType::READY;
+}
+
 SinkFinalizeType PhysicalHashAggregate::FinalizeInternal(Pipeline &pipeline, Event &event, ClientContext &context,
                                                          GlobalSinkState &gstate_p, bool check_distinct) const {
 	auto &gstate = (HashAggregateGlobalState &)gstate_p;
@@ -800,11 +839,14 @@ SinkFinalizeType PhysicalHashAggregate::FinalizeInternal(Pipeline &pipeline, Eve
 	for (idx_t i = 0; i < groupings.size(); i++) {
 		auto &grouping = groupings[i];
 		auto &grouping_gstate = gstate.grouping_states[i];
-
 		bool is_partitioned = grouping.table_data.Finalize(context, *grouping_gstate.table_state);
+
 		if (is_partitioned) {
+            std::cout << "[PhysicalHashAggregate::FinalizeInternal] ANY PARTITIONED" << std::endl;
 			any_partitioned = true;
-		}
+		} else {
+            std::cout << "[PhysicalHashAggregate::FinalizeInternal] NON PARTITIONED" << std::endl;
+        }
 	}
 	if (any_partitioned) {
 		auto new_event = make_shared<HashAggregateMergeEvent>(*this, gstate, &pipeline);
@@ -815,6 +857,21 @@ SinkFinalizeType PhysicalHashAggregate::FinalizeInternal(Pipeline &pipeline, Eve
 
 SinkFinalizeType PhysicalHashAggregate::Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
                                                  GlobalSinkState &gstate_p) const {
+#if RATCHET_PRINT >= 1
+    std::cout << "[PhysicalHashAggregate::Finalize] for pipeline " << pipeline.GetPipelineId() << std::endl;
+#endif
+    if (global_suspend) {
+        std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
+        uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
+        if (time_dur_ms > global_suspend_point_ms) {
+            global_suspend_start = true;
+
+            global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
+            // Serialize PerfectHashTable to Disk
+            FinalizeInternalSuspension(pipeline, event, context, gstate_p, true);
+            exit(0);
+        }
+    }
 	return FinalizeInternal(pipeline, event, context, gstate_p, true);
 }
 
@@ -878,6 +935,9 @@ unique_ptr<LocalSourceState> PhysicalHashAggregate::GetLocalSourceState(Executio
 
 void PhysicalHashAggregate::GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                     LocalSourceState &lstate_p) const {
+#if RATCHET_PRINT >= 1
+    std::cout << "[PhysicalHashAggregate::GetData] for pipeline " << context.pipeline->GetPipelineId() << std::endl;
+#endif
 	auto &sink_gstate = (HashAggregateGlobalState &)*sink_state;
 	auto &gstate = (PhysicalHashAggregateGlobalSourceState &)gstate_p;
 	auto &lstate = (PhysicalHashAggregateLocalSourceState &)lstate_p;
@@ -894,6 +954,7 @@ void PhysicalHashAggregate::GetData(ExecutionContext &context, DataChunk &chunk,
 		if (chunk.size() != 0) {
 			return;
 		}
+
 		// move to the next table
 		lock_guard<mutex> l(gstate.lock);
 		radix_idx++;

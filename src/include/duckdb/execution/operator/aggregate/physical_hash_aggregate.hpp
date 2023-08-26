@@ -107,6 +107,8 @@ public:
 	                          GlobalSinkState &gstate) const override;
 	SinkFinalizeType FinalizeInternal(Pipeline &pipeline, Event &event, ClientContext &context, GlobalSinkState &gstate,
 	                                  bool check_distinct) const;
+    SinkFinalizeType FinalizeInternalSuspension(Pipeline &pipeline, Event &event, ClientContext &context,
+                                                GlobalSinkState &gstate, bool check_distinct) const;
 
 	unique_ptr<LocalSinkState> GetLocalSinkState(ExecutionContext &context) const override;
 	unique_ptr<GlobalSinkState> GetGlobalSinkState(ClientContext &context) const override;
