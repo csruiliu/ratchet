@@ -127,6 +127,9 @@ void RadixPartitionedHashTable::PopulateGroupChunk(DataChunk &group_chunk, DataC
 void RadixPartitionedHashTable::Sink(ExecutionContext &context, GlobalSinkState &state, LocalSinkState &lstate,
                                      DataChunk &groups_input, DataChunk &payload_input,
                                      const vector<idx_t> &filter) const {
+#if RATCHET_PRINT >= 1
+    std::cout << "[RadixPartitionedHashTable::Sink]" << std::endl;
+#endif
 	auto &llstate = (RadixHTLocalState &)lstate;
 	auto &gstate = (RadixHTGlobalState &)state;
 	D_ASSERT(!gstate.is_finalized);
@@ -202,13 +205,21 @@ void RadixPartitionedHashTable::Combine(ExecutionContext &context, GlobalSinkSta
 }
 
 bool RadixPartitionedHashTable::Finalize(ClientContext &context, GlobalSinkState &gstate_p) const {
+#if RATCHET_PRINT >= 1
+    std::cout << "[RadixPartitionedHashTable::Finalize]" << std::endl;
+#endif
 	auto &gstate = (RadixHTGlobalState &)gstate_p;
+#if RATCHET_PRINT >= 1
+    std::cout << "[RadixPartitionedHashTable::Finalize] TOTAL AGGR GROUPS: " << gstate.total_groups << std::endl;
+#endif
+
 	D_ASSERT(!gstate.is_finalized);
 	gstate.is_finalized = true;
 
 	// special case if we have non-combinable aggregates
 	// we have already aggreagted into a global shared HT that does not require any additional finalization steps
 	if (ForceSingleHT(gstate)) {
+        std::cout << "[RadixPartitionedHashTable::Finalize] ForceSingleHT" << std::endl;
 		D_ASSERT(gstate.finalized_hts.size() <= 1);
 		D_ASSERT(gstate.finalized_hts.empty() || gstate.finalized_hts[0]);
 		return false;
@@ -227,6 +238,7 @@ bool RadixPartitionedHashTable::Finalize(ClientContext &context, GlobalSinkState
 
 	auto &allocator = Allocator::Get(context);
 	if (any_partitioned) {
+        std::cout << "[RadixPartitionedHashTable::Finalize] ANY PARTITIONED" << std::endl;
 		// if one is partitioned, all have to be
 		// this should mostly have already happened in Combine, but if not we do it here
 		for (auto &pht : gstate.intermediate_hts) {
@@ -245,7 +257,7 @@ bool RadixPartitionedHashTable::Finalize(ClientContext &context, GlobalSinkState
 	} else { // in the non-partitioned case we immediately combine all the unpartitioned hts created by the threads.
 		     // TODO possible optimization, if total count < limit for 32 bit ht, use that one
 		     // create this ht here so finalize needs no lock on gstate
-
+        std::cout << "[RadixPartitionedHashTable::Finalize] NON PARTITIONED" << std::endl;
 		gstate.finalized_hts.push_back(make_shared<GroupedAggregateHashTable>(
 		    context, allocator, group_types, op.payload_types, op.bindings, HtEntryType::HT_WIDTH_64));
 		for (auto &pht : gstate.intermediate_hts) {
