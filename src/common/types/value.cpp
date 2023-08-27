@@ -1261,6 +1261,20 @@ string Value::ToString() const {
 	return DefaultCastAs(LogicalType::VARCHAR).str_value;
 }
 
+int64_t Value::ToInt64() const {
+    if (IsNull()) {
+        return 0;
+    }
+    return DefaultCastAs(LogicalType::INTEGER).value_.bigint;
+}
+
+double Value::ToDouble() const {
+    if (IsNull()) {
+        return 0.0;
+    }
+    return DefaultCastAs(LogicalType::DOUBLE).value_.double_;
+}
+
 string Value::ToSQLString() const {
 	if (IsNull()) {
 		return ToString();
