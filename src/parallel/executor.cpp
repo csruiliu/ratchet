@@ -280,6 +280,7 @@ void Executor::VerifyPipelines() {
 #endif
 }
 
+//! Assigning pipeline id starting from 1
 void Executor::AssignPipelineIds() {
     idx_t pipeline_id = 1;
     for (auto &pipeline : pipelines) {
