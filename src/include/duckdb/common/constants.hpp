@@ -125,7 +125,7 @@ extern uint64_t global_suspend_point_ms;
 // It is for the cases where checking suspend and triggering suspend are in different functions
 extern bool global_suspend_start;
 // Records the ids of the pipelines that have been finalized
-extern std::vector<idx_t> global_finalized_pipelines;
+extern std::vector<uint16_t> global_finalized_pipelines;
 // Indicates the id of the pipeline that should run when resuming
 extern uint16_t global_resume_pipeline;
 // Records the ids of the hashtable partitions
