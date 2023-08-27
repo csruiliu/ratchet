@@ -327,6 +327,9 @@ OperatorResultType PipelineExecutor::Execute(DataChunk &input, DataChunk &result
 }
 
 void PipelineExecutor::FetchFromSource(DataChunk &result) {
+#if RATCHET_PRINT >= 1
+    std::cout << "[PipelineExecutor::FetchFromSource]" << std::endl;
+#endif
     StartOperator(pipeline.source);
 	pipeline.source->GetData(context, result, *pipeline.source_state, *local_source_state);
 	if (result.size() != 0 && requires_batch_index) {

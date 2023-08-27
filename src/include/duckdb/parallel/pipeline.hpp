@@ -119,7 +119,7 @@ private:
 	//! The base batch index of this pipeline
 	idx_t base_batch_index = 0;
 
-    //! The Pipeline ID
+    //! The Pipeline ID, default is 0, starting from 1 when assigning to pipelines
     idx_t pipeline_id = 0;
 
 private:

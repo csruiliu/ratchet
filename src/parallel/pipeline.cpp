@@ -69,18 +69,28 @@ public:
                 json_data = json::parse(inputFile);
 #endif
             }
-            vector<idx_t> pipeline_ids = json_data.at("pipeline_ids");
 
-            for (auto pl_id : pipeline_ids) {
-                global_finalized_pipelines.push_back(pl_id);
-            }
-
+            //! First, check the resume_pipeline, then, check the pipeline_complete
+            global_resume_pipeline = json_data.at("pipeline_resume");
             idx_t current_id = pipeline.GetPipelineId();
-            auto it = std::find(global_finalized_pipelines.begin(),global_finalized_pipelines.end(),current_id);
-            if (it != global_finalized_pipelines.end()) {
-                event->FinishTask();
-                pipeline_executor.reset();
-                return TaskExecutionResult::TASK_FINISHED;
+            if (global_resume_pipeline != 0) {
+                if (current_id != global_resume_pipeline) {
+                    event->FinishTask();
+                    pipeline_executor.reset();
+                    return TaskExecutionResult::TASK_FINISHED;
+                }
+            } else {
+                vector<uint16_t> pipeline_complete = json_data.at("pipeline_complete");
+                for (auto pl_id : pipeline_complete) {
+                    global_finalized_pipelines.emplace_back(pl_id);
+                }
+
+                auto it = std::find(global_finalized_pipelines.begin(),global_finalized_pipelines.end(),current_id);
+                if (it != global_finalized_pipelines.end()) {
+                    event->FinishTask();
+                    pipeline_executor.reset();
+                    return TaskExecutionResult::TASK_FINISHED;
+                }
             }
         }
 
