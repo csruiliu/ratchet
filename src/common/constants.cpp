@@ -16,18 +16,19 @@ const transaction_t NOT_DELETED_ID = NumericLimits<transaction_t>::Maximum() - 1
 const transaction_t MAXIMUM_QUERY_ID = NumericLimits<transaction_t>::Maximum();   // 2^64
 
 bool global_suspend = false;
-bool global_suspend_start = false;
 bool global_resume = false;
 string global_suspend_file = "sfile";
-string global_suspend_folder = "sfolder";
 string global_resume_file = "rfile";
+string global_suspend_folder = "sfolder";
 string global_resume_folder = "rfolder";
 std::chrono::steady_clock::time_point global_start = {};
 uint64_t global_suspend_point_ms = NumericLimits<transaction_t>::Maximum();
+bool global_suspend_start = false;
+std::vector<idx_t> global_finalized_pipelines;
+uint16_t global_resume_pipeline = 0;
+atomic<uint16_t> global_ht_partition(0);
 uint16_t global_threads = 0;
 atomic<uint16_t> global_stopped_threads(0);
-vector<idx_t> global_finalized_pipelines;
-atomic<uint16_t> global_ht_partition(0);
 
 uint64_t NextPowerOfTwo(uint64_t v) {
 	v--;
