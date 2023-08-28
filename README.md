@@ -112,13 +112,14 @@ We also exploit `CRIU` to benchmark the performance of suspending and resuming q
 
 ## Source Code Modification
 
-Usually, query suspension should happen in Finalize(), while query resumption should happen in the Sink(). However, it is still case-by-case due to implementation or performance reason.
+`Sink()`, `Finalize()`, and `GetData()` are the key functions for query suspension and resumption. Usually, query suspension should happen in `Finalize()`, while query resumption should happen in the Sink(). However, it is still case-by-case due to implementation or performance reason, for example, resumption for aggregation may happen in `GetData()`.
 
 1. Adding suspension and resumption APIs in `pyconnection.cpp` and `pyconnection.hp`
 2. Checking finished pipelines when resumption in `pipeline.cpp`
 3. Suspending and resuming ungrouped aggregation in `physical_ungrouped_aggregate.cpp`
 4. Suspending and resuming in-memory hash join in `physical_hash_join.cpp` and `perfect_hash_join_executor.cpp`
-5. Suspending and resuming in-memory hash join in `physical_hash_join.cpp`
+5. Suspending and resuming external hash join in `physical_hash_join.cpp`
+6. Suspending and resuming grouped aggregation in `physical_hash_aggregate.cpp`
 
 ### List of Modification
 
@@ -131,18 +132,19 @@ Usually, query suspension should happen in Finalize(), while query resumption sh
 7. src/include/duckdb/execution/executor.hpp
 8. src/include/duckdb/main/client_config.hpp
 9. src/include/duckdb/parallel/pipeline.hpp
-10. src/execution/operator/aggregate/physical_hash_aggregate.cpp
-11. src/execution/operator/aggregate/physical_ungrouped_aggregate.cpp
-12. src/execution/operator/join/perfect_hash_join_executor.cpp
-13. src/execution/operator/join/physical_hash_join.cpp
-14. src/execution/operator/join/physical_range_join.cpp
-15. src/execution/operator/order/physical_order.cpp
-16. src/execution/operator/scan/physical_table_scan.cpp
-17. src/execution/join_hashtable.cpp
-18. src/main/settings/settings.cpp
-19. src/parallel/executor.cpp
-20. src/parallel/pipeline.cpp
-21. src/parallel/pipeline_executor.cpp
+10. src/common/constants.cpp 
+11. src/main/settings/settings.cpp
+12. src/execution/operator/aggregate/physical_hash_aggregate.cpp
+13. src/execution/operator/aggregate/physical_ungrouped_aggregate.cpp
+14. src/execution/operator/join/perfect_hash_join_executor.cpp
+15. src/execution/operator/join/physical_hash_join.cpp
+16. src/execution/operator/join/physical_range_join.cpp
+17. src/execution/operator/order/physical_order.cpp
+18. src/execution/operator/scan/physical_table_scan.cpp
+19. src/execution/join_hashtable.cpp
+20. src/parallel/executor.cpp
+21. src/parallel/pipeline.cpp
+22. src/parallel/pipeline_executor.cpp
 
 ## DuckDB
 DuckDB is a high-performance analytical database system. It is designed to be fast, reliable and easy to use. DuckDB provides a rich SQL dialect, with support far beyond basic SQL. DuckDB supports arbitrary and nested correlated subqueries, window functions, collations, complex types (arrays, structs), and more. For more information on the goals of DuckDB, please refer to [the Why DuckDB page on our website](https://duckdb.org/why_duckdb).
