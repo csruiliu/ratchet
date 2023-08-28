@@ -533,14 +533,14 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
             std::cout << "== Serialization for aggregation ==" << std::endl;
             json jsonfile;
 
-            vector<string> aggregate_values;
-
-            global_finalized_pipelines.push_back(pipeline.GetPipelineId());
-            jsonfile["pipeline_ids"] = global_finalized_pipelines;
+            global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
+            jsonfile["pipeline_complete"] = global_finalized_pipelines;
+            jsonfile["pipeline_resume"] = global_resume_pipeline;
 
             DataChunk chunk;
             chunk.Initialize(Allocator::DefaultAllocator(), this->GetTypes());
 
+            vector<string> aggregate_values;
             // initialize the result chunk with the aggregate values
             chunk.SetCardinality(1);
             for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
@@ -632,7 +632,6 @@ void PhysicalUngroupedAggregate::GetData(ExecutionContext &context, DataChunk &c
         std::ifstream f(global_resume_file);
         json json_data = json::parse(f);
 #endif
-        vector<idx_t> pipeline_ids = json_data.at("pipeline_ids");
         vector<string> aggregate_values = json_data.at("aggregate_values");
 
         for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
