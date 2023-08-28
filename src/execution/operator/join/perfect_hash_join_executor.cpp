@@ -300,7 +300,7 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
 
     //! TODO: handle ht.build_types.size() != ht.condition_types.size()
     D_ASSERT(ht.build_types.size() == ht.condition_types.size());
-    json_data["pipeline_ids"] = global_finalized_pipelines;
+    json_data["pipeline_complete"] = global_finalized_pipelines;
     json_data["column_size"] = ht.build_types.size();
     json_data["build_size"] = build_size;
 
@@ -317,7 +317,7 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
         } else if (ht.build_types.at(i) == LogicalType::INTEGER) {
             vector<int64_t> value_vector;
             for (idx_t j = 0; j < build_size; j++) {
-                value_vector.push_back(stoi(build_vec.GetValue(j).ToString()));
+                value_vector.push_back(build_vec.GetValue(j).ToInt64());
             }
             json_data["build_chunk_" + to_string(i)]["type"] = LogicalType::INTEGER;
             json_data["build_chunk_" + to_string(i)]["data"] = value_vector;
@@ -339,7 +339,7 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
         } else if (ht.condition_types.at(i) == LogicalType::INTEGER) {
             vector<int64_t> key_vector;
             for (idx_t j = 0; j < build_size; j++) {
-                key_vector.push_back(stoi(key_vec.GetValue(j).ToString()));
+                key_vector.push_back(key_vec.GetValue(j).ToInt64());
             }
             json_data["join_key_" + to_string(i)]["type"] = LogicalType::INTEGER;
             json_data["join_key_" + to_string(i)]["data"] = key_vector;

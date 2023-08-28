@@ -227,7 +227,7 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
 		ht.Build(lstate.join_keys, lstate.build_chunk);
 	}
 
-    // Serialization for external hash join
+    //! Serialization for external hash join
     if (global_suspend && gstate.external) {
         std::cout << "== Serialization for external hash join ==" << std::endl;
         D_ASSERT(lstate.join_keys.size() == lstate.build_chunk.size());
@@ -241,7 +241,8 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
             json json_data;
 
             global_finalized_pipelines.emplace_back(context.pipeline->GetPipelineId());
-            json_data["pipeline_ids"] = global_finalized_pipelines;
+            json_data["pipeline_complete"] = global_finalized_pipelines;
+            json_data["pipeline_resume"] = global_resume_pipeline;
 
             //! TODO: handle ht.build_types.size() != ht.condition_types.size()
             D_ASSERT(ht.build_types.size() == ht.condition_types.size());
@@ -255,7 +256,7 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
                 if (lstate.join_keys.GetTypes()[i] == LogicalType::INTEGER) {
                     vector<int64_t> key_vector;
                     for (idx_t j = 0; j < build_size; j++) {
-                        key_vector.emplace_back(std::stoi(lstate.join_keys.data[i].GetValue(j).ToString()));
+                        key_vector.emplace_back(lstate.join_keys.data[i].GetValue(j).ToInt64());
                     }
                     json_data["join_key_" + to_string(i)]["type"] = LogicalType::INTEGER;
                     json_data["join_key_" + to_string(i)]["data"] = key_vector;
@@ -275,7 +276,7 @@ SinkResultType PhysicalHashJoin::Sink(ExecutionContext &context, GlobalSinkState
                 if (lstate.build_chunk.GetTypes()[i] == LogicalType::INTEGER) {
                     vector<int64_t> value_vector;
                     for (idx_t j = 0; j < build_size; j++) {
-                        value_vector.emplace_back(stoi(lstate.build_chunk.data[i].GetValue(j).ToString()));
+                        value_vector.emplace_back(lstate.build_chunk.data[i].GetValue(j).ToInt64());
                     }
                     json_data["build_chunk_" + to_string(i)]["type"] = LogicalType::INTEGER;
                     json_data["build_chunk_" + to_string(i)]["data"] = value_vector;
@@ -572,7 +573,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
                     json json_data = json::from_cbor(input_vector);
 #elif RATCHET_SERDE_FORMAT == 1
                     std::ifstream f(resume_folder.append("/").append(fileName));
-                        json json_data = json::parse(f);
+                    json json_data = json::parse(f);
 #endif
                     // idx_t build_size = build_vector_str.size();
                     auto part_build_size = (uint64_t)json_data["part_build_size"];
@@ -640,7 +641,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
         json json_data = json::from_cbor(input_vector);
 #elif RATCHET_SERDE_FORMAT == 1
         std::ifstream f(global_resume_file);
-            json json_data = json::parse(f);
+        json json_data = json::parse(f);
 #endif
         // idx_t build_size = build_vector_str.size();
         auto build_size = (uint64_t)json_data["build_size"];
@@ -692,8 +693,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
     //! Suspend process for in-memory hash join in Finalize
     if (!sink.external && global_suspend) {
         std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
-        uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                suspend_check - global_start).count();
+        uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
         if (time_dur_ms > global_suspend_point_ms) {
             global_suspend_start = true;
             for (auto &local_ht : sink.local_hash_tables) {
