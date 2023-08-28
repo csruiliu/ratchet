@@ -345,9 +345,6 @@ SinkResultType PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalSink
 	auto &llstate = (HashAggregateLocalState &)lstate;
 	auto &gstate = (HashAggregateGlobalState &)state;
 
-    std::cout << "== INPUT ==" << std::endl;
-    input.Print();
-
 	if (distinct_collection_info) {
 		SinkDistinct(context, state, lstate, input);
 	}
@@ -357,9 +354,6 @@ SinkResultType PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalSink
 	}
 
 	DataChunk &aggregate_input_chunk = llstate.aggregate_input_chunk;
-
-    std::cout << "== AGGREGATE INPUT CHUNK ==" << std::endl;
-    aggregate_input_chunk.Print();
 
 	auto &aggregates = grouped_aggregate_data.aggregates;
 	idx_t aggregate_input_idx = 0;
@@ -794,36 +788,6 @@ SinkFinalizeType PhysicalHashAggregate::FinalizeDistinct(Pipeline &pipeline, Eve
 	return SinkFinalizeType::READY;
 }
 
-SinkFinalizeType PhysicalHashAggregate::FinalizeInternalSuspension(Pipeline &pipeline, Event &event,
-                                                                   ClientContext &context, GlobalSinkState &gstate_p,
-                                                                   bool check_distinct) const {
-    auto &gstate = (HashAggregateGlobalState &)gstate_p;
-
-    if (check_distinct && distinct_collection_info) {
-        // There are distinct aggregates
-        // If these are partitioned those need to be combined first
-        // Then we Finalize again, skipping this step
-        return FinalizeDistinct(pipeline, event, context, gstate_p);
-    }
-
-    bool any_partitioned = false;
-    std::cout << "[FinalizeInternalSuspension] Group Size:" << groupings.size() << std::endl;
-    for (idx_t i = 0; i < groupings.size(); i++) {
-        auto &grouping = groupings[i];
-        auto &grouping_gstate = gstate.grouping_states[i];
-
-        bool is_partitioned = grouping.table_data.Finalize(context, *grouping_gstate.table_state);
-        if (is_partitioned) {
-            any_partitioned = true;
-        }
-    }
-    if (any_partitioned) {
-        auto new_event = make_shared<HashAggregateMergeEvent>(*this, gstate, &pipeline);
-        event.InsertEvent(std::move(new_event));
-    }
-    return SinkFinalizeType::READY;
-}
-
 SinkFinalizeType PhysicalHashAggregate::FinalizeInternal(Pipeline &pipeline, Event &event, ClientContext &context,
                                                          GlobalSinkState &gstate_p, bool check_distinct) const {
 	auto &gstate = (HashAggregateGlobalState &)gstate_p;
@@ -840,13 +804,9 @@ SinkFinalizeType PhysicalHashAggregate::FinalizeInternal(Pipeline &pipeline, Eve
 		auto &grouping = groupings[i];
 		auto &grouping_gstate = gstate.grouping_states[i];
 		bool is_partitioned = grouping.table_data.Finalize(context, *grouping_gstate.table_state);
-
 		if (is_partitioned) {
-            std::cout << "[PhysicalHashAggregate::FinalizeInternal] ANY PARTITIONED" << std::endl;
 			any_partitioned = true;
-		} else {
-            std::cout << "[PhysicalHashAggregate::FinalizeInternal] NON PARTITIONED" << std::endl;
-        }
+		}
 	}
 	if (any_partitioned) {
 		auto new_event = make_shared<HashAggregateMergeEvent>(*this, gstate, &pipeline);
@@ -860,18 +820,7 @@ SinkFinalizeType PhysicalHashAggregate::Finalize(Pipeline &pipeline, Event &even
 #if RATCHET_PRINT >= 1
     std::cout << "[PhysicalHashAggregate::Finalize] for pipeline " << pipeline.GetPipelineId() << std::endl;
 #endif
-    if (global_suspend) {
-        std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
-        uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
-        if (time_dur_ms > global_suspend_point_ms) {
-            global_suspend_start = true;
-
-            global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
-            // Serialize PerfectHashTable to Disk
-            FinalizeInternalSuspension(pipeline, event, context, gstate_p, true);
-            exit(0);
-        }
-    }
+    global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
 	return FinalizeInternal(pipeline, event, context, gstate_p, true);
 }
 
@@ -933,6 +882,61 @@ unique_ptr<LocalSourceState> PhysicalHashAggregate::GetLocalSourceState(Executio
 	return make_unique<PhysicalHashAggregateLocalSourceState>(context, *this);
 }
 
+void PhysicalHashAggregate::SerializeData(ExecutionContext &context, DataChunk &chunk) const {
+    json jsonfile;
+    jsonfile["pipeline_complete"] = global_finalized_pipelines;
+    global_resume_pipeline = context.pipeline->GetPipelineId();
+    jsonfile["pipeline_resume"] = global_resume_pipeline;
+
+    vector<string> grouping_type_vector;
+
+    idx_t group_str_count = 0;
+    idx_t group_int_count = 0;
+    idx_t group_double_count = 0;
+    for (idx_t i = 0; i < chunk.GetTypes().size(); i++) {
+        grouping_type_vector.emplace_back(chunk.GetTypes()[i].ToString());
+        if (chunk.GetTypes()[i] == LogicalType::VARCHAR) {
+            vector<string> str_vector;
+            for (idx_t j = 0; j < chunk.size(); j++) {
+                str_vector.push_back(chunk.GetValue(i, j).ToString());
+            }
+            group_str_count++;
+            jsonfile["grouping_values_str_" + to_string(group_str_count)] = str_vector;
+        } else if (chunk.GetTypes()[i] == LogicalType::INTEGER) {
+            vector<int64_t> int_vector;
+            for (idx_t j = 0; j < chunk.size(); j++) {
+                int_vector.push_back(chunk.GetValue(i, j).ToInt64());
+            }
+            group_int_count++;
+            jsonfile["grouping_values_int_" + to_string(group_int_count)] = int_vector;
+        } else if (chunk.GetTypes()[i] == LogicalType::DOUBLE) {
+            vector<double_t> double_vector;
+            for (idx_t j = 0; j < chunk.size(); j++) {
+                double_vector.push_back(chunk.GetValue(i, j).ToDouble());
+            }
+            group_double_count++;
+            jsonfile["grouping_values_double_" + to_string(group_double_count)] = double_vector;
+        } else {
+            throw ParserException("Cannot recognize chunk types");
+        }
+    }
+
+    jsonfile["grouping_types"] = grouping_type_vector;
+
+#if RATCHET_SERDE_FORMAT == 0
+    std::ofstream outputFile(global_suspend_file, std::ios::out | std::ios::binary);
+    const auto output_vector = json::to_cbor(jsonfile);
+    outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
+#elif RATCHET_SERDE_FORMAT == 1
+    std::ofstream outputFile(global_suspend_file);
+    outputFile << jsonfile;
+#endif
+    outputFile.close();
+    if (outputFile.fail()) {
+        std::cerr << "Error writing to file!" << std::endl;
+    }
+}
+
 void PhysicalHashAggregate::GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                     LocalSourceState &lstate_p) const {
 #if RATCHET_PRINT >= 1
@@ -941,6 +945,55 @@ void PhysicalHashAggregate::GetData(ExecutionContext &context, DataChunk &chunk,
 	auto &sink_gstate = (HashAggregateGlobalState &)*sink_state;
 	auto &gstate = (PhysicalHashAggregateGlobalSourceState &)gstate_p;
 	auto &lstate = (PhysicalHashAggregateLocalSourceState &)lstate_p;
+
+    if (global_resume) {
+        D_ASSERT(sink_gstate.finished);
+        if (sink_gstate.finished) {
+            return;
+        }
+        std::cout << "== Resume Hash Aggregation ==" << std::endl;
+
+#if RATCHET_SERDE_FORMAT == 0
+        std::ifstream inputFile(global_resume_file, std::ios::binary);
+        std::vector<uint8_t> input_vector((std::istreambuf_iterator<char>(inputFile)),std::istreambuf_iterator<char>());
+        json json_data = json::from_cbor(input_vector);
+#elif RATCHET_SERDE_FORMAT == 1
+        std::ifstream inputFile(global_resume_file);
+        json json_data = json::parse(inputFile);
+#endif
+
+        vector<string> grouping_types = json_data.at("grouping_types");
+        idx_t group_str_count = 0;
+        idx_t group_int_count = 0;
+        idx_t group_double_count = 0;
+        chunk.SetCardinality(grouping_types.size());
+        for (idx_t i = 0; i < grouping_types.size(); i++) {
+            if (grouping_types[i] == "VARCHAR") {
+                group_str_count++;
+                vector<string> str_vector = json_data.at("grouping_values_str_"+ to_string(group_str_count));
+                for (idx_t j = 0; j < str_vector.size(); j++) {
+                    chunk.SetValue(i, j, str_vector[j]);
+                }
+            } else if (grouping_types[i] == "INTEGER") {
+                group_int_count++;
+                vector<int64_t> int_vector = json_data.at("grouping_values_int_"+ to_string(group_int_count));
+                for (idx_t j = 0; j < int_vector.size(); j++) {
+                    chunk.SetValue(i, j, int_vector[j]);
+                }
+            } else if (grouping_types[i] == "DOUBLE") {
+                group_double_count++;
+                vector<double_t> double_vector = json_data.at("grouping_values_double_"+ to_string(group_double_count));
+                for (idx_t j = 0; j < double_vector.size(); j++) {
+                    chunk.SetValue(i, j, double_vector[j]);
+                }
+            } else {
+                throw ParserException("Cannot recognize chunk types");
+            }
+        }
+        sink_gstate.finished = true;
+        return;
+    }
+
 	while (true) {
 		idx_t radix_idx = gstate.state_index;
 		if (radix_idx >= groupings.size()) {
@@ -952,6 +1005,18 @@ void PhysicalHashAggregate::GetData(ExecutionContext &context, DataChunk &chunk,
 		radix_table.GetData(context, chunk, *grouping_gstate.table_state, *gstate.radix_states[radix_idx],
 		                    *lstate.radix_states[radix_idx]);
 		if (chunk.size() != 0) {
+            if (global_suspend) {
+                std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
+                uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
+                if (time_dur_ms > global_suspend_point_ms) {
+                    std::cout << "== Suspend Hash Aggregation ==" << std::endl;
+                    global_suspend_start = true;
+                    global_finalized_pipelines.emplace_back(context.pipeline->GetPipelineId());
+                    // Serialize Grouped Aggregation to Disk
+                    SerializeData(context, chunk);
+                    exit(0);
+                }
+            }
 			return;
 		}
 

@@ -15,6 +15,10 @@
 #include "duckdb/execution/operator/aggregate/grouped_aggregate_data.hpp"
 #include "duckdb/execution/operator/aggregate/distinct_aggregate_data.hpp"
 
+#include "json.hpp"
+using json = nlohmann::json;
+#include <fstream>
+
 namespace duckdb {
 
 class ClientContext;
@@ -89,6 +93,7 @@ public:
 	                                                 GlobalSourceState &gstate) const override;
 	void GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate,
 	             LocalSourceState &lstate) const override;
+    void SerializeData(ExecutionContext &context, DataChunk &chunk) const;
 
 	bool ParallelSource() const override {
 		return true;
@@ -107,8 +112,6 @@ public:
 	                          GlobalSinkState &gstate) const override;
 	SinkFinalizeType FinalizeInternal(Pipeline &pipeline, Event &event, ClientContext &context, GlobalSinkState &gstate,
 	                                  bool check_distinct) const;
-    SinkFinalizeType FinalizeInternalSuspension(Pipeline &pipeline, Event &event, ClientContext &context,
-                                                GlobalSinkState &gstate, bool check_distinct) const;
 
 	unique_ptr<LocalSinkState> GetLocalSinkState(ExecutionContext &context) const override;
 	unique_ptr<GlobalSinkState> GetGlobalSinkState(ClientContext &context) const override;
