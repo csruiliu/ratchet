@@ -65,11 +65,12 @@ You can move the converted data to any folder you want.
 
 We have several datasets:
 
-+ TCP-H SF30: `tpch/dataset/tbl/sf10`, `tpch/dataset/parquet/sf10`
-+ TCP-H SF10: `tpch/dataset/tbl/sf10`, `tpch/dataset/parquet/sf10`
-+ TCP-H SF1: `tpch/dataset/tbl/sf1`, `tpch/dataset/parquet/sf1`
-+ TCP-H Small (SF-0.1): `tpch/dataset/tbl/small`, `tpch/dataset/parquet/small`
-+ TCP-H Tiny (SF-0.01): `tpch/dataset/tbl/tiny`, `tpch/dataset/parquet/tiny`
++ TCP-H SF50: `dataset/tpch/tbl-sf50`, `dataset/tpch/parquet-sf50`
++ TCP-H SF10: `dataset/tpch/tbl-sf10`, `dataset/tpch/parquet-sf10`
++ TCP-H SF1: `dataset/tpch/tbl-sf1`, `dataset/tpch/parquet-sf1`
++ TCP-H Small (SF-0.1): `dataset/tpch/tbl-small`, `dataset/tpch/parquet-small`
++ TCP-H Tiny (SF-0.01): `dataset/tpch/tbl-tiny`, `dataset/tpch/parquet-tiny`
++ TCP-DS SF1: `dataset/tpcds/dat-sf1`, `dataset/tpcds/parquet-sf1`
 
 ## Benchmark
 
@@ -79,32 +80,38 @@ We provide some demo queries in `demo/queries` for suspend and resume, which can
 
 ```bash
 # run q1 based on demo.db and the dataset from parquet-tiny using 2 threads
-python3 demo.py -q q1 -d demo.db -df ../dataset/tpch/parquet-tiny -td 2
+python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2
 
 # run q1 with suspension and serialize into single file
-python3 demo.py -q q1 -d demo.db -df ../dataset/tpch/parquet-tiny -td 2 -s -st 0 -se 0 -sl /home/ruiliu/Develop/ratchet-duckdb/ratchet/demo/demo.ratchet 
+python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -s -st 0 -se 0 -sl xxx.ratchet 
 # run q1 with suspension and serialize into multiple files (will generate part-*.ratchet in demo folder)
-python3 demo.py -q q1 -d demo.db -df ../dataset/tpch/parquet-tiny -td 2 -s -st 0 -se 0 -sl /home/ruiliu/Develop/ratchet-duckdb/ratchet/demo -psr
+python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -s -st 0 -se 0 -sl ./ -psr
 
 # run q1 with resumption using a single file
-python3 demo.py -q q1 -d demo.db -df ../dataset/tpch/parquet-tiny -td 2 -r -rl /home/ruiliu/Develop/ratchet-duckdb/ratchet/demo/demo.ratchet
+python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -r -rl xxx.ratchet 
 # run q1 with resumption using multiple files (will use all part-*.ratchet in the demo folder)
-python3 demo.py -q q1 -d demo.db -df ../dataset/tpch/parquet-tiny -td 2 -r -rl /home/ruiliu/Develop/ratchet-duckdb/ratchet/demo -psr
+python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -r -rl ./ -psr
 ```
 
 ### TPC-H
 
-`duckdb_tpch_perf` will trigger the original TPC-H queries from q1 to q22 (stored in ). For example,
+`ratchet_tpch.py` will trigger the original TPC-H queries from q1 to q22 (stored in queries folder). For example,
 ```bash
-python3 tpch_perf.py -q q1 -d dataset/parquet/sf1 -td 1
+python3 ratchet_tpch.py -q q1 -d ../dataset/tpch/parquet-tiny -td 1
 ```
-The above command will run `q1` in TPC-H based on the data from `dataset/parquet/sf1` using `1` thread.
+The above command will run `q1` in TPC-H based on the data from `../dataset/tpch/parquet-tiny` using `1` thread.
 
 The TPC-H benchmark is mostly used for functionality test.
 
 ### TPC-DS
 
-`duckdb_tpcds_perf`
+`ratchet_tpcds.py` will trigger the original TPC-DS queries from q1 to q99 (stored in queries folder). For example,
+```bash
+python3 ratchet_tpcds.py -q q1 -d ../dataset/tpcds/parquet-sf1 -td 1
+```
+The above command will run `q1` in TPC-H based on the data from `../dataset/tpcds/parquet-sf1` using `1` thread.
+
+The TPC-DS benchmark is mostly used for functionality test.
 
 ### CRIU
 
@@ -112,7 +119,7 @@ We also exploit `CRIU` to benchmark the performance of suspending and resuming q
 
 ## Source Code Modification
 
-`Sink()`, `Finalize()`, and `GetData()` are the key functions for query suspension and resumption. Usually, query suspension should happen in `Finalize()`, while query resumption should happen in the Sink(). However, it is still case-by-case due to implementation or performance reason, for example, resumption for aggregation may happen in `GetData()`.
+`Sink()`, `Finalize()`, and `GetData()` are the functions for query suspension and resumption. Usually, query suspension should happen in `Finalize()`, while query resumption should happen in the Sink(). However, it is still case-by-case due to implementation or performance reason, for example, resumption for aggregation may happen in `GetData()`.
 
 1. Adding suspension and resumption APIs in `pyconnection.cpp` and `pyconnection.hp`
 2. Checking finished pipelines when resumption in `pipeline.cpp`
