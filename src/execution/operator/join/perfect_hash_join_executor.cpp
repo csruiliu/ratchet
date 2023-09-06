@@ -353,6 +353,7 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
 #if RATCHET_SERDE_FORMAT == 0
     std::ofstream outputFile(global_suspend_file, std::ios::out | std::ios::binary);
     const auto output_vector = json::to_cbor(json_data);
+    std::cout << "Estimated Persistence Size in CBOR (bytes): " << output_vector.size() * sizeof(uint8_t) << std::endl;
     outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
 #elif RATCHET_SERDE_FORMAT == 1
     std::ofstream outputFile(global_suspend_file);
