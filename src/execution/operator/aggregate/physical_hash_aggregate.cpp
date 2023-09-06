@@ -888,11 +888,10 @@ void PhysicalHashAggregate::SerializeData(ExecutionContext &context, DataChunk &
     global_resume_pipeline = context.pipeline->GetPipelineId();
     jsonfile["pipeline_resume"] = global_resume_pipeline;
 
-    vector<string> grouping_type_vector;
-
     idx_t group_str_count = 0;
     idx_t group_int_count = 0;
     idx_t group_double_count = 0;
+    vector<string> grouping_type_vector;
     for (idx_t i = 0; i < chunk.GetTypes().size(); i++) {
         grouping_type_vector.emplace_back(chunk.GetTypes()[i].ToString());
         if (chunk.GetTypes()[i] == LogicalType::VARCHAR) {
@@ -926,6 +925,8 @@ void PhysicalHashAggregate::SerializeData(ExecutionContext &context, DataChunk &
 #if RATCHET_SERDE_FORMAT == 0
     std::ofstream outputFile(global_suspend_file, std::ios::out | std::ios::binary);
     const auto output_vector = json::to_cbor(jsonfile);
+    std::cout << "Cardinality: " << chunk.size() << " Column: " << chunk.GetTypes().size();
+    std::cout << "Estimated Persistence Size in CBOR (bytes): " << output_vector.size() * sizeof(uint8_t) << std::endl;
     outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
 #elif RATCHET_SERDE_FORMAT == 1
     std::ofstream outputFile(global_suspend_file);
@@ -966,7 +967,7 @@ void PhysicalHashAggregate::GetData(ExecutionContext &context, DataChunk &chunk,
         idx_t group_str_count = 0;
         idx_t group_int_count = 0;
         idx_t group_double_count = 0;
-        chunk.SetCardinality(grouping_types.size());
+
         for (idx_t i = 0; i < grouping_types.size(); i++) {
             if (grouping_types[i] == "VARCHAR") {
                 group_str_count++;
@@ -974,18 +975,21 @@ void PhysicalHashAggregate::GetData(ExecutionContext &context, DataChunk &chunk,
                 for (idx_t j = 0; j < str_vector.size(); j++) {
                     chunk.SetValue(i, j, str_vector[j]);
                 }
+                chunk.SetCardinality(str_vector.size());
             } else if (grouping_types[i] == "INTEGER") {
                 group_int_count++;
                 vector<int64_t> int_vector = json_data.at("grouping_values_int_"+ to_string(group_int_count));
                 for (idx_t j = 0; j < int_vector.size(); j++) {
                     chunk.SetValue(i, j, int_vector[j]);
                 }
+                chunk.SetCardinality(int_vector.size());
             } else if (grouping_types[i] == "DOUBLE") {
                 group_double_count++;
                 vector<double_t> double_vector = json_data.at("grouping_values_double_"+ to_string(group_double_count));
                 for (idx_t j = 0; j < double_vector.size(); j++) {
                     chunk.SetValue(i, j, double_vector[j]);
                 }
+                chunk.SetCardinality(double_vector.size());
             } else {
                 throw ParserException("Cannot recognize chunk types");
             }
