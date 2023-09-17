@@ -18,6 +18,11 @@
 #include "json.hpp"
 using json = nlohmann::json;
 #include <fstream>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+
 
 namespace duckdb {
 
@@ -564,6 +569,47 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
             outputFile.close();
             if (outputFile.fail()) {
                 std::cerr << "Error writing to file!" << std::endl;
+            }
+
+            const char* shared_memory_keyfile = "/tmp/shared_memory_key";
+            const int shared_memory_size = sizeof(int);
+            key_t key;
+            int shm_id;
+            int* shared_variable;
+
+            if ((key = ftok(shared_memory_keyfile, 'R')) == -1) {
+                perror("ftok");
+                exit(1);
+            }
+
+            // Create or open the shared memory segment
+            if ((shm_id = shmget(key, shared_memory_size, IPC_CREAT | 0666)) == -1) {
+                perror("shmget");
+                exit(1);
+            }
+
+            // Attach the shared memory segment
+            if ((shared_variable = (int*)shmat(shm_id, NULL, 0)) == (int*)-1) {
+                perror("shmat");
+                exit(1);
+            }
+
+            *shared_variable = 22;
+
+            std::cout << "Global init variable: " << *shared_variable << std::endl;
+
+            while (true) {
+                usleep(1000000);  // Sleep for 1 second
+                if (*shared_variable == 42) {
+                    std::cout << "Received new shared variable: " << *shared_variable << std::endl;
+                    break;
+                }
+            }
+
+            // Detach the shared memory segment
+            if (shmdt(shared_variable) == -1) {
+                perror("shmdt");
+                exit(1);
             }
 
             exit(0);
