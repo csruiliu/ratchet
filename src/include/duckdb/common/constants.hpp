@@ -109,30 +109,37 @@ extern const transaction_t NOT_DELETED_ID;
 
 extern const double PI;
 
-//! global variable for Ratchet
-// determine if the current process is for suspension or resumption
+//! GLOBAL VARIABLE FOR RATCHET
+//! Determine if the current process is for suspension or resumption
 extern bool global_suspend;
 extern bool global_resume;
-// Suspend and resume file for in-memory operators
+//! Suspend and resume file for in-memory operators
 extern string global_suspend_file;
 extern string global_resume_file;
-// Suspend and resume folder for external operators
+//! Suspend and resume folder for external operators
 extern string global_suspend_folder;
 extern string global_resume_folder;
-// Time points and period to check if suspend should be triggered
+//! Time points and period to check if suspend should be triggered
 extern std::chrono::steady_clock::time_point global_start;
 extern uint64_t global_suspend_point_ms;
-// It is for the cases where checking suspend and triggering suspend are in different functions
+//! It is for the cases where checking suspend and triggering suspend are in different functions
 extern bool global_suspend_start;
-// Records the ids of the pipelines that have been finalized
+//! Records the ids of the pipelines that have been finalized
 extern std::vector<uint16_t> global_finalized_pipelines;
-// Indicates the id of the pipeline that should run when resuming
+//! Indicates the id of the pipeline that should run when resuming
 extern uint16_t global_resume_pipeline;
-// Records the ids of the hashtable partitions
+//! Records the ids of the hashtable partitions
 extern std::atomic<uint16_t> global_ht_partition;
-// threads for resumption
+//! Threads for resumption
 extern uint16_t global_threads;
 extern std::atomic<uint16_t> global_stopped_threads;
+//! Flags for IPC
+extern uint16_t shm_cost_model_flag;
+extern uint16_t shm_strategy;
+extern uint64_t shm_persistence_size;
+extern const char* shm_cost_model_flag_key;
+extern const char* shm_strategy_key;
+extern const char* shm_persistence_size_key;
 
 struct DConstants {
 	//! The value used to signify an invalid index entry
