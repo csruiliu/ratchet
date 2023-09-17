@@ -15,20 +15,38 @@ const transaction_t MAX_TRANSACTION_ID = NumericLimits<transaction_t>::Maximum()
 const transaction_t NOT_DELETED_ID = NumericLimits<transaction_t>::Maximum() - 1; // 2^64 - 1
 const transaction_t MAXIMUM_QUERY_ID = NumericLimits<transaction_t>::Maximum();   // 2^64
 
+//! GLOBAL VARIABLE FOR RATCHET
+//! Determine if the current process is for suspension or resumption
 bool global_suspend = false;
 bool global_resume = false;
+//! Suspend and resume file for in-memory operators
 string global_suspend_file = "sfile";
 string global_resume_file = "rfile";
+//! Suspend and resume folder for external operators
 string global_suspend_folder = "sfolder";
 string global_resume_folder = "rfolder";
+//! Time points and period to check if suspend should be triggered
 std::chrono::steady_clock::time_point global_start = {};
 uint64_t global_suspend_point_ms = NumericLimits<transaction_t>::Maximum();
+//! It is for the cases where checking suspend and triggering suspend are in different functions
 bool global_suspend_start = false;
+//! Records the ids of the pipelines that have been finalized
 std::vector<uint16_t> global_finalized_pipelines;
+//! Indicates the id of the pipeline that should run when resuming
 uint16_t global_resume_pipeline = 0;
+//! Records the ids of the hashtable partitions
 atomic<uint16_t> global_ht_partition(0);
+//! Threads for resumption
 uint16_t global_threads = 0;
 atomic<uint16_t> global_stopped_threads(0);
+//! Flags for IPC
+uint16_t shm_cost_model_flag = 0;
+uint16_t shm_strategy = 0;
+uint64_t shm_persistence_size = 0;
+const char* shm_cost_model_flag_key = "/tmp/shm_cost_model_flag_key";
+const char* shm_strategy_key = "/tmp/shm_strategy_key";
+const char* shm_persistence_size_key = "/tmp/shm_persistence_size_key";
+
 
 uint64_t NextPowerOfTwo(uint64_t v) {
 	v--;

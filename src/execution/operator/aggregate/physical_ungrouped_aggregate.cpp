@@ -526,6 +526,51 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
 		return FinalizeDistinct(pipeline, event, context, gstate_p);
 	}
 
+    key_t cost_model_flag_key;
+    key_t strategy_key;
+    key_t persistence_size_key;
+
+    int cost_model_flag_id;
+    int strategy_id;
+    int persistence_size_id;
+
+    uint16_t* cost_model_flag;
+
+    if ((cost_model_flag_key = ftok(shm_cost_model_flag_key, 'R')) == -1) {
+        perror("ftok");
+        exit(1);
+    }
+
+    // Create or open the shared memory segment
+    if ((cost_model_flag_id = shmget(cost_model_flag_key, sizeof(uint16_t), IPC_CREAT | 0666)) == -1) {
+        perror("shmget");
+        exit(1);
+    }
+
+    // Attach the shared memory segment
+    if ((cost_model_flag = (uint16_t *)shmat(cost_model_flag_id, NULL, 0)) == (uint16_t *)-1) {
+        perror("shmat");
+        exit(1);
+    }
+
+    *cost_model_flag = 1;
+
+    std::cout << "Start Cost Model: " << *cost_model_flag << std::endl;
+
+    while (true) {
+        usleep(1000000);  // Sleep for 1 second
+        if (*cost_model_flag == 0) {
+            std::cout << "Finish Cost Model: " << *cost_model_flag << std::endl;
+            break;
+        }
+    }
+
+    // Detach the shared memory segment
+    if (shmdt(cost_model_flag) == -1) {
+        perror("shmdt");
+        exit(1);
+    }
+
     if (global_suspend) {
         std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
         uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
@@ -569,47 +614,6 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
             outputFile.close();
             if (outputFile.fail()) {
                 std::cerr << "Error writing to file!" << std::endl;
-            }
-
-            const char* shared_memory_keyfile = "/tmp/shared_memory_key";
-            const int shared_memory_size = sizeof(int);
-            key_t key;
-            int shm_id;
-            int* shared_variable;
-
-            if ((key = ftok(shared_memory_keyfile, 'R')) == -1) {
-                perror("ftok");
-                exit(1);
-            }
-
-            // Create or open the shared memory segment
-            if ((shm_id = shmget(key, shared_memory_size, IPC_CREAT | 0666)) == -1) {
-                perror("shmget");
-                exit(1);
-            }
-
-            // Attach the shared memory segment
-            if ((shared_variable = (int*)shmat(shm_id, NULL, 0)) == (int*)-1) {
-                perror("shmat");
-                exit(1);
-            }
-
-            *shared_variable = 22;
-
-            std::cout << "Global init variable: " << *shared_variable << std::endl;
-
-            while (true) {
-                usleep(1000000);  // Sleep for 1 second
-                if (*shared_variable == 42) {
-                    std::cout << "Received new shared variable: " << *shared_variable << std::endl;
-                    break;
-                }
-            }
-
-            // Detach the shared memory segment
-            if (shmdt(shared_variable) == -1) {
-                perror("shmdt");
-                exit(1);
             }
 
             exit(0);
