@@ -39,13 +39,10 @@ atomic<uint16_t> global_ht_partition(0);
 //! Threads for resumption
 uint16_t global_threads = 0;
 atomic<uint16_t> global_stopped_threads(0);
-//! Flags for IPC
-uint16_t shm_cost_model_flag = 0;
-uint16_t shm_strategy = 0;
-uint64_t shm_persistence_size = 0;
-const char* shm_cost_model_flag_key = "/tmp/shm_cost_model_flag_key";
-const char* shm_strategy_key = "/tmp/shm_strategy_key";
-const char* shm_persistence_size_key = "/tmp/shm_persistence_size_key";
+//! Variables for IPC
+const char* shm_cost_model_flag_keyfile = "/tmp/shm_cost_model_flag_keyfile";
+const char* shm_strategy_keyfile = "/tmp/shm_strategy_keyfile";
+const char* shm_persistence_size_keyfile = "/tmp/shm_persistence_size_keyfile";
 
 
 uint64_t NextPowerOfTwo(uint64_t v) {

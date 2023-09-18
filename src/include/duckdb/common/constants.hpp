@@ -134,12 +134,9 @@ extern std::atomic<uint16_t> global_ht_partition;
 extern uint16_t global_threads;
 extern std::atomic<uint16_t> global_stopped_threads;
 //! Flags for IPC
-extern uint16_t shm_cost_model_flag;
-extern uint16_t shm_strategy;
-extern uint64_t shm_persistence_size;
-extern const char* shm_cost_model_flag_key;
-extern const char* shm_strategy_key;
-extern const char* shm_persistence_size_key;
+extern const char* shm_cost_model_flag_keyfile;
+extern const char* shm_strategy_keyfile;
+extern const char* shm_persistence_size_keyfile;
 
 struct DConstants {
 	//! The value used to signify an invalid index entry
