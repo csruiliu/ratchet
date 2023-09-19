@@ -611,37 +611,20 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
 
     //! Wait for cost model process
     *cost_model_flag = 1;
-    std::cout << "Start Cost Model: " << *cost_model_flag << std::endl;
+    std::cout << "Start Cost Model" << std::endl;
     while (true) {
         usleep(1000000);  // Sleep for 1 second
         if (*cost_model_flag == 0) {
-            std::cout << "Finish Cost Model: " << *cost_model_flag << std::endl;
+            std::cout << "Finish Cost Model" << std::endl;
             break;
         }
     }
 
     //! Processing based on cost model decision
-    if (*strategy == 0) {
+    if (*strategy == 1) {
         // Keep running and redo strategy
         // Detach the shared memory segment
-        if (shmdt(cost_model_flag) == -1) {
-            perror("shmdt");
-            exit(1);
-        }
-        if (shmdt(persistence_size) == -1) {
-            perror("shmdt");
-            exit(1);
-        }
-        if (shmdt(strategy) == -1) {
-            perror("shmdt");
-            exit(1);
-        }
-        D_ASSERT(!gstate.finished);
-        gstate.finished = true;
-        return SinkFinalizeType::READY;
-    } else if (*strategy == 1) {
-        // Process-level suspension, same to redo strategy, waiting for CRIU
-        // Detach the shared memory segment
+        std::cout << "Redo Strategy, Keep Running" << std::endl;
         if (shmdt(cost_model_flag) == -1) {
             perror("shmdt");
             exit(1);
@@ -658,7 +641,27 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
         gstate.finished = true;
         return SinkFinalizeType::READY;
     } else if (*strategy == 2) {
+        // Process-level suspension, same to redo strategy, waiting for CRIU
+        // Detach the shared memory segment
+        std::cout << "Process-level Suspension Strategy" << std::endl;
+        if (shmdt(cost_model_flag) == -1) {
+            perror("shmdt");
+            exit(1);
+        }
+        if (shmdt(persistence_size) == -1) {
+            perror("shmdt");
+            exit(1);
+        }
+        if (shmdt(strategy) == -1) {
+            perror("shmdt");
+            exit(1);
+        }
+        D_ASSERT(!gstate.finished);
+        gstate.finished = true;
+        return SinkFinalizeType::READY;
+    } else if (*strategy == 3) {
         // Pipeline-level suspension
+        std::cout << "Pipeline-level Suspension Strategy" << std::endl;
         global_suspend_start = true;
         std::cout << "== Serialization for aggregation ==" << std::endl;
 #if RATCHET_SERDE_FORMAT == 0
