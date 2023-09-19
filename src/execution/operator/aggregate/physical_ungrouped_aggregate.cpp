@@ -526,6 +526,8 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
 		return FinalizeDistinct(pipeline, event, context, gstate_p);
 	}
 
+    //! Using Shared Memory for IPC
+
     key_t cost_model_flag_key;
     key_t strategy_key;
     key_t persistence_size_key;
@@ -535,8 +537,19 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
     int persistence_size_id;
 
     uint16_t* cost_model_flag;
+    uint16_t* strategy;
+    uint64_t* persistence_size;
 
-    if ((cost_model_flag_key = ftok(shm_cost_model_flag_key, 'R')) == -1) {
+    // Get key for IPC using keyfile
+    if ((cost_model_flag_key = ftok(shm_cost_model_flag_keyfile, 'R')) == -1) {
+        perror("ftok");
+        exit(1);
+    }
+    if ((persistence_size_key = ftok(shm_persistence_size_keyfile, 'R')) == -1) {
+        perror("ftok");
+        exit(1);
+    }
+    if ((strategy_key = ftok(shm_strategy_keyfile, 'R')) == -1) {
         perror("ftok");
         exit(1);
     }
@@ -546,17 +559,59 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
         perror("shmget");
         exit(1);
     }
+    if ((persistence_size_id = shmget(persistence_size_key, sizeof(uint64_t), IPC_CREAT | 0666)) == -1) {
+        perror("shmget");
+        exit(1);
+    }
+    if ((strategy_id = shmget(strategy_key, sizeof(uint16_t), IPC_CREAT | 0666)) == -1) {
+        perror("shmget");
+        exit(1);
+    }
 
     // Attach the shared memory segment
     if ((cost_model_flag = (uint16_t *)shmat(cost_model_flag_id, NULL, 0)) == (uint16_t *)-1) {
         perror("shmat");
         exit(1);
     }
+    if ((persistence_size = (uint64_t *)shmat(persistence_size_id, NULL, 0)) == (uint64_t *)-1) {
+        perror("shmat");
+        exit(1);
+    }
+    if ((strategy = (uint16_t *)shmat(strategy_id, NULL, 0)) == (uint16_t *)-1) {
+        perror("shmat");
+        exit(1);
+    }
 
+    *strategy = 0;
+
+    //! Check the persistence size
+    json jsonfile;
+    global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
+    jsonfile["pipeline_complete"] = global_finalized_pipelines;
+    jsonfile["pipeline_resume"] = global_resume_pipeline;
+
+    DataChunk chunk;
+    chunk.Initialize(Allocator::DefaultAllocator(), this->GetTypes());
+
+    vector<string> aggregate_values;
+    // initialize the result chunk with the aggregate values
+    chunk.SetCardinality(1);
+    for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
+        auto &aggregate = (BoundAggregateExpression &)*aggregates[aggr_idx];
+
+        Vector state_vector(Value::POINTER((uintptr_t)gstate.state.aggregates[aggr_idx].get()));
+        AggregateInputData aggr_input_data(aggregate.bind_info.get(), Allocator::DefaultAllocator());
+        aggregate.function.finalize(state_vector, aggr_input_data, chunk.data[aggr_idx], 1, 0);
+        aggregate_values.push_back(chunk.data[aggr_idx].GetValue(0).ToString());
+    }
+    jsonfile["aggregate_values"] = aggregate_values;
+    const auto output_vector = json::to_cbor(jsonfile);
+    *persistence_size = output_vector.size() * sizeof(uint8_t);
+    std::cout << "Estimated Persistence Size in CBOR (bytes): " << *persistence_size << std::endl;
+
+    //! Wait for cost model process
     *cost_model_flag = 1;
-
     std::cout << "Start Cost Model: " << *cost_model_flag << std::endl;
-
     while (true) {
         usleep(1000000);  // Sleep for 1 second
         if (*cost_model_flag == 0) {
@@ -565,12 +620,63 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
         }
     }
 
-    // Detach the shared memory segment
-    if (shmdt(cost_model_flag) == -1) {
-        perror("shmdt");
-        exit(1);
+    //! Processing based on cost model decision
+    if (*strategy == 0) {
+        // Keep running and redo strategy
+        // Detach the shared memory segment
+        if (shmdt(cost_model_flag) == -1) {
+            perror("shmdt");
+            exit(1);
+        }
+        if (shmdt(persistence_size) == -1) {
+            perror("shmdt");
+            exit(1);
+        }
+        if (shmdt(strategy) == -1) {
+            perror("shmdt");
+            exit(1);
+        }
+        D_ASSERT(!gstate.finished);
+        gstate.finished = true;
+        return SinkFinalizeType::READY;
+    } else if (*strategy == 1) {
+        // Process-level suspension, same to redo strategy, waiting for CRIU
+        // Detach the shared memory segment
+        if (shmdt(cost_model_flag) == -1) {
+            perror("shmdt");
+            exit(1);
+        }
+        if (shmdt(persistence_size) == -1) {
+            perror("shmdt");
+            exit(1);
+        }
+        if (shmdt(strategy) == -1) {
+            perror("shmdt");
+            exit(1);
+        }
+        D_ASSERT(!gstate.finished);
+        gstate.finished = true;
+        return SinkFinalizeType::READY;
+    } else if (*strategy == 2) {
+        // Pipeline-level suspension
+        global_suspend_start = true;
+        std::cout << "== Serialization for aggregation ==" << std::endl;
+#if RATCHET_SERDE_FORMAT == 0
+        std::ofstream outputFile(global_suspend_file, std::ios::out | std::ios::binary);
+        outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
+#elif RATCHET_SERDE_FORMAT == 1
+        std::ofstream outputFile(global_suspend_file);
+        outputFile << jsonfile;
+#endif
+        outputFile.close();
+        if (outputFile.fail()) {
+            std::cerr << "Error writing to file!" << std::endl;
+        }
+
+        exit(0);
     }
 
+    /*
     if (global_suspend) {
         std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
         uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
@@ -623,6 +729,7 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
     D_ASSERT(!gstate.finished);
 	gstate.finished = true;
 	return SinkFinalizeType::READY;
+    */
 }
 
 //===--------------------------------------------------------------------===//
