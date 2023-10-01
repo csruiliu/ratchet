@@ -254,6 +254,7 @@ py::list DuckDBPyConnection::ListFilesystems() {
 }
 
 void DuckDBPyConnection::Initialize(py::handle &m) {
+    global_start = std::chrono::steady_clock::now();
 	auto connection_module =
 	    py::class_<DuckDBPyConnection, shared_ptr<DuckDBPyConnection>>(m, "DuckDBPyConnection", py::module_local());
 
