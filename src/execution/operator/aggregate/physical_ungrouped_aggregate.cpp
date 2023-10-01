@@ -526,8 +526,8 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
 		return FinalizeDistinct(pipeline, event, context, gstate_p);
 	}
 
-    //! Using Shared Memory for IPC
 
+    //! Using Shared Memory for IPC
     key_t cost_model_flag_key;
     key_t strategy_key;
     key_t persistence_size_key;
@@ -669,7 +669,7 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
         outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
 #elif RATCHET_SERDE_FORMAT == 1
         std::ofstream outputFile(global_suspend_file);
-        outputFile << jsonfile;
+    outputFile << jsonfile;
 #endif
         outputFile.close();
         if (outputFile.fail()) {
