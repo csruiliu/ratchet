@@ -1020,9 +1020,9 @@ void PhysicalHashAggregate::GetData(ExecutionContext &context, DataChunk &chunk,
             if (global_suspend) {
                 std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
                 uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
-                std::cout << "time_dur_ms: " << time_dur_ms << std::endl;
-                std::cout << "global_suspend_point_ms: " << global_suspend_point_ms << std::endl;
                 if (time_dur_ms > global_suspend_point_ms) {
+                    std::cout << "time_dur_ms: " << time_dur_ms << std::endl;
+                    std::cout << "global_suspend_point_ms: " << global_suspend_point_ms << std::endl;
                     std::cout << "== Suspend Hash Aggregation ==" << std::endl;
                     global_suspend_start = true;
                     global_finalized_pipelines.emplace_back(context.pipeline->GetPipelineId());
