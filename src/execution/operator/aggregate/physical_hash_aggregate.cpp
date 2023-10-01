@@ -893,7 +893,7 @@ void PhysicalHashAggregate::SerializeData(ExecutionContext &context, DataChunk &
     idx_t group_double_count = 0;
     vector<string> grouping_type_vector;
     for (idx_t i = 0; i < chunk.GetTypes().size(); i++) {
-        std::cout << chunk.GetTypes()[i].ToString() << std::endl;
+        // std::cout << chunk.GetTypes()[i].ToString() << std::endl;
         grouping_type_vector.emplace_back(chunk.GetTypes()[i].ToString());
         if (chunk.GetTypes()[i] == LogicalType::VARCHAR) {
             vector<string> str_vector;
