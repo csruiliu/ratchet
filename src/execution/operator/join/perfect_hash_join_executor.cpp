@@ -306,7 +306,7 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
 
     for (idx_t i = 0; i < ht.build_types.size(); i++) {
         auto &build_vec = perfect_hash_table[i];
-
+        std::cout << ht.build_types.at(i).ToString() << std::endl;
         if (ht.build_types.at(i) == LogicalType::VARCHAR) {
             vector<string> value_vector;
             for (idx_t j = 0; j < build_size; j++) {
