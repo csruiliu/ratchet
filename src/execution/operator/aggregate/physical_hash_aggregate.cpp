@@ -916,8 +916,14 @@ void PhysicalHashAggregate::SerializeData(ExecutionContext &context, DataChunk &
             }
             group_double_count++;
             jsonfile["grouping_values_double_" + to_string(group_double_count)] = double_vector;
-        }
-        else {
+        } else if (chunk.GetTypes()[i] == LogicalType::DATE) {
+            vector<string> str_vector;
+            for (idx_t j = 0; j < chunk.size(); j++) {
+                str_vector.push_back(chunk.GetValue(i, j).ToString());
+            }
+            group_str_count++;
+            jsonfile["grouping_values_str_" + to_string(group_str_count)] = str_vector;
+        } else {
             throw ParserException("Cannot recognize chunk types");
         }
     }
