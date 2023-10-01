@@ -321,6 +321,13 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
             }
             json_data["build_chunk_" + to_string(i)]["type"] = LogicalType::INTEGER;
             json_data["build_chunk_" + to_string(i)]["data"] = value_vector;
+        } else if (ht.build_types.at(i) == LogicalType::DOUBLE) {
+            vector<double_t> value_vector;
+            for (idx_t j = 0; j < build_size; j++) {
+                value_vector.push_back(build_vec.GetValue(j).ToDouble());
+            }
+            json_data["build_chunk_" + to_string(i)]["type"] = LogicalType::DOUBLE;
+            json_data["build_chunk_" + to_string(i)]["data"] = value_vector;
         } else {
             throw ParserException("Cannot recognize build types");
         }
