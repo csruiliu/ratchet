@@ -926,7 +926,7 @@ void PhysicalHashAggregate::SerializeData(ExecutionContext &context, DataChunk &
 #if RATCHET_SERDE_FORMAT == 0
     std::ofstream outputFile(global_suspend_file, std::ios::out | std::ios::binary);
     const auto output_vector = json::to_cbor(jsonfile);
-    std::cout << "Cardinality: " << chunk.size() << " Column: " << chunk.GetTypes().size();
+    // std::cout << "Cardinality: " << chunk.size() << " Column: " << chunk.GetTypes().size() << std::endl;
     std::cout << "Estimated Persistence Size in CBOR (bytes): " << output_vector.size() * sizeof(uint8_t) << std::endl;
     outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
 #elif RATCHET_SERDE_FORMAT == 1
@@ -1013,6 +1013,8 @@ void PhysicalHashAggregate::GetData(ExecutionContext &context, DataChunk &chunk,
             if (global_suspend) {
                 std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
                 uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
+                std::cout << "time_dur_ms: " << time_dur_ms << std::endl;
+                std::cout << "global_suspend_point_ms: " << global_suspend_point_ms << std::endl;
                 if (time_dur_ms > global_suspend_point_ms) {
                     std::cout << "== Suspend Hash Aggregation ==" << std::endl;
                     global_suspend_start = true;
