@@ -901,7 +901,7 @@ void PhysicalHashAggregate::SerializeData(ExecutionContext &context, DataChunk &
             }
             group_str_count++;
             jsonfile["grouping_values_str_" + to_string(group_str_count)] = str_vector;
-        } else if (chunk.GetTypes()[i] == LogicalType::INTEGER) {
+        } else if (chunk.GetTypes()[i] == LogicalType::INTEGER || chunk.GetTypes()[i] == LogicalType::BIGINT) {
             vector<int64_t> int_vector;
             for (idx_t j = 0; j < chunk.size(); j++) {
                 int_vector.push_back(chunk.GetValue(i, j).ToInt64());
@@ -915,7 +915,8 @@ void PhysicalHashAggregate::SerializeData(ExecutionContext &context, DataChunk &
             }
             group_double_count++;
             jsonfile["grouping_values_double_" + to_string(group_double_count)] = double_vector;
-        } else {
+        }
+        else {
             throw ParserException("Cannot recognize chunk types");
         }
     }
@@ -976,7 +977,7 @@ void PhysicalHashAggregate::GetData(ExecutionContext &context, DataChunk &chunk,
                     chunk.SetValue(i, j, str_vector[j]);
                 }
                 chunk.SetCardinality(str_vector.size());
-            } else if (grouping_types[i] == "INTEGER") {
+            } else if (grouping_types[i] == "INTEGER" || chunk.GetTypes()[i] == LogicalType::BIGINT) {
                 group_int_count++;
                 vector<int64_t> int_vector = json_data.at("grouping_values_int_"+ to_string(group_int_count));
                 for (idx_t j = 0; j < int_vector.size(); j++) {
