@@ -525,6 +525,7 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
         std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
         uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
         std::cout << "time_dur_ms: " << time_dur_ms << std::endl;
+        std::cout << "global_suspend_point_ms: " << global_suspend_point_ms << std::endl;
         if (time_dur_ms > global_suspend_point_ms) {
             global_suspend_start = true;
 #if RATCHET_PRINT >= 1
