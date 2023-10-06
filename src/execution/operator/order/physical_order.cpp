@@ -188,7 +188,7 @@ SinkFinalizeType PhysicalOrder::Finalize(Pipeline &pipeline, Event &event, Clien
 
     std::chrono::steady_clock::time_point cur_time = std::chrono::steady_clock::now();
     uint64_t dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(cur_time - global_start).count();
-    std::cout << "time_dur_ms: " << dur_ms << std::endl;
+    std::cout << "Pipeline: " << pipeline.GetPipelineId() << ", time_dur_ms: " << dur_ms << std::endl;
 
 	return SinkFinalizeType::READY;
 }
