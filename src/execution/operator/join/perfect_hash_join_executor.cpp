@@ -293,6 +293,7 @@ void PerfectHashJoinExecutor::TemplatedFillSelectionVectorProbe(Vector &source, 
 //===--------------------------------------------------------------------===//
 void PerfectHashJoinExecutor::SerializePerfectHashTable() {
     std::cout << "== Serialize PerfectHashTable ==" << std::endl;
+    std::chrono::steady_clock::time_point cm_start = std::chrono::steady_clock::now();
 
     json json_data;
 
@@ -368,6 +369,10 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
     std::ofstream outputFile(global_suspend_file, std::ios::out | std::ios::binary);
     const auto output_vector = json::to_cbor(json_data);
     std::cout << "Estimated Persistence Size in CBOR (bytes): " << output_vector.size() * sizeof(uint8_t) << std::endl;
+    std::chrono::steady_clock::time_point cm_end = std::chrono::steady_clock::now();
+    uint64_t cost_model_ms = std::chrono::duration_cast<std::chrono::milliseconds>(cm_start - cm_end).count();
+    std::cout << "Cost Model Time: " << cost_model_ms << std::endl;
+
     outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
 #elif RATCHET_SERDE_FORMAT == 1
     std::ofstream outputFile(global_suspend_file);

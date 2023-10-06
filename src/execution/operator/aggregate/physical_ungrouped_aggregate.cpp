@@ -522,6 +522,7 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
 	}
 
     if (global_suspend) {
+        std::chrono::steady_clock::time_point cm_start = std::chrono::steady_clock::now();
         std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
         uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
         if (time_dur_ms > global_suspend_point_ms) {
@@ -557,6 +558,9 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
             std::ofstream outputFile(global_suspend_file, std::ios::out | std::ios::binary);
             const auto output_vector = json::to_cbor(jsonfile);
             std::cout << "Estimated Persistence Size in CBOR (bytes): " << output_vector.size() * sizeof(uint8_t) << std::endl;
+            std::chrono::steady_clock::time_point cm_end = std::chrono::steady_clock::now();
+            uint64_t cost_model_ms = std::chrono::duration_cast<std::chrono::milliseconds>(cm_end - cm_start).count();
+            std::cout << "Cost Model Time: " << cost_model_ms << std::endl;
             outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
 #elif RATCHET_SERDE_FORMAT == 1
             std::ofstream outputFile(global_suspend_file);
