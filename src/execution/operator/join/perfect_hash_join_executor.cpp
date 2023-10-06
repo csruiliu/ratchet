@@ -370,7 +370,7 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
     const auto output_vector = json::to_cbor(json_data);
     std::cout << "Estimated Persistence Size in CBOR (bytes): " << output_vector.size() * sizeof(uint8_t) << std::endl;
     std::chrono::steady_clock::time_point cm_end = std::chrono::steady_clock::now();
-    uint64_t cost_model_ms = std::chrono::duration_cast<std::chrono::milliseconds>(cm_start - cm_end).count();
+    uint64_t cost_model_ms = std::chrono::duration_cast<std::chrono::milliseconds>(cm_end - cm_start).count();
     std::cout << "Cost Model Time: " << cost_model_ms << std::endl;
 
     outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
