@@ -749,7 +749,7 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
 
     std::chrono::steady_clock::time_point cur_time = std::chrono::steady_clock::now();
     uint64_t dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(cur_time - global_start).count();
-    std::cout << "[HashAggregate] Pipeline: " << pipeline.GetPipelineId() << ", time_dur_ms: " << dur_ms << std::endl;
+    std::cout << "[HashJoin] Pipeline: " << pipeline.GetPipelineId() << ", time_dur_ms: " << dur_ms << std::endl;
 
     if (sink.hash_table->Count() == 0 && EmptyResultIfRHSIsEmpty()) {
         return SinkFinalizeType::NO_OUTPUT_POSSIBLE;
