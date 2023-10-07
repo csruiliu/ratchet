@@ -173,6 +173,10 @@ SinkFinalizeType PhysicalOrder::Finalize(Pipeline &pipeline, Event &event, Clien
 	auto &state = (OrderGlobalSinkState &)gstate_p;
 	auto &global_sort_state = state.global_sort_state;
 
+    std::chrono::steady_clock::time_point cur_time = std::chrono::steady_clock::now();
+    uint64_t dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(cur_time - global_start).count();
+    std::cout << "[Order] Pipeline: " << pipeline.GetPipelineId() << ", time_dur_ms: " << dur_ms << std::endl;
+
 	if (global_sort_state.sorted_blocks.empty()) {
 		// Empty input!
 		return SinkFinalizeType::NO_OUTPUT_POSSIBLE;
@@ -185,10 +189,6 @@ SinkFinalizeType PhysicalOrder::Finalize(Pipeline &pipeline, Event &event, Clien
 	if (global_sort_state.sorted_blocks.size() > 1) {
 		PhysicalOrder::ScheduleMergeTasks(pipeline, event, state);
 	}
-
-    std::chrono::steady_clock::time_point cur_time = std::chrono::steady_clock::now();
-    uint64_t dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(cur_time - global_start).count();
-    std::cout << "[Order] Pipeline: " << pipeline.GetPipelineId() << ", time_dur_ms: " << dur_ms << std::endl;
 
 	return SinkFinalizeType::READY;
 }
