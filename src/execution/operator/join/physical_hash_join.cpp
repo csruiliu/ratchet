@@ -708,6 +708,8 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
             auto key_type = sink.hash_table->equality_types[0];
             sink.perfect_join_executor->BuildPerfectHashTable(key_type);
 
+            global_resume_pipeline = pipeline.GetPipelineId();
+
             global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
             // Serialize PerfectHashTable to Disk
             sink.perfect_join_executor->SerializePerfectHashTable();
