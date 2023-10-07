@@ -2,6 +2,8 @@
 #include "duckdb/parallel/thread_context.hpp"
 #include "duckdb/execution/expression_executor.hpp"
 
+#include <iostream>
+
 namespace duckdb {
 
 class ProjectionState : public OperatorState {
@@ -14,7 +16,11 @@ public:
 
 public:
 	void Finalize(PhysicalOperator *op, ExecutionContext &context) override {
-		context.thread.profiler.Flush(op, &executor, "projection", 0);
+        std::chrono::steady_clock::time_point cur_time = std::chrono::steady_clock::now();
+        uint64_t dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(cur_time - global_start).count();
+        std::cout << "[Projection] Pipeline: " << context.pipeline->GetPipelineId() << ", time_dur_ms: " << dur_ms << std::endl;
+
+        context.thread.profiler.Flush(op, &executor, "projection", 0);
 	}
 };
 
