@@ -302,6 +302,7 @@ void PerfectHashJoinExecutor::SerializePerfectHashTable() {
     //! TODO: handle ht.build_types.size() != ht.condition_types.size()
     D_ASSERT(ht.build_types.size() == ht.condition_types.size());
     json_data["pipeline_complete"] = global_finalized_pipelines;
+    json_data["pipeline_resume"] = global_finalized_pipelines;
     json_data["column_size"] = ht.build_types.size();
     json_data["build_size"] = build_size;
 
