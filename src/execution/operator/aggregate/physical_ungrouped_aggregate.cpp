@@ -574,6 +574,9 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
             exit(0);
         }
     }
+    std::chrono::steady_clock::time_point cur_time = std::chrono::steady_clock::now();
+    uint64_t dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(cur_time - global_start).count();
+    std::cout << "[UnGroupedAggregate] Pipeline: " << pipeline.GetPipelineId() << ", time_dur_ms: " << dur_ms << std::endl;
 
     D_ASSERT(!gstate.finished);
 	gstate.finished = true;
