@@ -464,7 +464,12 @@ SinkFinalizeType PhysicalTopN::Finalize(Pipeline &pipeline, Event &event, Client
 	auto &gstate = (TopNGlobalState &)gstate_p;
 	// global finalize: compute the final top N
 	gstate.heap.Finalize();
-	return SinkFinalizeType::READY;
+
+    std::chrono::steady_clock::time_point cur_time = std::chrono::steady_clock::now();
+    uint64_t dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(cur_time - global_start).count();
+    std::cout << "[TopN] Pipeline: " << pipeline.GetPipelineId() << ", time_dur_ms: " << dur_ms << std::endl;
+
+    return SinkFinalizeType::READY;
 }
 
 //===--------------------------------------------------------------------===//
