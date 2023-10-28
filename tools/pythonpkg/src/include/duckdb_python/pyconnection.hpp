@@ -83,8 +83,9 @@ public:
 
     shared_ptr<DuckDBPyConnection> ExecuteSuspend(const string &query,
                                                   const string &suspend_location,
-                                                  float_t suspend_start_time,
-                                                  float_t suspend_end_time,
+                                                  double termination_start,
+                                                  double termination_end,
+                                                  double termination_prob,
                                                   bool partition_suspend,
                                                   py::object params = py::list(),
                                                   bool many = false);

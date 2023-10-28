@@ -113,15 +113,23 @@ extern const double PI;
 //! Determine if the current process is for suspension or resumption
 extern bool global_suspend;
 extern bool global_resume;
+
 //! Suspend and resume file for in-memory operators
 extern string global_suspend_file;
 extern string global_resume_file;
+
 //! Suspend and resume folder for external operators
 extern string global_suspend_folder;
 extern string global_resume_folder;
+
 //! Time points and period to check if suspend should be triggered
 extern std::chrono::steady_clock::time_point global_start;
 extern uint64_t global_suspend_point_ms;
+extern uint64_t global_termination_start;
+extern uint64_t global_termination_end;
+extern double global_termination_prob;
+extern std::vector<double> global_termination_prob_vector;
+
 //! It is for the cases where checking suspend and triggering suspend are in different functions
 extern bool global_suspend_start;
 //! Records the ids of the pipelines that have been finalized

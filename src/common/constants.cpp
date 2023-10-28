@@ -19,15 +19,23 @@ const transaction_t MAXIMUM_QUERY_ID = NumericLimits<transaction_t>::Maximum(); 
 //! Determine if the current process is for suspension or resumption
 bool global_suspend = false;
 bool global_resume = false;
+
 //! Suspend and resume file for in-memory operators
 string global_suspend_file = "sfile";
 string global_resume_file = "rfile";
+
 //! Suspend and resume folder for external operators
 string global_suspend_folder = "sfolder";
 string global_resume_folder = "rfolder";
+
 //! Time points and period to check if suspend should be triggered
 std::chrono::steady_clock::time_point global_start = {};
 uint64_t global_suspend_point_ms = NumericLimits<transaction_t>::Maximum();
+uint64_t global_termination_start = 0;
+uint64_t global_termination_end = 0;
+double global_termination_prob = 0;
+std::vector<double> global_termination_prob_vector;
+
 //! It is for the cases where checking suspend and triggering suspend are in different functions
 bool global_suspend_start = false;
 //! Records the ids of the pipelines that have been finalized

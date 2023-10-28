@@ -101,8 +101,9 @@ static void InitializeConnectionMethods(py::class_<DuckDBPyConnection, shared_pt
         .def("execute_suspend", &DuckDBPyConnection::ExecuteSuspend,
              "Execute the given SQL query with suspension, optionally using prepared statements with parameters set",
              py::arg("query"), py::arg("suspend_location"),
-             py::arg("suspend_start_time"), py::arg("suspend_end_time"), py::arg("partition_suspend"),
-             py::arg("parameters") = py::none(), py::arg("multiple_parameter_sets") = false)
+             py::arg("termination_start"), py::arg("termination_end"), py::arg("termination_prob"),
+             py::arg("partition_suspend"), py::arg("parameters") = py::none(),
+             py::arg("multiple_parameter_sets") = false)
         .def("execute_resume", &DuckDBPyConnection::ExecuteResume,
              "Execute the given SQL query from resume point",
              py::arg("query"), py::arg("resume_location"), py::arg("partition_resume"),
@@ -418,8 +419,9 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::Execute(const string &query, 
 
 shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteSuspend(const string &query,
                                                                   const string &suspend_location,
-                                                                  float_t suspend_start_time,
-                                                                  float_t suspend_end_time,
+                                                                  double termination_start,
+                                                                  double termination_end,
+                                                                  double termination_prob,
                                                                   bool partition_suspend,
                                                                   py::object params, bool many) {
     global_suspend = true;
@@ -428,12 +430,28 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteSuspend(const string &
     } else {
         global_suspend_file = suspend_location;
     }
-    std::default_random_engine generator;
-    auto suspend_start_time_ms = static_cast<uint64_t>(suspend_start_time * 1000);
-    auto suspend_end_time_ms = static_cast<uint64_t>(suspend_end_time * 1000);
-    std::uniform_int_distribution<uint64_t> distribution(suspend_start_time_ms, suspend_end_time_ms);
-    global_suspend_point_ms = distribution(generator);
-    std::cout << "## Query will suspend after " << global_suspend_point_ms << " ms ##" << std::endl;
+
+    auto termination_start_ms = static_cast<uint64_t>(termination_start * 1000);
+    auto termination_end_ms = static_cast<uint64_t>(termination_end * 1000);
+    global_termination_start = termination_start_ms;
+    global_termination_end = termination_end_ms;
+    global_termination_prob = termination_prob;
+
+    std::cout << "# Termination Window [" << termination_start_ms << ", " << termination_end_ms << "] #" << std::endl;
+    std::cout << "# Termination Probability: " << termination_prob << std::endl;
+
+    /*
+    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+    std::mt19937 gen(seed);
+    std::uniform_real_distribution<float_t> distribution(0, 1);
+    double rnd_float = distribution(gen);
+    if (rnd_float >= termination_prob) {
+        std::cout << "# Termination will happen #" << std::endl;
+    } else {
+        std::cout << "# Termination will NOT happen #" << std::endl;
+    }
+    */
+
     auto res = ExecuteInternal(query, std::move(params), many);
     if (res) {
         auto py_result = make_unique<DuckDBPyResult>(std::move(res));
