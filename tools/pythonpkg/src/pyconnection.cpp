@@ -100,9 +100,7 @@ static void InitializeConnectionMethods(py::class_<DuckDBPyConnection, shared_pt
 	         py::arg("parameters") = py::none(), py::arg("multiple_parameter_sets") = false)
         .def("execute_suspend", &DuckDBPyConnection::ExecuteSuspend,
              "Execute the given SQL query with suspension, optionally using prepared statements with parameters set",
-             py::arg("query"), py::arg("suspend_location"),
-             py::arg("termination_start"), py::arg("termination_end"), py::arg("termination_prob"),
-             py::arg("partition_suspend"), py::arg("parameters") = py::none(),
+             py::arg("query"), py::arg("suspend_location"), py::arg("parameters") = py::none(),
              py::arg("multiple_parameter_sets") = false)
         .def("execute_resume", &DuckDBPyConnection::ExecuteResume,
              "Execute the given SQL query from resume point",
@@ -419,38 +417,8 @@ shared_ptr<DuckDBPyConnection> DuckDBPyConnection::Execute(const string &query, 
 
 shared_ptr<DuckDBPyConnection> DuckDBPyConnection::ExecuteSuspend(const string &query,
                                                                   const string &suspend_location,
-                                                                  double termination_start,
-                                                                  double termination_end,
-                                                                  double termination_prob,
-                                                                  bool partition_suspend,
                                                                   py::object params, bool many) {
-    global_suspend = true;
-    if (partition_suspend) {
-        global_suspend_folder = suspend_location;
-    } else {
-        global_suspend_file = suspend_location;
-    }
-
-    auto termination_start_ms = static_cast<uint64_t>(termination_start * 1000);
-    auto termination_end_ms = static_cast<uint64_t>(termination_end * 1000);
-    global_termination_start = termination_start_ms;
-    global_termination_end = termination_end_ms;
-    global_termination_prob = termination_prob;
-
-    std::cout << "# Termination Window [" << termination_start_ms << ", " << termination_end_ms << "] #" << std::endl;
-    std::cout << "# Termination Probability: " << termination_prob << std::endl;
-
-    /*
-    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    std::mt19937 gen(seed);
-    std::uniform_real_distribution<float_t> distribution(0, 1);
-    double rnd_float = distribution(gen);
-    if (rnd_float >= termination_prob) {
-        std::cout << "# Termination will happen #" << std::endl;
-    } else {
-        std::cout << "# Termination will NOT happen #" << std::endl;
-    }
-    */
+    global_suspend_file = suspend_location;
 
     auto res = ExecuteInternal(query, std::move(params), many);
     if (res) {
