@@ -525,8 +525,7 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
 	if (distinct_data) {
 		return FinalizeDistinct(pipeline, event, context, gstate_p);
 	}
-
-
+    
     //! Using Shared Memory for IPC
     key_t cost_model_flag_key;
     key_t strategy_key;
@@ -585,6 +584,8 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
     *strategy = 0;
 
     //! Check the persistence size
+    //! Since we need the size of intermediate data, so here we prepare the intermediate data for suspension
+    //! But the intermediate data will be only persisted when cost model selects pipeline-level strategy
     json jsonfile;
     global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
     jsonfile["pipeline_complete"] = global_finalized_pipelines;
@@ -621,45 +622,8 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
     }
 
     //! Processing based on cost model decision
-    if (*strategy == 1) {
-        // Keep running and redo strategy
-        // Detach the shared memory segment
-        std::cout << "Redo Strategy, Keep Running" << std::endl;
-        if (shmdt(cost_model_flag) == -1) {
-            perror("shmdt");
-            exit(1);
-        }
-        if (shmdt(persistence_size) == -1) {
-            perror("shmdt");
-            exit(1);
-        }
-        if (shmdt(strategy) == -1) {
-            perror("shmdt");
-            exit(1);
-        }
-        D_ASSERT(!gstate.finished);
-        gstate.finished = true;
-        return SinkFinalizeType::READY;
-    } else if (*strategy == 2) {
-        // Process-level suspension, same to redo strategy, waiting for CRIU
-        // Detach the shared memory segment
-        std::cout << "Process-level Suspension Strategy" << std::endl;
-        if (shmdt(cost_model_flag) == -1) {
-            perror("shmdt");
-            exit(1);
-        }
-        if (shmdt(persistence_size) == -1) {
-            perror("shmdt");
-            exit(1);
-        }
-        if (shmdt(strategy) == -1) {
-            perror("shmdt");
-            exit(1);
-        }
-        D_ASSERT(!gstate.finished);
-        gstate.finished = true;
-        return SinkFinalizeType::READY;
-    } else if (*strategy == 3) {
+    //! For redo and Process-level strategy, just keep going
+    if (*strategy == 3) {
         // Pipeline-level suspension
         std::cout << "Pipeline-level Suspension Strategy" << std::endl;
         global_suspend_start = true;
@@ -679,60 +643,10 @@ SinkFinalizeType PhysicalUngroupedAggregate::Finalize(Pipeline &pipeline, Event 
         exit(0);
     }
 
-    /*
-    if (global_suspend) {
-        std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
-        uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
-
-        if (time_dur_ms > global_suspend_point_ms) {
-            global_suspend_start = true;
-#if RATCHET_PRINT >= 1
-            std::cout << "[PhysicalUngroupedAggregate::Finalize] Suspend and Serialize Global State" << std::endl;
-#endif
-            std::cout << "== Serialization for aggregation ==" << std::endl;
-            json jsonfile;
-
-            global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
-            jsonfile["pipeline_complete"] = global_finalized_pipelines;
-            jsonfile["pipeline_resume"] = global_resume_pipeline;
-
-            DataChunk chunk;
-            chunk.Initialize(Allocator::DefaultAllocator(), this->GetTypes());
-
-            vector<string> aggregate_values;
-            // initialize the result chunk with the aggregate values
-            chunk.SetCardinality(1);
-            for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
-                auto &aggregate = (BoundAggregateExpression &)*aggregates[aggr_idx];
-
-                Vector state_vector(Value::POINTER((uintptr_t)gstate.state.aggregates[aggr_idx].get()));
-                AggregateInputData aggr_input_data(aggregate.bind_info.get(), Allocator::DefaultAllocator());
-                aggregate.function.finalize(state_vector, aggr_input_data, chunk.data[aggr_idx], 1, 0);
-                aggregate_values.push_back(chunk.data[aggr_idx].GetValue(0).ToString());
-            }
-            jsonfile["aggregate_values"] = aggregate_values;
-#if RATCHET_SERDE_FORMAT == 0
-            std::ofstream outputFile(global_suspend_file, std::ios::out | std::ios::binary);
-            const auto output_vector = json::to_cbor(jsonfile);
-            std::cout << "Estimated Persistence Size in CBOR (bytes): " << output_vector.size() * sizeof(uint8_t) << std::endl;
-            outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
-#elif RATCHET_SERDE_FORMAT == 1
-            std::ofstream outputFile(global_suspend_file);
-            outputFile << jsonfile;
-#endif
-            outputFile.close();
-            if (outputFile.fail()) {
-                std::cerr << "Error writing to file!" << std::endl;
-            }
-
-            exit(0);
-        }
-    }
-
     D_ASSERT(!gstate.finished);
-	gstate.finished = true;
-	return SinkFinalizeType::READY;
-    */
+    gstate.finished = true;
+    return SinkFinalizeType::READY;
+
 }
 
 //===--------------------------------------------------------------------===//

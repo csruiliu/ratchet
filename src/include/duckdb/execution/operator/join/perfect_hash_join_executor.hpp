@@ -47,6 +47,8 @@ public:
 	bool BuildPerfectHashTable(LogicalType &type);
 
     void SerializePerfectHashTable();
+
+    vector<uint8_t> CheckPerfectHashTable();
     
 private:
 	void FillSelectionVectorSwitchProbe(Vector &source, SelectionVector &build_sel_vec, SelectionVector &probe_sel_vec,

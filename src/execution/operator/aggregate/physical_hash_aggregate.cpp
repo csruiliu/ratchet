@@ -15,6 +15,14 @@
 #include "duckdb/execution/operator/aggregate/distinct_aggregate_data.hpp"
 
 #include <iostream>
+#include <fstream>
+#include <dirent.h>
+#include <unistd.h>
+#include <regex>
+
+#include <sys/ipc.h>
+#include <sys/shm.h>
+
 
 namespace duckdb {
 
@@ -938,6 +946,55 @@ void PhysicalHashAggregate::SerializeData(ExecutionContext &context, DataChunk &
     }
 }
 
+vector<uint8_t> PhysicalHashAggregate::CheckSerializeData(ExecutionContext &context, DataChunk &chunk) const {
+    json jsonfile;
+    jsonfile["pipeline_complete"] = global_finalized_pipelines;
+    global_resume_pipeline = context.pipeline->GetPipelineId();
+    jsonfile["pipeline_resume"] = global_resume_pipeline;
+
+    idx_t group_str_count = 0;
+    idx_t group_int_count = 0;
+    idx_t group_double_count = 0;
+    vector<string> grouping_type_vector;
+    for (idx_t i = 0; i < chunk.GetTypes().size(); i++) {
+        grouping_type_vector.emplace_back(chunk.GetTypes()[i].ToString());
+        if (chunk.GetTypes()[i] == LogicalType::VARCHAR) {
+            vector<string> str_vector;
+            for (idx_t j = 0; j < chunk.size(); j++) {
+                str_vector.push_back(chunk.GetValue(i, j).ToString());
+            }
+            group_str_count++;
+            jsonfile["grouping_values_str_" + to_string(group_str_count)] = str_vector;
+        } else if (chunk.GetTypes()[i] == LogicalType::INTEGER) {
+            vector<int64_t> int_vector;
+            for (idx_t j = 0; j < chunk.size(); j++) {
+                int_vector.push_back(chunk.GetValue(i, j).ToInt64());
+            }
+            group_int_count++;
+            jsonfile["grouping_values_int_" + to_string(group_int_count)] = int_vector;
+        } else if (chunk.GetTypes()[i] == LogicalType::DOUBLE) {
+            vector<double_t> double_vector;
+            for (idx_t j = 0; j < chunk.size(); j++) {
+                double_vector.push_back(chunk.GetValue(i, j).ToDouble());
+            }
+            group_double_count++;
+            jsonfile["grouping_values_double_" + to_string(group_double_count)] = double_vector;
+        } else {
+            throw ParserException("Cannot recognize chunk types");
+        }
+    }
+
+    jsonfile["grouping_types"] = grouping_type_vector;
+
+    std::ofstream outputFile(global_suspend_file, std::ios::out | std::ios::binary);
+    const auto output_vector = json::to_cbor(jsonfile);
+    std::cout << "Cardinality: " << chunk.size() << " Column: " << chunk.GetTypes().size() << std::endl;
+    std::cout << "Estimated Persistence Size in CBOR (bytes): " << output_vector.size() * sizeof(uint8_t) << std::endl;
+
+    return output_vector;
+}
+
+
 void PhysicalHashAggregate::GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate_p,
                                     LocalSourceState &lstate_p) const {
 #if RATCHET_PRINT >= 1
@@ -998,6 +1055,63 @@ void PhysicalHashAggregate::GetData(ExecutionContext &context, DataChunk &chunk,
         return;
     }
 
+    //! Using Shared Memory for IPC
+    key_t cost_model_flag_key;
+    key_t strategy_key;
+    key_t persistence_size_key;
+
+    int cost_model_flag_id;
+    int strategy_id;
+    int persistence_size_id;
+
+    uint16_t* cost_model_flag;
+    uint16_t* strategy;
+    uint64_t* persistence_size;
+
+    // Get key for IPC using keyfile
+    if ((cost_model_flag_key = ftok(shm_cost_model_flag_keyfile, 'R')) == -1) {
+        perror("ftok");
+        exit(1);
+    }
+    if ((persistence_size_key = ftok(shm_persistence_size_keyfile, 'R')) == -1) {
+        perror("ftok");
+        exit(1);
+    }
+    if ((strategy_key = ftok(shm_strategy_keyfile, 'R')) == -1) {
+        perror("ftok");
+        exit(1);
+    }
+
+    // Create or open the shared memory segment
+    if ((cost_model_flag_id = shmget(cost_model_flag_key, sizeof(uint16_t), IPC_CREAT | 0666)) == -1) {
+        perror("shmget");
+        exit(1);
+    }
+    if ((persistence_size_id = shmget(persistence_size_key, sizeof(uint64_t), IPC_CREAT | 0666)) == -1) {
+        perror("shmget");
+        exit(1);
+    }
+    if ((strategy_id = shmget(strategy_key, sizeof(uint16_t), IPC_CREAT | 0666)) == -1) {
+        perror("shmget");
+        exit(1);
+    }
+
+    // Attach the shared memory segment
+    if ((cost_model_flag = (uint16_t *)shmat(cost_model_flag_id, NULL, 0)) == (uint16_t *)-1) {
+        perror("shmat");
+        exit(1);
+    }
+    if ((persistence_size = (uint64_t *)shmat(persistence_size_id, NULL, 0)) == (uint64_t *)-1) {
+        perror("shmat");
+        exit(1);
+    }
+    if ((strategy = (uint16_t *)shmat(strategy_id, NULL, 0)) == (uint16_t *)-1) {
+        perror("shmat");
+        exit(1);
+    }
+
+    *strategy = 0;
+
 	while (true) {
 		idx_t radix_idx = gstate.state_index;
 		if (radix_idx >= groupings.size()) {
@@ -1009,17 +1123,36 @@ void PhysicalHashAggregate::GetData(ExecutionContext &context, DataChunk &chunk,
 		radix_table.GetData(context, chunk, *grouping_gstate.table_state, *gstate.radix_states[radix_idx],
 		                    *lstate.radix_states[radix_idx]);
 		if (chunk.size() != 0) {
-            if (global_suspend) {
-                std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
-                uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
-                if (time_dur_ms > global_suspend_point_ms) {
-                    std::cout << "== Suspend Hash Aggregation ==" << std::endl;
-                    global_suspend_start = true;
-                    global_finalized_pipelines.emplace_back(context.pipeline->GetPipelineId());
-                    // Serialize Grouped Aggregation to Disk
-                    SerializeData(context, chunk);
-                    exit(0);
+            const auto output_vector = CheckSerializeData(context, chunk);
+            *persistence_size = output_vector.size() * sizeof(uint8_t);
+            std::cout << "Estimated Persistence Size in CBOR (bytes): " << *persistence_size << std::endl;
+
+            //! Wait for cost model process
+            *cost_model_flag = 1;
+            std::cout << "Start Cost Model" << std::endl;
+            while (true) {
+                usleep(1000000);  // Sleep for 1 second
+                if (*cost_model_flag == 0) {
+                    std::cout << "Finish Cost Model" << std::endl;
+                    break;
                 }
+            }
+
+            //! Processing based on cost model decision
+            //! For redo and Process-level strategy, just keep going
+            if (*strategy == 3) {
+                // Pipeline-level suspension
+                std::cout << "Pipeline-level Suspension Strategy" << std::endl;
+                global_suspend_start = true;
+
+                std::ofstream outputFile(global_suspend_file, std::ios::out | std::ios::binary);
+                outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
+
+                outputFile.close();
+                if (outputFile.fail()) {
+                    std::cerr << "Error writing to file!" << std::endl;
+                }
+                exit(0);
             }
 			return;
 		}
