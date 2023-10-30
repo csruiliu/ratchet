@@ -94,6 +94,7 @@ public:
 	void GetData(ExecutionContext &context, DataChunk &chunk, GlobalSourceState &gstate,
 	             LocalSourceState &lstate) const override;
     void SerializeData(ExecutionContext &context, DataChunk &chunk) const;
+    vector<uint8_t> CheckSerializeData(ExecutionContext &context, DataChunk &chunk) const;
 
 	bool ParallelSource() const override {
 		return true;

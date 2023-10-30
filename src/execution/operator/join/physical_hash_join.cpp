@@ -19,7 +19,11 @@
 using json = nlohmann::json;
 #include <fstream>
 #include <dirent.h>
+#include <unistd.h>
 #include <regex>
+
+#include <sys/ipc.h>
+#include <sys/shm.h>
 
 
 namespace duckdb {
@@ -684,33 +688,120 @@ SinkFinalizeType PhysicalHashJoin::Finalize(Pipeline &pipeline, Event &event, Cl
         }
     }
 
+    //! Suspend process for in-memory hash join in Finalize
+
+    //! Using Shared Memory for IPC
+    key_t cost_model_flag_key;
+    key_t strategy_key;
+    key_t persistence_size_key;
+
+    int cost_model_flag_id;
+    int strategy_id;
+    int persistence_size_id;
+
+    uint16_t* cost_model_flag;
+    uint16_t* strategy;
+    uint64_t* persistence_size;
+
+    // Get key for IPC using keyfile
+    if ((cost_model_flag_key = ftok(shm_cost_model_flag_keyfile, 'R')) == -1) {
+        perror("ftok");
+        exit(1);
+    }
+    if ((persistence_size_key = ftok(shm_persistence_size_keyfile, 'R')) == -1) {
+        perror("ftok");
+        exit(1);
+    }
+    if ((strategy_key = ftok(shm_strategy_keyfile, 'R')) == -1) {
+        perror("ftok");
+        exit(1);
+    }
+
+    // Create or open the shared memory segment
+    if ((cost_model_flag_id = shmget(cost_model_flag_key, sizeof(uint16_t), IPC_CREAT | 0666)) == -1) {
+        perror("shmget");
+        exit(1);
+    }
+    if ((persistence_size_id = shmget(persistence_size_key, sizeof(uint64_t), IPC_CREAT | 0666)) == -1) {
+        perror("shmget");
+        exit(1);
+    }
+    if ((strategy_id = shmget(strategy_key, sizeof(uint16_t), IPC_CREAT | 0666)) == -1) {
+        perror("shmget");
+        exit(1);
+    }
+
+    // Attach the shared memory segment
+    if ((cost_model_flag = (uint16_t *)shmat(cost_model_flag_id, NULL, 0)) == (uint16_t *)-1) {
+        perror("shmat");
+        exit(1);
+    }
+    if ((persistence_size = (uint64_t *)shmat(persistence_size_id, NULL, 0)) == (uint64_t *)-1) {
+        perror("shmat");
+        exit(1);
+    }
+    if ((strategy = (uint16_t *)shmat(strategy_id, NULL, 0)) == (uint16_t *)-1) {
+        perror("shmat");
+        exit(1);
+    }
+
+    //! Check the persistence size
+    //! Since we need the size of intermediate data, so here we prepare the intermediate data for suspension
+    //! But the intermediate data will be only persisted when cost model selects pipeline-level strategy
+    json jsonfile;
+    global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
+    jsonfile["pipeline_complete"] = global_finalized_pipelines;
+    jsonfile["pipeline_resume"] = global_resume_pipeline;
+
+    if (!sink.external) {
+        global_suspend_start = true;
+        for (auto &local_ht : sink.local_hash_tables) {
+            sink.hash_table->Merge(*local_ht);
+        }
+        sink.local_hash_tables.clear();
+
+        // TODO: check if perfect hash join works
+        D_ASSERT(sink.hash_table->equality_types.size() == 1);
+        auto key_type = sink.hash_table->equality_types[0];
+        sink.perfect_join_executor->BuildPerfectHashTable(key_type);
+
+        global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
+        // Check the sie of serialize perfectHashTable
+        const auto output_vector = sink.perfect_join_executor->CheckPerfectHashTable();
+        *persistence_size = output_vector.size() * sizeof(uint8_t);
+        std::cout << "Estimated Persistence Size in CBOR (bytes): " << *persistence_size << std::endl;
+
+        //! Wait for cost model process
+        *cost_model_flag = 1;
+        std::cout << "Start Cost Model" << std::endl;
+        while (true) {
+            usleep(1000000);  // Sleep for 1 second
+            if (*cost_model_flag == 0) {
+                std::cout << "Finish Cost Model" << std::endl;
+                break;
+            }
+        }
+
+        if (*strategy == 3) {
+            // Pipeline-level suspension
+            std::cout << "Pipeline-level Suspension Strategy" << std::endl;
+            global_suspend_start = true;
+
+            std::ofstream outputFile(global_suspend_file, std::ios::out | std::ios::binary);
+            outputFile.write(reinterpret_cast<const char *>(output_vector.data()), output_vector.size());
+
+            outputFile.close();
+            if (outputFile.fail()) {
+                std::cerr << "Error writing to file!" << std::endl;
+            }
+            exit(0);
+        }
+    }
+
     //! Suspend process for external hash join in Finalize
     if (sink.external && global_suspend_start) {
         // if external hash join, checking suspend and serializing states happened in Sink()
         exit(0);
-    }
-
-    //! Suspend process for in-memory hash join in Finalize
-    if (!sink.external && global_suspend) {
-        std::chrono::steady_clock::time_point suspend_check = std::chrono::steady_clock::now();
-        uint64_t time_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(suspend_check - global_start).count();
-        if (time_dur_ms > global_suspend_point_ms) {
-            global_suspend_start = true;
-            for (auto &local_ht : sink.local_hash_tables) {
-                sink.hash_table->Merge(*local_ht);
-            }
-            sink.local_hash_tables.clear();
-
-            // TODO: check if perfect hash join works
-            D_ASSERT(sink.hash_table->equality_types.size() == 1);
-            auto key_type = sink.hash_table->equality_types[0];
-            sink.perfect_join_executor->BuildPerfectHashTable(key_type);
-
-            global_finalized_pipelines.emplace_back(pipeline.GetPipelineId());
-            // Serialize PerfectHashTable to Disk
-            sink.perfect_join_executor->SerializePerfectHashTable();
-            exit(0);
-        }
     }
 
     //! Regular process in Finalize
