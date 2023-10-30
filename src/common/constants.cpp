@@ -31,10 +31,6 @@ string global_resume_folder = "rfolder";
 //! Time points and period to check if suspend should be triggered
 std::chrono::steady_clock::time_point global_start = {};
 uint64_t global_suspend_point_ms = NumericLimits<transaction_t>::Maximum();
-uint64_t global_termination_start = 0;
-uint64_t global_termination_end = 0;
-double global_termination_prob = 0;
-std::vector<double> global_termination_prob_vector;
 
 //! It is for the cases where checking suspend and triggering suspend are in different functions
 bool global_suspend_start = false;
