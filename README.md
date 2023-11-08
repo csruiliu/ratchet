@@ -54,60 +54,13 @@ pip3 install .
 
 ## Source Code Modification
 
-`Sink()`, `Finalize()`, and `GetData()` are the functions for query suspension and resumption. Usually, query suspension should happen in `Finalize()`, while query resumption should happen in the Sink(). However, it is still case-by-case due to implementation or performance reason, for example, resumption for aggregation may happen in `GetData()`.
+`Sink()` and `Finalize()` are the main functions for query suspension and resumption. Usually, query suspension should happen in `Finalize()`, while query resumption should happen in the Sink(). However, it is still case-by-case due to implementation or performance reason, for example, resumption for aggregation may happen in `GetData()`.
 
-1. Adding suspension and resumption APIs in `pyconnection.cpp` and `pyconnection.hp`
-2. Checking finished pipelines when resumption in `pipeline.cpp`
-3. Suspending and resuming ungrouped aggregation in `physical_ungrouped_aggregate.cpp`
-4. Suspending and resuming in-memory hash join in `physical_hash_join.cpp` and `perfect_hash_join_executor.cpp`
-5. Suspending and resuming external hash join in `physical_hash_join.cpp`
-6. Suspending and resuming grouped aggregation in `physical_hash_aggregate.cpp`
+The modifications are across the entire source code base, we list some representative source code modifications:
 
-### List of Modification
-
-1. tools/pythonpkg/src/pyconnection.cpp
-2. tools/pythonpkg/include/duckdb_python/pyconnection/pyconnection.hpp
-3. src/include/duckdb/common/constants.hpp
-4. src/include/duckdb/common/types/data_chunk.hpp
-5. src/include/duckdb/common/vector_operations/aggregate_executor.hpp
-6. src/include/duckdb/execution/operator/join/perfect_hash_join_executor.hpp
-7. src/include/duckdb/execution/executor.hpp
-8. src/include/duckdb/main/client_config.hpp
-9. src/include/duckdb/parallel/pipeline.hpp
-10. src/common/constants.cpp 
-11. src/main/settings/settings.cpp
-12. src/execution/operator/aggregate/physical_hash_aggregate.cpp
-13. src/execution/operator/aggregate/physical_ungrouped_aggregate.cpp
-14. src/execution/operator/join/perfect_hash_join_executor.cpp
-15. src/execution/operator/join/physical_hash_join.cpp
-16. src/execution/operator/join/physical_range_join.cpp
-17. src/execution/operator/order/physical_order.cpp
-18. src/execution/operator/scan/physical_table_scan.cpp
-19. src/execution/join_hashtable.cpp
-20. src/parallel/executor.cpp
-21. src/parallel/pipeline.cpp
-22. src/parallel/pipeline_executor.cpp
-
-## DuckDB
-DuckDB is a high-performance analytical database system. It is designed to be fast, reliable and easy to use. DuckDB provides a rich SQL dialect, with support far beyond basic SQL. DuckDB supports arbitrary and nested correlated subqueries, window functions, collations, complex types (arrays, structs), and more. For more information on the goals of DuckDB, please refer to [the Why DuckDB page on our website](https://duckdb.org/why_duckdb).
-
-### Installation
-If you want to install and use DuckDB, please see [our website](https://www.duckdb.org) for installation and usage instructions.
-
-### Data Import
-For CSV files and Parquet files, data import is as simple as referencing the file in the FROM clause:
-
-```sql
-SELECT * FROM 'myfile.csv';
-SELECT * FROM 'myfile.parquet';
-```
-
-Refer to our [Data Import](https://duckdb.org/docs/data/overview) section for more information.
-
-### SQL Reference
-The [website](https://duckdb.org/docs/sql/introduction) contains a reference of functions and SQL constructs available in DuckDB.
-
-### Development
-For development, DuckDB requires [CMake](https://cmake.org), Python3 and a `C++11` compliant compiler. Run `make` in the root directory to compile the sources. For development, use `make debug` to build a non-optimized debug version. You should run `make unit` and `make allunit` to verify that your version works properly after making changes. To test performance, you can run `BUILD_BENCHMARK=1 BUILD_TPCH=1 make` and then perform several standard benchmarks from the root directory by executing `./build/release/benchmark/benchmark_runner`. The detail of benchmarks is in our [Benchmark Guide](benchmark/README.md).
-
-Please also refer to our [Contribution Guide](CONTRIBUTING.md).
+1. Suspension and resumption Client APIs `tools/pythonpkg`, such as, `pyconnection.cpp`, `pyconnection.hp`, etc.
+2. Pipeline dependency management is in `src/parallel`, such as, `pipeline.cpp`, `executor.cpp`, `pipeline_executor.cpp`, etc.
+3. Suspending and resuming ungrouped aggregation in `src/execution/operator/aggregate`, such as, `physical_ungrouped_aggregate.cpp`, etc.
+4. Suspending and resuming groupby aggregation in `src/execution/operator/aggregate`, such as, `physical_hash_aggregate`, etc. 
+5. Suspending and resuming join in `src/execution/join`, such as, `physical_hash_join.cpp`, `physical_range_join.cpp`, `perfect_hash_join_executor.cpp`, etc.
+6. Suspending and resuming order in `src/execution/operator/order`, such as, `physical_order.cpp`, etc. 
